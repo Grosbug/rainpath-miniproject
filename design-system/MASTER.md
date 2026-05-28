@@ -655,7 +655,7 @@ Verrouillé par le spec §4.2 — réutiliser ces choix pour cohérence avec le 
 - Color-only meaning (Yes/Non without label).
 - Placeholder used as the only label.
 - Toast as the only feedback for a destructive action.
-- A modal used as the primary navigation path.
+- A modal used as a **primary navigation path** (between pages or workflow states). Focused-edit modals — opened by an explicit user action (e.g., double-click on a node) to edit a specific item's parameters, dismissable via ESC with focus trap — are acceptable; the anti-pattern targets modals that substitute for a page or sheet in a browsing/navigation flow.
 - Animating `width` / `height` to expand a panel.
 - Healthcare clip-art (stethoscopes, pills, illustrated doctors) — wrong product context.
 - More than one primary CTA on a screen.
