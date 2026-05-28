@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common'
-import * as request from 'supertest'
+import request from 'supertest'
 import { START_Y } from '@rainpath/shared'
 import { PrismaService } from '../src/prisma/prisma.service'
 import { buildTestApp, resetTables } from './test-app'
@@ -27,10 +27,10 @@ describe('PatientRuns (e2e)', () => {
   beforeEach(async () => { await resetTables(prisma) })
 
   async function seed() {
-    const wfRes = await (request as any)(app.getHttpServer())
+    const wfRes = await request(app.getHttpServer())
       .post('/api/workflows')
       .send({ name: 'Simple', graph: SIMPLE_GRAPH })
-    const patientRes = await (request as any)(app.getHttpServer())
+    const patientRes = await request(app.getHttpServer())
       .post('/api/patient-profiles')
       .send({ name: 'Alice', email: 'alice@example.com' })
     return { workflowId: wfRes.body.id as string, patientId: patientRes.body.id as string }
@@ -38,7 +38,7 @@ describe('PatientRuns (e2e)', () => {
 
   it('POST /api/workflows/:id/patient-runs creates a run at the start node', async () => {
     const { workflowId, patientId } = await seed()
-    const res = await (request as any)(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .post(`/api/workflows/${workflowId}/patient-runs`)
       .send({ patientId })
       .expect(201)
@@ -49,11 +49,11 @@ describe('PatientRuns (e2e)', () => {
 
   it('GET /api/workflows/:id/patient-runs returns runs incl. soft-deleted-patient marker', async () => {
     const { workflowId, patientId } = await seed()
-    await (request as any)(app.getHttpServer())
+    await request(app.getHttpServer())
       .post(`/api/workflows/${workflowId}/patient-runs`)
       .send({ patientId })
-    await (request as any)(app.getHttpServer()).delete(`/api/patient-profiles/${patientId}`)
-    const list = await (request as any)(app.getHttpServer())
+    await request(app.getHttpServer()).delete(`/api/patient-profiles/${patientId}`)
+    const list = await request(app.getHttpServer())
       .get(`/api/workflows/${workflowId}/patient-runs`)
       .expect(200)
     expect(list.body).toHaveLength(1)
@@ -63,35 +63,35 @@ describe('PatientRuns (e2e)', () => {
 
   it('full journey: create → advance s→a → advance a→e → reset → advance s→a', async () => {
     const { workflowId, patientId } = await seed()
-    const created = await (request as any)(app.getHttpServer())
+    const created = await request(app.getHttpServer())
       .post(`/api/workflows/${workflowId}/patient-runs`)
       .send({ patientId })
     const runId = created.body.id
 
-    let r = await (request as any)(app.getHttpServer())
+    let r = await request(app.getHttpServer())
       .post(`/api/patient-runs/${runId}/advance`)
       .send({})
       .expect(201)
     expect(r.body.currentNodeId).toBe('a')
 
-    r = await (request as any)(app.getHttpServer())
+    r = await request(app.getHttpServer())
       .post(`/api/patient-runs/${runId}/advance`)
       .send({})
       .expect(201)
     expect(r.body.currentNodeId).toBe('e')
 
-    await (request as any)(app.getHttpServer())
+    await request(app.getHttpServer())
       .post(`/api/patient-runs/${runId}/advance`)
       .send({})
       .expect(400)
 
-    r = await (request as any)(app.getHttpServer())
+    r = await request(app.getHttpServer())
       .post(`/api/patient-runs/${runId}/reset`)
       .expect(201)
     expect(r.body.currentNodeId).toBe('s')
     expect(r.body.history).toHaveLength(1)
 
-    r = await (request as any)(app.getHttpServer())
+    r = await request(app.getHttpServer())
       .post(`/api/patient-runs/${runId}/advance`)
       .send({})
       .expect(201)
@@ -100,10 +100,10 @@ describe('PatientRuns (e2e)', () => {
 
   it('GET /api/patient-runs/:id returns the full run', async () => {
     const { workflowId, patientId } = await seed()
-    const created = await (request as any)(app.getHttpServer())
+    const created = await request(app.getHttpServer())
       .post(`/api/workflows/${workflowId}/patient-runs`)
       .send({ patientId })
-    const full = await (request as any)(app.getHttpServer())
+    const full = await request(app.getHttpServer())
       .get(`/api/patient-runs/${created.body.id}`)
       .expect(200)
     expect(full.body.workflow.name).toBe('Simple')
@@ -112,10 +112,10 @@ describe('PatientRuns (e2e)', () => {
   })
 
   it('POST /api/workflows/:id/patient-runs rejects unknown workflowId (404)', async () => {
-    const patientRes = await (request as any)(app.getHttpServer())
+    const patientRes = await request(app.getHttpServer())
       .post('/api/patient-profiles')
       .send({ name: 'Alice' })
-    await (request as any)(app.getHttpServer())
+    await request(app.getHttpServer())
       .post('/api/workflows/no-such-wf/patient-runs')
       .send({ patientId: patientRes.body.id })
       .expect(404)

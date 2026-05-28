@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common'
-import * as request from 'supertest'
+import request from 'supertest'
 import { PrismaService } from '../src/prisma/prisma.service'
 import { buildTestApp, resetTables } from './test-app'
 
@@ -12,7 +12,7 @@ describe('Node templates (e2e)', () => {
   beforeEach(async () => { await resetTables(prisma) })
 
   it('POST /api/node-templates creates an email template', async () => {
-    const res = await (request as any)(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .post('/api/node-templates')
       .send({
         name: 'Email — relance',
@@ -24,7 +24,7 @@ describe('Node templates (e2e)', () => {
   })
 
   it('POST /api/node-templates rejects mismatched kind/params (422)', async () => {
-    const res = await (request as any)(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .post('/api/node-templates')
       .send({
         name: 'Bad',
@@ -36,7 +36,7 @@ describe('Node templates (e2e)', () => {
   })
 
   it('POST /api/node-templates rejects status outside channel (422)', async () => {
-    const res = await (request as any)(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .post('/api/node-templates')
       .send({
         name: 'Bad email simple',
@@ -52,26 +52,26 @@ describe('Node templates (e2e)', () => {
   })
 
   it('GET /api/node-templates returns templates ordered by kind then name', async () => {
-    await (request as any)(app.getHttpServer()).post('/api/node-templates').send({
+    await request(app.getHttpServer()).post('/api/node-templates').send({
       name: 'Z', kind: 'send_sms', params: { body: 'x', output: { mode: 'single' } }
     })
-    await (request as any)(app.getHttpServer()).post('/api/node-templates').send({
+    await request(app.getHttpServer()).post('/api/node-templates').send({
       name: 'B', kind: 'send_email', params: { subject: '', body: '', output: { mode: 'single' } }
     })
-    await (request as any)(app.getHttpServer()).post('/api/node-templates').send({
+    await request(app.getHttpServer()).post('/api/node-templates').send({
       name: 'A', kind: 'send_email', params: { subject: '', body: '', output: { mode: 'single' } }
     })
-    const res = await (request as any)(app.getHttpServer()).get('/api/node-templates').expect(200)
+    const res = await request(app.getHttpServer()).get('/api/node-templates').expect(200)
     expect(res.body.map((t: any) => `${t.kind}:${t.name}`)).toEqual([
       'send_email:A', 'send_email:B', 'send_sms:Z'
     ])
   })
 
   it('PATCH /api/node-templates/:id updates name and validates new params', async () => {
-    const created = await (request as any)(app.getHttpServer()).post('/api/node-templates').send({
+    const created = await request(app.getHttpServer()).post('/api/node-templates').send({
       name: 'T', kind: 'send_email', params: { subject: '', body: '', output: { mode: 'single' } }
     })
-    const res = await (request as any)(app.getHttpServer())
+    const res = await request(app.getHttpServer())
       .patch(`/api/node-templates/${created.body.id}`)
       .send({ name: 'T2', params: { subject: 'Updated', body: '', output: { mode: 'single' } } })
       .expect(200)
@@ -80,11 +80,11 @@ describe('Node templates (e2e)', () => {
   })
 
   it('DELETE /api/node-templates/:id soft-deletes', async () => {
-    const created = await (request as any)(app.getHttpServer()).post('/api/node-templates').send({
+    const created = await request(app.getHttpServer()).post('/api/node-templates').send({
       name: 'T', kind: 'send_email', params: { subject: '', body: '', output: { mode: 'single' } }
     })
-    await (request as any)(app.getHttpServer()).delete(`/api/node-templates/${created.body.id}`).expect(204)
-    const list = await (request as any)(app.getHttpServer()).get('/api/node-templates').expect(200)
+    await request(app.getHttpServer()).delete(`/api/node-templates/${created.body.id}`).expect(204)
+    const list = await request(app.getHttpServer()).get('/api/node-templates').expect(200)
     expect(list.body.find((t: any) => t.id === created.body.id)).toBeUndefined()
   })
 })
