@@ -115,7 +115,7 @@ function runValidation(nodes: GraphNode[], edges: GraphEdge[]): { errors: Valida
   const r = validateGraph({ nodes, edges })
   return {
     errors: r.errors.map(e => ({ code: e.code, message: e.message, nodeId: e.nodeId, edgeId: e.edgeId })),
-    warnings: r.warnings.map(w => ({ code: w.code, message: w.message, nodeId: w.nodeId }))
+    warnings: r.warnings.map(w => ({ code: w.code, message: w.message, nodeId: w.nodeId, edgeId: w.edgeId }))
   }
 }
 

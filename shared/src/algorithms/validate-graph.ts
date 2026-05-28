@@ -15,6 +15,7 @@ export interface ValidationWarning {
   code: string
   message: string
   nodeId?: string
+  edgeId?: string
   missingStatuses?: string[]
 }
 
