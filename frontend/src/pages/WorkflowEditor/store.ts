@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { computeXPositions } from '@rainpath/shared'
+import { computeXPositions, validateGraph } from '@rainpath/shared'
+import { createId } from '@paralleldrive/cuid2'
 import type { GraphNode, GraphEdge, EditorSnapshot } from './snapshot'
 import { hashSnapshot } from './snapshot'
 
@@ -24,6 +25,7 @@ type EditorState = {
   lastSavedAt: Date | null
   lastSavedSnapshotHash: string | null
   validationErrors: ValidationError[]
+  validationWarnings: ValidationError[]
   pendingSave: boolean
 
   history: EditorSnapshot[]
@@ -45,6 +47,9 @@ type EditorActions = {
   setValidationErrors(errors: ValidationError[]): void
   markSaved(hash: string, savedAt: Date): void
   setPendingSave(pending: boolean): void
+  addNode(p: { kind: GraphNode['data']['kind']; data: GraphNode['data']; atY?: number }): string
+  addEdge(p: { source: string; target: string; sourceHandle?: string; daysAfter: number }): { ok: true; edgeId: string } | { ok: false; reason: 'self_loop' | 'cycle' | 'handle_conflict' | 'dangling' | 'edge_into_start' | 'edge_from_end' }
+  updateNodeData(id: string, data: GraphNode['data']): void
   undo(): void
   redo(): void
   canUndo(): boolean
@@ -64,6 +69,7 @@ const initialState: EditorState = {
   lastSavedAt: null,
   lastSavedSnapshotHash: null,
   validationErrors: [],
+  validationWarnings: [],
   pendingSave: false,
   history: [],
   historyIndex: -1
@@ -105,6 +111,14 @@ function recordCurrentSnapshot(state: EditorState): EditorState {
   return { ...state, history }
 }
 
+function runValidation(nodes: GraphNode[], edges: GraphEdge[]): { errors: ValidationError[]; warnings: ValidationError[] } {
+  const r = validateGraph({ nodes, edges })
+  return {
+    errors: r.errors.map(e => ({ code: e.code, message: e.message, nodeId: e.nodeId, edgeId: e.edgeId })),
+    warnings: r.warnings.map(w => ({ code: w.code, message: w.message, nodeId: w.nodeId }))
+  }
+}
+
 function recomputeAndApply(nodes: GraphNode[], edges: GraphEdge[]): GraphNode[] {
   const existing = new Map<string, number>(nodes.map(n => [n.id, n.position.x]))
   try {
@@ -125,6 +139,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
   load: ({ id, name, description, nodes, edges }) => {
     const recomputed = recomputeAndApply(nodes, edges)
     const baseSnap: EditorSnapshot = { name, description, nodes: recomputed, edges }
+    const v = runValidation(recomputed, edges)
     set({
       ...initialState,
       workflowId: id,
@@ -135,6 +150,8 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       saveStatus: 'saved',
       lastSavedAt: new Date(),
       lastSavedSnapshotHash: hashSnapshot(baseSnap),
+      validationErrors: v.errors,
+      validationWarnings: v.warnings,
       history: [baseSnap],
       historyIndex: 0
     })
@@ -152,6 +169,92 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       return recordCurrentSnapshot({ ...pushed, description })
     }),
 
+  addNode: ({ data, atY }) => {
+    const newId = createId()
+    set(state => {
+      const startY = state.nodes.find(n => n.data.kind === 'start')?.position.y ?? 200
+      const node: GraphNode = {
+        id: newId,
+        position: { x: 0, y: atY ?? startY + 120 },
+        data
+      } as GraphNode
+      const pushed = pushHistory(state)
+      const nodes = recomputeAndApply([...pushed.nodes, node], pushed.edges)
+      const v = runValidation(nodes, pushed.edges)
+      const next = {
+        ...pushed,
+        nodes,
+        validationErrors: v.errors,
+        validationWarnings: v.warnings,
+        selectedNodeId: newId
+      }
+      // Snapshot the post-mutation state so undo/redo restores it correctly.
+      const history = [...next.history]
+      history[next.historyIndex] = { name: next.name, description: next.description, nodes: next.nodes, edges: next.edges }
+      return { ...next, history }
+    })
+    return newId
+  },
+
+  addEdge: ({ source, target, sourceHandle, daysAfter }) => {
+    const state = get()
+
+    if (source === target) return { ok: false, reason: 'self_loop' }
+
+    const sourceNode = state.nodes.find(n => n.id === source)
+    const targetNode = state.nodes.find(n => n.id === target)
+    if (!sourceNode || !targetNode) return { ok: false, reason: 'dangling' }
+    if (targetNode.data.kind === 'start') return { ok: false, reason: 'edge_into_start' }
+    if (sourceNode.data.kind === 'end') return { ok: false, reason: 'edge_from_end' }
+
+    if (sourceHandle) {
+      const conflict = state.edges.some(e => e.source === source && e.sourceHandle === sourceHandle)
+      if (conflict) return { ok: false, reason: 'handle_conflict' }
+    }
+
+    const prospective = [...state.edges, { id: '__candidate__', source, target, sourceHandle, daysAfter }]
+    try {
+      computeXPositions({ nodes: state.nodes, edges: prospective })
+    } catch {
+      return { ok: false, reason: 'cycle' }
+    }
+
+    const id = createId()
+    set(stateInner => {
+      const pushed = pushHistory(stateInner)
+      const edges = [...pushed.edges, { id, source, target, sourceHandle, daysAfter }]
+      const nodes = recomputeAndApply(pushed.nodes, edges)
+      const v = runValidation(nodes, edges)
+      const next = {
+        ...pushed, edges, nodes,
+        validationErrors: v.errors,
+        validationWarnings: v.warnings,
+        selectedEdgeId: id
+      }
+      const history = [...next.history]
+      history[next.historyIndex] = { name: next.name, description: next.description, nodes: next.nodes, edges: next.edges }
+      return { ...next, history }
+    })
+    return { ok: true, edgeId: id }
+  },
+
+  updateNodeData: (id, data) => {
+    set(state => {
+      const pushed = pushHistory(state)
+      const nodes = pushed.nodes.map(n => (n.id === id ? { ...n, data } as GraphNode : n))
+      const recomputed = recomputeAndApply(nodes, pushed.edges)
+      const v = runValidation(recomputed, pushed.edges)
+      const next = {
+        ...pushed, nodes: recomputed,
+        validationErrors: v.errors,
+        validationWarnings: v.warnings
+      }
+      const history = [...next.history]
+      history[next.historyIndex] = { name: next.name, description: next.description, nodes: next.nodes, edges: next.edges }
+      return { ...next, history }
+    })
+  },
+
   setSelectedNode: id => set({ selectedNodeId: id, selectedEdgeId: id ? null : get().selectedEdgeId }),
   setSelectedEdge: id => set({ selectedEdgeId: id, selectedNodeId: id ? null : get().selectedNodeId }),
 
@@ -161,7 +264,8 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       const nodes = pushed.nodes.map(n =>
         n.id === id ? { ...n, position: { x: n.position.x, y } } : n
       )
-      return recordCurrentSnapshot({ ...pushed, nodes })
+      const v = runValidation(nodes, pushed.edges)
+      return recordCurrentSnapshot({ ...pushed, nodes, validationErrors: v.errors, validationWarnings: v.warnings })
     }),
 
   updateEdgeDays: (id, daysAfter) =>
@@ -169,7 +273,8 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       const pushed = pushHistory(state)
       const edges = pushed.edges.map(e => (e.id === id ? { ...e, daysAfter } : e))
       const nodes = recomputeAndApply(pushed.nodes, edges)
-      return recordCurrentSnapshot({ ...pushed, edges, nodes })
+      const v = runValidation(nodes, edges)
+      return recordCurrentSnapshot({ ...pushed, edges, nodes, validationErrors: v.errors, validationWarnings: v.warnings })
     }),
 
   removeNode: id =>
@@ -182,11 +287,14 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       const nodes = pushed.nodes.filter(n => n.id !== id)
       const edges = pushed.edges.filter(e => e.source !== id && e.target !== id)
       const recomputed = recomputeAndApply(nodes, edges)
+      const v = runValidation(recomputed, edges)
       return recordCurrentSnapshot({
         ...pushed,
         nodes: recomputed,
         edges,
-        selectedNodeId: pushed.selectedNodeId === id ? null : pushed.selectedNodeId
+        selectedNodeId: pushed.selectedNodeId === id ? null : pushed.selectedNodeId,
+        validationErrors: v.errors,
+        validationWarnings: v.warnings
       })
     }),
 
@@ -195,11 +303,14 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       const pushed = pushHistory(state)
       const edges = pushed.edges.filter(e => e.id !== id)
       const nodes = recomputeAndApply(pushed.nodes, edges)
+      const v = runValidation(nodes, edges)
       return recordCurrentSnapshot({
         ...pushed,
         edges,
         nodes,
-        selectedEdgeId: pushed.selectedEdgeId === id ? null : pushed.selectedEdgeId
+        selectedEdgeId: pushed.selectedEdgeId === id ? null : pushed.selectedEdgeId,
+        validationErrors: v.errors,
+        validationWarnings: v.warnings
       })
     }),
 
@@ -221,7 +332,11 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       const idx = state.historyIndex - 1
       const snap = state.history[idx]!
       const nodes = recomputeAndApply(snap.nodes, snap.edges)
-      return { ...state, ...snap, nodes, historyIndex: idx }
+      const v = runValidation(nodes, snap.edges)
+      return {
+        ...state, ...snap, nodes, historyIndex: idx,
+        validationErrors: v.errors, validationWarnings: v.warnings
+      }
     }),
 
   redo: () =>
@@ -230,7 +345,11 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       const idx = state.historyIndex + 1
       const snap = state.history[idx]!
       const nodes = recomputeAndApply(snap.nodes, snap.edges)
-      return { ...state, ...snap, nodes, historyIndex: idx }
+      const v = runValidation(nodes, snap.edges)
+      return {
+        ...state, ...snap, nodes, historyIndex: idx,
+        validationErrors: v.errors, validationWarnings: v.warnings
+      }
     }),
 
   canUndo: () => get().historyIndex > 0,
