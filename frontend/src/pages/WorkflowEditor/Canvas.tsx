@@ -124,6 +124,11 @@ function CanvasInner() {
     const atY = flowPos.y
 
     if (payload.kind === 'start') {
+      const hasStart = useEditorStore.getState().nodes.some(n => n.data.kind === 'start')
+      if (hasStart) {
+        toast.info('Un nœud Départ existe déjà')
+        return
+      }
       addNode({ kind: 'start', data: { kind: 'start' } as any, atY })
       return
     }

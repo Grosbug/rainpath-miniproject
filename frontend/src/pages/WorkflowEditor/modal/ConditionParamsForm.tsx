@@ -50,11 +50,11 @@ export function ConditionParamsForm({ value, onChange }: Props) {
 
       {value.conditionType === 'data_available' ? (
         <div>
-          <label htmlFor="cond-expr" className="mb-1 block text-sm font-medium text-fg">
+          <label htmlFor="cond-expr-select" className="mb-1 block text-sm font-medium text-fg">
             Champ patient
           </label>
           <select
-            id="cond-expr"
+            id="cond-expr-select"
             value={value.expression}
             onChange={e => onChange({ conditionType: 'data_available', expression: e.target.value })}
             className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -66,11 +66,11 @@ export function ConditionParamsForm({ value, onChange }: Props) {
         </div>
       ) : (
         <div>
-          <label htmlFor="cond-expr" className="mb-1 block text-sm font-medium text-fg">
+          <label htmlFor="cond-expr-input" className="mb-1 block text-sm font-medium text-fg">
             Expression
           </label>
           <input
-            id="cond-expr"
+            id="cond-expr-input"
             value={value.expression}
             onChange={e => onChange({ conditionType: 'previous_result', expression: e.target.value })}
             placeholder="ex. last.status == rejected"

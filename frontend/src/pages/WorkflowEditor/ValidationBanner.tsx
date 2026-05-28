@@ -35,7 +35,7 @@ export function ValidationBanner() {
           </span>
         </div>
         <IconButton
-          icon={collapsed ? 'ChevronDown' : 'X'}
+          icon={collapsed ? 'ChevronDown' : 'ChevronUp'}
           aria-label={collapsed ? 'Développer la bannière' : 'Réduire la bannière'}
           size="sm"
           onClick={() => setCollapsed(c => !c)}

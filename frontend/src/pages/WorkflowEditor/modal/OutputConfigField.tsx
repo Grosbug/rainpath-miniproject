@@ -117,14 +117,20 @@ export function OutputConfigField({ kind, tracked, value, onChange }: Props) {
           ))}
           <button
             type="button"
-            onClick={() => onChange({
-              mode: 'multi',
-              outputs: [...value.outputs, {
-                id: `out_${value.outputs.length + 1}`,
-                label: `Sortie ${value.outputs.length + 1}`,
-                condition: { statuses: [] }
-              }]
-            })}
+            onClick={() => {
+              const existing = value.outputs
+                .map(o => parseInt(o.id.replace(/^out_/, ''), 10))
+                .filter(n => Number.isFinite(n))
+              const nextIx = (existing.length > 0 ? Math.max(...existing) : 0) + 1
+              onChange({
+                mode: 'multi',
+                outputs: [...value.outputs, {
+                  id: `out_${nextIx}`,
+                  label: `Sortie ${nextIx}`,
+                  condition: { statuses: [] }
+                }]
+              })
+            }}
             className="flex h-8 w-full items-center justify-center gap-1 rounded-md border border-dashed border-border bg-surface text-sm text-fg-muted hover:bg-surface-muted"
           >
             + Ajouter une sortie

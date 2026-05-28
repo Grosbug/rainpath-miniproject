@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Dialog } from '@/components/ui/Dialog'
@@ -74,14 +74,6 @@ function ModalBody({ content, onClose }: BodyProps) {
   const [name, setName] = useState(initialName)
   const [description, setDescription] = useState(initialDescription)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setParams(initialParams)
-    setName(initialName)
-    setDescription(initialDescription)
-    setError(null)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(content)])
 
   const kind: NodeKind =
     content.mode === 'template-edit'
