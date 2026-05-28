@@ -7,6 +7,7 @@ import { TopBar } from './TopBar'
 import { Canvas } from './Canvas'
 import { Palette } from './palette/Palette'
 import { ValidationBanner } from './ValidationBanner'
+import { NodeEditorModal } from './modal/NodeEditorModal'
 
 export default function WorkflowEditor() {
   const { id } = useParams<{ id: string }>()
@@ -49,6 +50,7 @@ export default function WorkflowEditor() {
           <ValidationBanner />
         </div>
       </div>
+      <NodeEditorModal />
     </div>
   )
 }
