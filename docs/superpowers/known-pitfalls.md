@@ -2,7 +2,7 @@
 
 > Living list of gotchas discovered while executing the implementation plans. **Every new plan should reference or restate the relevant items in its preamble** so subagent implementers don't rediscover them.
 
-Last updated after Phase 1B-B2.
+Last updated after the Phase 3 cleanup pass: 2 of 13 pitfalls have been eliminated (#9, #10). The remaining are by-design constraints or have acceptable workarounds.
 
 ---
 
@@ -101,7 +101,7 @@ The `<ReactFlow>` element collapses to zero height unless its parent has a defin
 
 ---
 
-## 9. Shared `ValidationWarning` type does not have `edgeId`
+## ~~RESOLVED~~ 9. Shared `ValidationWarning` type does not have `edgeId`
 
 The `validateGraph` function from `@rainpath/shared` returns `{ errors: ValidationError[], warnings: ValidationWarning[] }`. The two types differ:
 
@@ -110,9 +110,11 @@ The `validateGraph` function from `@rainpath/shared` returns `{ errors: Validati
 
 If you write a generic `runValidation` helper that maps both, **do NOT include `w.edgeId`** when mapping warnings — it doesn't exist and triggers TS2339. See [`store.ts`](../../frontend/src/pages/WorkflowEditor/store.ts) `runValidation` for the correct mapping.
 
+**RESOLVED**: `ValidationWarning` now carries `edgeId?: string` and the frontend `runValidation` maps it through. Kept here for historical context.
+
 ---
 
-## 10. supertest default import on backend tsconfig
+## ~~RESOLVED~~ 10. supertest default import on backend tsconfig
 
 The backend's `tsconfig.json` does NOT enable `esModuleInterop`. So `import request from 'supertest'` fails at runtime (`supertest_1.default is not a function`). Use:
 ```ts
@@ -121,6 +123,8 @@ import * as request from 'supertest'
 ;(request as any)(app.getHttpServer()).get('/api/whatever')
 ```
 …or alternatively `import { default as request } from 'supertest'` if interop ever gets enabled. Pattern in [`backend/test/*.e2e-spec.ts`](../../backend/test/).
+
+**RESOLVED**: `esModuleInterop: true` is now set in `backend/tsconfig.json`. E2E specs use the standard `import request from 'supertest'` pattern. Kept here for historical context.
 
 ---
 
