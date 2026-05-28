@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common'
 import {
   CHANNEL_STATUSES,
   CreateNodeTemplateDto,
@@ -80,7 +80,8 @@ export class NodeTemplatesService {
       throw new GraphValidationError(
         formatZodError(result.error).map(i => ({
           code: i.code,
-          message: i.message
+          message: i.message,
+          path: i.path
         }))
       )
     }
@@ -159,8 +160,11 @@ export class NodeTemplatesService {
       updatedAt: row.updatedAt.toISOString()
     })
     if (!parsed.success) {
-      throw new GraphValidationError(
-        formatZodError(parsed.error).map(i => ({ code: i.code, message: `Stored template ${row.id} drift: ${i.message}` }))
+      throw new InternalServerErrorException(
+        `Stored template ${row.id} schema drift: ${parsed.error.issues
+          .slice(0, 3)
+          .map(i => `${i.path.join('.')}: ${i.message}`)
+          .join('; ')}`
       )
     }
     return parsed.data

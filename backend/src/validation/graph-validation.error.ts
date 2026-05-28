@@ -3,6 +3,7 @@ export type GraphErrorItem = {
   message: string
   nodeId?: string
   edgeId?: string
+  path?: (string | number)[]
 }
 
 export type GraphWarning = {
