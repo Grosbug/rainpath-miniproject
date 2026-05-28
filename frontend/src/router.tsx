@@ -2,7 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppLayout } from '@/components/AppLayout'
 import NotFound from '@/pages/NotFound'
 import WorkflowsList from '@/pages/WorkflowsList'
-import WorkflowEditorPlaceholder from '@/pages/WorkflowEditorPlaceholder'
+import WorkflowEditor from '@/pages/WorkflowEditor'
 
 export const router = createBrowserRouter([
   {
@@ -10,7 +10,7 @@ export const router = createBrowserRouter([
     children: [
       { path: '/', element: <Navigate to="/workflows" replace /> },
       { path: '/workflows', element: <WorkflowsList /> },
-      { path: '/workflows/:id', element: <WorkflowEditorPlaceholder /> },
+      { path: '/workflows/:id', element: <WorkflowEditor /> },
       { path: '*', element: <NotFound /> }
     ]
   }
