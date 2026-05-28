@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Workflow {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  graph       String   // JSON-encoded Graph (SQLite has no native Json)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  patientRuns PatientRun[]
+
+  @@index([deletedAt])
+}
+
+model NodeTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  kind        String
+  params      String   // JSON-encoded params
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([deletedAt])
+}
+
+model PatientProfile {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  whatsapp  String?
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  patientRuns PatientRun[]
+
+  @@index([deletedAt])
+}
+
+model PatientRun {
+  id            String         @id @default(cuid())
+  workflowId    String
+  workflow      Workflow       @relation(fields: [workflowId], references: [id], onDelete: Restrict)
+  patientId     String
+  patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  currentNodeId String?
+  history       String         // JSON-encoded [{ nodeId, enteredAt, outcome? }]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+
+  @@index([deletedAt])
+  @@index([workflowId])
+  @@index([patientId])
+}

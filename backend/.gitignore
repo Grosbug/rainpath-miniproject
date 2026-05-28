@@ -39,3 +39,9 @@ yarn-error.log*
 
 # Prisma generated client (regenerated via prisma:generate)
 /node_modules/.prisma
+
+/generated/prisma
+
+# SQLite database files
+prisma/*.db
+prisma/*.db-journal
