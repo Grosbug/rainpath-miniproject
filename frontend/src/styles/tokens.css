@@ -1,0 +1,96 @@
+/* Design System tokens — see design-system/MASTER.md §3-§5 */
+:root {
+  /* Chrome / surfaces (DS §3.1) */
+  --bg: #F8FAFC;
+  --surface: #FFFFFF;
+  --surface-muted: #F1F5F9;
+  --fg: #0F172A;
+  --fg-muted: #475569;
+  --fg-subtle: #94A3B8;
+  --border: #E2E8F0;
+  --border-strong: #CBD5E1;
+  --ring: #0E7490;
+
+  /* Brand & semantic (DS §3.2) */
+  --primary: #0E7490;
+  --primary-hover: #155E75;
+  --on-primary: #FFFFFF;
+  --primary-soft: #ECFEFF;
+  --success: #059669;
+  --warning: #B45309;
+  --danger: #B91C1C;
+  --info: #0369A1;
+
+  /* Node families (DS §3.3) */
+  --node-start-bg: #ECFDF5;
+  --node-start-border: #A7F3D0;
+  --node-start-accent: #059669;
+
+  --node-email-bg: #EFF6FF;
+  --node-email-border: #BFDBFE;
+  --node-email-accent: #1D4ED8;
+
+  --node-sms-bg: #EEF2FF;
+  --node-sms-border: #C7D2FE;
+  --node-sms-accent: #4338CA;
+
+  --node-whatsapp-bg: #F0FDF4;
+  --node-whatsapp-border: #BBF7D0;
+  --node-whatsapp-accent: #15803D;
+
+  --node-postal-bg: #FFFBEB;
+  --node-postal-border: #FDE68A;
+  --node-postal-accent: #B45309;
+
+  --node-cond-data-bg: #FAF5FF;
+  --node-cond-data-border: #E9D5FF;
+  --node-cond-data-accent: #7C3AED;
+
+  --node-cond-result-bg: #FDF4FF;
+  --node-cond-result-border: #F5D0FE;
+  --node-cond-result-accent: #A21CAF;
+
+  --node-end-bg: #F1F5F9;
+  --node-end-border: #94A3B8;
+  --node-end-accent: #334155;
+
+  /* Wait tokens — forward compat only, not used in v1 (cf. spec §4.3) */
+  --node-wait-bg: #F8FAFC;
+  --node-wait-border: #CBD5E1;
+  --node-wait-accent: #475569;
+
+  /* Typography (DS §4) */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Spacing (DS §5.1) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Radius (DS §5.2) */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  /* Elevation (DS §5.3) */
+  --elev-1: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  --elev-2: 0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+  --elev-3: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.05);
+  --elev-scrim: rgba(15, 23, 42, 0.5);
+}
+
+html {
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
+  color: var(--fg);
+  background: var(--bg);
+}
