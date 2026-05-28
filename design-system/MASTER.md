@@ -2,6 +2,8 @@
 
 > Source of truth for visual and interaction design across the RainPath workflow editor.
 > When building a specific page, first check `design-system/pages/<page>.md`; if present, its rules override this file. Otherwise, use this file exclusively.
+>
+> **Relation au spec projet** : `docs/superpowers/specs/2026-05-28-rainpath-workflow-editor-design.md` est la source de vérité **fonctionnelle et architecturale**. Ce DS est aligné sur les décisions concrètes du spec (modale d'édition vs inspector ; pas de nœud `delay` ; ancrage X=0/Y=200 du `start` ; bibliothèque `NodeTemplate` ; états de reachability ; bibliothèques retenues). Si un point fonctionnel manque ici, se référer au spec.
 
 ---
 
@@ -63,28 +65,36 @@ Single brand accent (medical cyan/teal) + neutral SaaS chrome (slate) + dedicate
 
 Each node family gets its own tonal pair: a `bg` (very tinted, low chroma) for the node body, a `border` for the outline, and an `accent` for the icon dot / header strip. This keeps families recognizable at a glance without screaming.
 
-| Family | Bg | Border | Accent | CSS variables |
-|---|---|---|---|---|
-| **Départ** (start) | `#ECFDF5` | `#A7F3D0` | `#059669` | `--node-start-{bg,border,accent}` |
-| **Email** | `#EFF6FF` | `#BFDBFE` | `#1D4ED8` | `--node-email-{bg,border,accent}` |
-| **SMS** | `#EEF2FF` | `#C7D2FE` | `#4338CA` | `--node-sms-{bg,border,accent}` |
-| **WhatsApp** | `#F0FDF4` | `#BBF7D0` | `#15803D` | `--node-whatsapp-{bg,border,accent}` |
-| **Courrier postal** | `#FFFBEB` | `#FDE68A` | `#B45309` | `--node-postal-{bg,border,accent}` |
-| **Temporisation** (wait) | `#F8FAFC` | `#CBD5E1` | `#475569` | `--node-wait-{bg,border,accent}` |
-| **Condition — donnée** | `#FAF5FF` | `#E9D5FF` | `#7C3AED` | `--node-cond-data-{bg,border,accent}` |
-| **Condition — résultat** | `#FDF4FF` | `#F5D0FE` | `#A21CAF` | `--node-cond-result-{bg,border,accent}` |
-| **Fin** (end) | `#F1F5F9` | `#94A3B8` | `#334155` | `--node-end-{bg,border,accent}` |
+Per spec, the workflow's `kind` enum is: `start`, `end`, `send_email`, `send_sms`, `send_whatsapp`, `send_postal`, `condition`. There is **no `delay` / `wait` node** — temporisation is carried by `edge.daysAfter`. The `condition` kind splits visually into two families via its `conditionType` parameter (`data_available` vs `previous_result`), so the canvas exposes 8 distinct visual families for 7 logical kinds.
+
+| Family | Maps to | Bg | Border | Accent | CSS variables |
+|---|---|---|---|---|---|
+| **Départ** | `kind = start` | `#ECFDF5` | `#A7F3D0` | `#059669` | `--node-start-{bg,border,accent}` |
+| **Email** | `kind = send_email` | `#EFF6FF` | `#BFDBFE` | `#1D4ED8` | `--node-email-{bg,border,accent}` |
+| **SMS** | `kind = send_sms` | `#EEF2FF` | `#C7D2FE` | `#4338CA` | `--node-sms-{bg,border,accent}` |
+| **WhatsApp** | `kind = send_whatsapp` | `#F0FDF4` | `#BBF7D0` | `#15803D` | `--node-whatsapp-{bg,border,accent}` |
+| **Courrier postal** | `kind = send_postal` | `#FFFBEB` | `#FDE68A` | `#B45309` | `--node-postal-{bg,border,accent}` |
+| **Condition — donnée** | `kind = condition`, `conditionType = data_available` | `#FAF5FF` | `#E9D5FF` | `#7C3AED` | `--node-cond-data-{bg,border,accent}` |
+| **Condition — résultat** | `kind = condition`, `conditionType = previous_result` | `#FDF4FF` | `#F5D0FE` | `#A21CAF` | `--node-cond-result-{bg,border,accent}` |
+| **Fin** | `kind = end` | `#F1F5F9` | `#94A3B8` | `#334155` | `--node-end-{bg,border,accent}` |
+
+> **`--node-wait-*` tokens (#F8FAFC / #CBD5E1 / #475569) are defined for forward-compatibility but unused in v1.** If a future iteration reverses the spec divergence (delay-on-edge → dedicated wait node), the tokens are already in place. Do **not** ship a wait node card while the spec is in force.
 
 ### 3.4 Edge (connector) colors
 
-Edges between nodes carry meaning; encode it with color **and** label (never color-alone — WCAG `color-not-only`).
+Edges between nodes carry two semantic layers: the **branch role** (default flow / yes / no / selected) AND the **delay** (`edge.daysAfter`). Both must be visible. Encode the role with color **and** chip text (never color-alone — WCAG `color-not-only`).
 
-| Edge type | Color | Label / pattern |
-|---|---|---|
-| Default flow | `--fg-subtle` `#94A3B8` solid | (no label) |
-| Yes / true / success branch | `--success` `#059669` solid | small `Oui` chip on the edge |
-| No / false / failure branch | `--danger` `#B91C1C` solid | small `Non` chip on the edge |
-| Pending / selected | `--primary` `#0E7490` solid, 2px | grows on hover/select |
+| Edge type | Color | Pattern | Chip(s) |
+|---|---|---|---|
+| Default flow (`start → next`, `single` out, default `multi` branches) | `--fg-subtle` `#94A3B8` | solid 1.5px | delay chip only |
+| Yes / `true` / `success` branch | `--success` `#059669` | solid 1.5px | `Oui` chip (text-xs, fond `--primary-soft`) + delay chip |
+| No / `false` / `failure` branch | `--danger` `#B91C1C` | solid 1.5px | `Non` chip (text-xs, fond `#FEE2E2`) + delay chip |
+| Selected / pending (drag in progress) | `--primary` `#0E7490` | solid 2px | unchanged |
+| Invalid (would-be cycle, self-loop) | `--danger` `#B91C1C` | solid 2px | tooltip with cause; never committed |
+
+**Delay chip** (`X j`): every committed edge carries a chip centered on the path. `--text-xs`, `font-variant-numeric: tabular-nums`, padding `4px 8px`, bg `--surface`, border `1px --border`, radius `--radius-sm`. Click → popover (positioned with `@floating-ui/react` + `flip`/`shift`) with a numeric input. If a role chip (`Oui`/`Non`) is present, the role chip sits adjacent to the delay chip, not overlaid.
+
+**Animation on creation**: edge tracks the pointer with no easing during drag, then the delay chip fades in over 180ms after release.
 
 ### 3.5 Contrast verification (must hold)
 
@@ -98,6 +108,20 @@ Edges between nodes carry meaning; encode it with color **and** label (never col
 ### 3.6 Dark mode token map (stretch — keep parity, don't ship until tested)
 
 `--bg → #0B1220`, `--surface → #111827`, `--surface-muted → #1F2937`, `--fg → #F8FAFC`, `--fg-muted → #94A3B8`, `--border → #1F2937`, `--border-strong → #334155`, `--primary → #22D3EE` (lighter for contrast), `--ring → #22D3EE`. Re-verify all contrast pairs separately — do not invert.
+
+### 3.7 Canvas — temporal axis
+
+The editor canvas is not a free 2D plane: the X axis encodes **the day of execution since the exam** (spec §3, §5.4). The visual language of the canvas must make that immediately readable.
+
+| Element | Token / value | Notes |
+|---|---|---|
+| Canvas surface | `--bg` `#F8FAFC` | Same as app background — the canvas is the "paper". |
+| Day gridlines (vertical) | `--border` `#E2E8F0`, 1px | One line every N days; N adapts to zoom (1/5/10 — thresholds 0.8 and 0.3 on `useViewport().zoom`). Max ~50 simultaneous lines for perf. |
+| Day labels | `--text-xs`, weight 500, `--fg-muted`, `tabular-nums` | Format `J+0`, `J+1`, `J+30`. Positioned at the top of the canvas (sticky), aligned to each visible gridline. |
+| **J+0 rail** | `--node-start-accent` `#059669`, 2px | The vertical line passing through `start.position.x = 0`. Slightly thicker than other gridlines — anchors the start node visually. |
+| Horizontal grid | none | Y is free; do not draw horizontal lines (would suggest discrete tracks that don't exist). |
+
+The background is implemented as an SVG `<Panel>` in React Flow, repositioned with `useViewport()`. The plage temps auto-fits to `[0, max(X) + 5]`. Label memoization required (don't re-render on every pan).
 
 ---
 
@@ -174,11 +198,22 @@ Swiss style says "no shadows," but a graph editor needs to lift nodes above the 
 
 ## 6. Iconography
 
-- **Library: Lucide** (`lucide-react`). Single source. Stroke 1.5px. 16px / 20px / 24px sizes only.
-- **Channel icons** (for action nodes): `Mail` (Email), `MessageSquare` (SMS), `MessageCircle` (WhatsApp — or use the brand WhatsApp svg if licensing permits), `Mail` filled variant or `Inbox` for Courrier postal.
-- **Node family icons:** `Play` (start), `Clock` (wait), `GitBranch` (condition), `Square` or `CircleStop` (end).
+- **Library: Lucide** (`lucide-react`). Single source. Stroke 1.5px. 16px / 20px / 24px sizes only. A thin wrapper `<Icon name="..." size={16|20|24} />` enforces the size scale.
+- **Node family icons** (locked by spec §7.3):
+
+  | Family | Icon | Notes |
+  |---|---|---|
+  | `start` | `Play` | + secondary `Anchor` badge (16px) bottom-right of the start card |
+  | `send_email` | `Mail` | — |
+  | `send_sms` | `MessageSquare` | — |
+  | `send_whatsapp` | `MessageCircle` | Brand WhatsApp SVG only if a licensed asset is supplied; otherwise stay on Lucide |
+  | `send_postal` | `Inbox` | + `Truck` or `MapPin` micro-badge when `tracked = true` |
+  | `condition` (both subtypes) | `GitBranch` | Family is distinguished by color tokens, not by icon |
+  | `end` | `Square` | — |
+
+- **UI icons** used by the spec: `Plus`, `Upload`, `RotateCw`, `Undo2`, `Redo2`, `MoreVertical`, `GripVertical`, `Check`, `XCircle`, `AlertCircle`, `AlertTriangle`, `Loader2`, `WifiOff`, `Anchor`, `Edit`, `Copy`, `Trash2`.
 - **Never:** emojis, FontAwesome (mixed style), bitmap PNG icons.
-- All icon-only buttons get `aria-label` (see §9.3).
+- All icon-only buttons get `aria-label` in French (see §9.3).
 
 ---
 
@@ -212,54 +247,184 @@ Swiss style says "no shadows," but a graph editor needs to lift nodes above the 
 
 ### 7.3 Node card (canvas)
 
+Uniform card per family — never different shapes (no circles, no diamonds). Swiss coherence beats BPMN convention. Recognition relies on **color + icon + label** (never color alone — WCAG `color-not-only`).
+
 ```
-┌─────────────────────────────────┐  ← border: family border color (1px)
-│ ▎ ⌘ Family label                │  ← left bar 3px = family accent
+┌─────────────────────────────────┐  ← border: --node-<family>-border, 1px (2px for end)
+│ ▎ [Icon] Family label           │  ← strip 3px = --node-<family>-accent
 │   Title (text-md, weight 600)   │
 │   ─────                          │
-│   Detail (text-sm, fg-muted)    │
+│   Detail 1 (text-sm, fg-muted)  │
+│   Detail 2                       │
 │                                  │
-│   ●──── source handle (right)   │
-│   ────● target handle (left)    │
+│              ────● source handle│  ← positions depend on output.mode (see below)
+│   ●──── target handle (left)    │
 └─────────────────────────────────┘
 ```
 
-- Width: ~240–280px (let content drive within this range).
-- Padding: 12px.
-- Radius: 8px (`--radius-md`).
-- Bg: family `bg` token. Border: family `border`. Left strip: family `accent`.
-- Resting elevation `--elev-1`. Selected: `--elev-2` + 2px ring `--primary`. Hover: bg shifts 1 tonal step.
-- Connection handles: 10px circles, `--surface` bg, family-accent border. Become `--primary` while dragging an edge.
-- Drag affordance: cursor `grab` resting, `grabbing` while dragging. The node rotates **0°** (no playful tilt) and gains `--elev-2`.
+**Common rules:**
+- Width: 240–280px (content-driven within range). **Exceptions: `start` and `end` → 180px compact.**
+- Padding: 12px. Radius: 8px (`--radius-md`).
+- Bg: `--node-<family>-bg`. Border: `--node-<family>-border`, **1px** (default). Strip: `--node-<family>-accent`, 3px left.
+- Resting elevation `--elev-1`. Selected: `--elev-2` + 2px ring `--primary`. Hover: bg shifts one tonal step.
+- Cursor: `grab` resting, `grabbing` during drag (never `not-allowed` on resting — that signals a real block; reserved for `start`).
+- Press feedback: 100ms scale 0.98 (Micro-interactions §2). No rotation, no tilt.
 
-### 7.4 Inspector panel (right side)
+**Per-family specifics:**
 
-- Width 360px, full canvas height, scrollable.
-- Header: node family icon (20px) + family label + node title input.
-- Body: form fields stacked, 16px gap.
-- Sections labeled with `--text-sm` weight 600 uppercase tracking 0.02em.
-- Empty state when no node is selected: centered `--text-md` muted "Sélectionnez un nœud pour en modifier les paramètres."
+| Family | Width | Special chrome | Detail rows shown on the card |
+|---|---|---|---|
+| `start` (Départ) | **180px** | `Anchor` badge 16px bottom-right; J+0 rail (§3.7) passes through; `cursor: not-allowed` on hover, `draggable: false` | Icon + "Examen effectué" label only. No detail rows. |
+| `send_email` | 240–280px | — | Subject truncated (one line) + first line of body |
+| `send_sms` | 240–280px | — | Body truncated + character counter `X / 160` colored per §5.2.b rules |
+| `send_whatsapp` | 240–280px | — | Body truncated |
+| `send_postal` | 240–280px | "Suivi" badge (`--success` chip) when `tracked = true` | Body truncated |
+| `condition` (data) | 240–280px | — | Humanized expression (`patient.email` → "Email connu ?") |
+| `condition` (result) | 240–280px | — | Raw expression text |
+| `end` (Fin) | **180px** | **Border 2px** (not 1px) — terminal weight | Icon + "Fin" label only. No detail rows. |
 
-### 7.5 Node palette (left side)
+**Source handles — position and count depend on `output.mode`:**
 
-- Width 320px, full canvas height.
-- Grouped by family with section headers (`--text-xs` weight 600 uppercase, `--fg-muted`).
-- Each item: 48px tall, family icon + label + drag handle (`GripVertical`).
-- Drag preview: a real node card at 80% opacity, cursor `grabbing`.
+| Source node kind / mode | Source handles | Position | Color |
+|---|---|---|---|
+| `start` | 1 handle `out` | right edge, center | `--node-start-accent` |
+| `send_*` mode `single` | 1 handle `out` | right edge, center | family accent |
+| `send_*` mode `simple` | 2 handles: `success`, `failure` | `success` top-right (~25% from top), `failure` bottom-right (~75%) | `success` → `--success`; `failure` → `--danger` |
+| `send_*` mode `multi` | N handles, one per `output` | right edge, vertically stacked at even intervals; each labeled with `output.label` next to the handle (text-xs, fg-muted) | family accent |
+| `condition` (both subtypes) | 2 handles: `true`, `false` | `true` right edge, `false` bottom edge | `true` → `--success`; `false` → `--danger` |
+| `end` | none | — | — |
+
+**Target handle:** every kind except `start` has one target handle on the left edge, centered. 10px circle, `--surface` background, family-accent border.
+
+**Handle drag state:** any handle becomes `--primary` while an edge is being dragged from it; the matching valid target handle highlights to `--primary` when the pointer enters its hit area.
+
+### 7.4 Node edit modal (double-click on a node)
+
+**Divergence assumée du DS** (spec §4.3) : le DS d'origine recommandait un inspector panel latéral fixe ; le spec retient une **modale ouverte au double-click** pour laisser le canvas entièrement libre quand l'utilisateur navigue, et présenter un formulaire focalisé seulement quand il édite. UX style n8n/Zapier, à défendre en entretien.
+
+**Container** (Radix Dialog) :
+- Largeur 640px (formulaire), padding 24px, `--radius-lg`, élévation `--elev-3`, scrim `--elev-scrim`.
+- Animation : scrim fade 150ms ease-out + content scale 0.96 → 1 + fade 180ms via Framer Motion spring `{ stiffness: 320, damping: 30 }`. Respect `prefers-reduced-motion` (instant fade).
+- Focus trap (natif Radix), ESC ferme, premier input focusé à l'ouverture, focus restauré au close.
+- Click-outside ne ferme **que** si pas de modifications non sauvegardées ; sinon mini-confirm "Abandonner les modifications ?".
+
+**En-tête** : icône famille 20px + libellé famille (`--text-sm` weight 600, `--fg-muted`) + champ titre du nœud (`--text-lg` weight 600, éditable inline).
+
+**Corps — onglets Radix Tabs** :
+
+- **Onglet "Message"** (nœuds `send_*` uniquement) :
+  - `subject` (email), `body` (textarea autosize), toggle `tracked` (postal).
+  - **Compteur de caractères** sous chaque champ : `142 / 160`, couleur `--success` (`< recommendedMax`), `--warning` (`< maxLength`), `--danger` (`> maxLength`, bloque le save). Tabular-nums.
+  - SMS : tooltip à 70 chars "votre message basculera en unicode" ; à 160 chars "votre message sera segmenté en N SMS".
+  - Email : warning sur subject > 78 chars.
+  - WhatsApp : panneau d'aide repliable listant la syntaxe markdown supportée.
+  - Postal : compteur informatif uniquement.
+
+- **Onglet "Routage"** (nœuds `send_*` uniquement) :
+  - Sélecteur `output.mode` : 3 radio cards (`single` / `simple` / `multi`).
+  - Mode `simple` : multi-sélecteur de statuts pour `successCondition` (liste = `CHANNEL_STATUSES[channel]` recalculé si `tracked` change). **Presets cliquables** au-dessus : "Envoi technique réussi", "Engagement confirmé", "Échec à router".
+  - Mode `multi` : table éditable `(label, statuts)` avec ajout/suppression de lignes ; 2 warnings UI non bloquants (chevauchement, couverture incomplète) + bouton "Tout couvrir" (catch-all).
+  - Mode `single` : message "1 sortie unique, aucun routage requis".
+  - Aperçu live des handles tels qu'ils apparaîtront sur le nœud.
+
+- **Onglet unique** pour `condition` :
+  - `conditionType` : 2 radios "Donnée disponible" / "Résultat précédent".
+  - `expression` :
+    - si `data_available` → dropdown parmi `DataAvailableExpressions` (`patient.email`, `patient.phone`, `patient.whatsapp`, `patient.address`).
+    - si `previous_result` → input texte libre + placeholder d'exemple.
+
+**Bandeau d'alerte** en bas du body si la modale ferme alors que des edges sortants référencent des `sourceHandle` qui ne sont plus définis (mutation d'outputs) → "supprimer ces edges" ou "annuler".
+
+**Pied** : `Annuler` (secondary) à gauche du primary `Enregistrer`, right-aligned. Le primary est disabled tant que la validation Zod inline n'est pas verte.
+
+**Modale d'édition partagée** : la même modale sert pour l'édition d'un nœud du canvas **et** pour l'édition d'un `NodeTemplate` (§7.5). Champs `name` et `description` du template apparaissent en tête uniquement dans ce second mode.
+
+### 7.5 Node palette (left side) — bibliothèque de modèles
+
+Largeur **320px**, full canvas height, scrollable. La palette n'expose pas une liste fixe de types, mais une **bibliothèque éditable de modèles** (table `NodeTemplate` du backend) en plus des nœuds système non éditables. Deux sections, séparées par un `<Separator />` Radix.
+
+**Section "Nœuds système"** (fixe, en tête) :
+
+- Header `--text-xs` weight 600 uppercase tracking 0.02em `--fg-muted`.
+- 2 entrées : `Départ` (icône `Play`, famille `start`) et `Fin` (icône `Square`, famille `end`).
+- Chaque entrée : 48px de haut, padding 12px, hover bg `--surface-muted`, icône 20px + label `--text-md` weight 500 + `GripVertical` 16px `--fg-subtle` à droite.
+- `Départ` désactivé (opacity 0.5, `aria-disabled="true"`, cursor `not-allowed`, tooltip "Un nœud de départ existe déjà") si un `start` est déjà présent dans le graphe (singleton).
+
+**Section "Modèles"** (dynamique, source = `GET /node-templates`) :
+
+- Header `--text-xs` weight 600 uppercase tracking 0.02em `--fg-muted`.
+- Bouton `+ Nouveau modèle` (variant secondary, icône `Plus`, full-width) en tête de section. Ouvre un sélecteur de `kind` (Radix Popover) puis la modale d'édition vide.
+- Liste **groupée par `kind`** via Radix Accordion (sous-sections collapsables "Email", "SMS", "WhatsApp", "Postal", "Condition") — chaque sous-titre `--text-xs` weight 500 `--fg-muted` avec compteur `(N)`.
+- Chaque entrée modèle : 48px de haut, padding 12px, hover bg `--surface-muted` :
+  - icône Lucide du canal (16px)
+  - `name` (`--text-md` weight 500)
+  - `MoreVertical` 16px en bas-droite (Radix DropdownMenu : `Éditer` / `Dupliquer` / `Supprimer` — l'item Supprimer en `--danger`, séparé par `<Separator />`).
+  - Drag handle `GripVertical` au survol (16px, `--fg-subtle`) — apparaît à droite, masque le menu kebab par défaut, échange au focus.
+  - Tooltip Radix au survol : preview une ligne (subject tronqué ou expression).
+- **Drag preview** : aperçu = vraie node card (même rendu §7.3) à 80% opacité, cursor `grabbing`.
+- **Drop sur canvas** : crée un nœud `{ kind: template.kind, params: structuredClone(template.params) }` à la position Y du drop, X recalculé. **Détaché** du template (aucune référence persistée — éditer le template ensuite n'affecte pas l'instance).
+
+**Empty state** (aucun modèle, peu probable car seed) : message centré "Aucun modèle pour le moment." + CTA secondary `+ Nouveau modèle`.
+
+**Loading** : skeleton 5 lignes de 48px (animation shimmer, respect reduced-motion).
+
+**Modale "Éditer / Nouveau modèle"** : réutilise §7.4 avec en plus en tête les champs `name` (requis) et `description` (optionnel).
 
 ### 7.6 Top bar
 
-- Height 48px, sticky.
-- Left: app mark + workflow name (editable inline; click to edit).
-- Center: save status — `Enregistré` (muted check) / `Modifications non enregistrées` (warning dot) / `Enregistrement…` (spinner).
-- Right: actions (Annuler, Restaurer, Enregistrer, kebab for "Renommer / Dupliquer / Supprimer").
-- Border-bottom: 1px `--border`.
+- Hauteur 48px, sticky, border-bottom 1px `--border`, bg `--surface`.
+
+**Gauche** : app mark + nom du workflow (`--text-md` weight 600, **éditable inline** — clic = mode édition, `Enter` valide, `Escape` annule), description en sous-titre (`--text-sm` `--fg-muted`, tronquée).
+
+**Centre** : indicateur de statut d'auto-save. **Largeur réservée** (~220px min-width) pour éviter tout layout shift quand le libellé change. Tous les états utilisent une icône Lucide 16px + label `--text-sm`.
+
+| `saveStatus` | Icône | Couleur icône | Label |
+|---|---|---|---|
+| `idle` / `saved` | `Check` | `--success` | `Enregistré il y a Ns` (relative time, `date-fns` fr) |
+| `saving` | `Loader2` (rotation) | `--fg-muted` | `Enregistrement…` |
+| `dirty` (mutations non encore push) | dot 8px | `--warning` | `Modifications non enregistrées` |
+| `invalid` (validation échoue, PATCH gated) | `AlertCircle` | `--warning` | `Erreur de validation` |
+| `error` (réseau) | `AlertCircle` | `--danger` | `Échec de sauvegarde — nouvel essai…` |
+| `offline` (5 retries épuisés) | `WifiOff` | `--warning` | `Hors-ligne — reconnexion en cours`; bouton ghost `Réessayer maintenant` à droite |
+
+**Centre droite** : boutons ghost `Undo2` et `Redo2` (icon-only, 32×32, tooltip Radix avec raccourci `Cmd/Ctrl+Z` et `Cmd/Ctrl+Shift+Z`), disabled selon `canUndo` / `canRedo`.
+
+**Droite** : kebab `MoreVertical` (Radix DropdownMenu) avec `Renommer`, `Dupliquer`, `Exporter en JSON`, `<Separator />`, `Supprimer` (item `--danger`).
+
+**Bandeau "Hors-ligne"** : quand `saveStatus === 'offline'`, ajouter sous la top bar un bandeau persistant 32px `--surface-muted` border-bottom 1px : "Vos modifications restent locales, reconnexion en cours" + bouton `Réessayer maintenant`. Disparaît dès qu'un PATCH réussit.
 
 ### 7.7 Workflow list page
 
-- Header: page title `Workflows` + primary CTA `Nouveau workflow`.
-- Empty state: large illustration-free message, primary CTA centered, max-width 480px.
-- Populated: table or card grid. Rows show: name, last updated (relative), node count, status badge. Click → open editor. Row hover bg `--surface-muted`. Right-click / kebab → rename, duplicate, delete (with confirm modal).
+Container `max-w-6xl` (1152px), padding horizontal `--space-6`.
+
+**Header** :
+- Titre `Workflows` (`--text-2xl` weight 600).
+- À droite : bouton primary `+ Nouveau workflow` (icône `Plus`) + bouton secondary `Importer un JSON` (icône `Upload`).
+
+**Empty state** (DS §7.10) : centré, max-width 480px, message "Aucun workflow créé pour le moment." + CTA primary "Créer mon premier workflow". Pas d'illustration, pas de clip-art.
+
+**Liste populée** : **table** (préférée à une card grid pour la densité métier en contexte labo), tri par `updatedAt` décroissant.
+
+| Colonne | Contenu | Notes |
+|---|---|---|
+| `Name` | lien vers `/workflows/:id` | row hover bg `--surface-muted`, primary color sur hover du nom |
+| `Description` | tronqué une ligne | tooltip Radix avec le texte complet au survol |
+| `Nœuds` | compteur | `tabular-nums`, right-aligned |
+| `Statut` | badge | `Brouillon` (`--warning` chip) si `updatedAt < 1h`, sinon `Actif` (`--success` chip) |
+| `Modifié` | relative date | `date-fns/formatDistanceToNow` locale `fr` |
+| (kebab) | `MoreVertical` | DropdownMenu : `Ouvrir`, `Renommer`, `Dupliquer`, `Exporter en JSON`, `<Separator />`, `Supprimer` (item `--danger`) |
+
+**Loading state** : skeleton de 5 lignes mirroring la structure (DS §7.10), si chargement > 300ms.
+
+**Error state** : message humain "Impossible de charger les workflows" + bouton secondary `Réessayer` (icône `RotateCw`).
+
+**Virtualisation** : `@tanstack/react-virtual` au-delà de 50 lignes (DS §13 perf).
+
+**Création** : clic `+ Nouveau workflow` → Radix Dialog 480px (DS §7.8) avec `name` (requis) + `description` (optionnel) + boutons `Annuler` / `Créer`. Au submit : POST `/workflows` → redirect `/workflows/:id`.
+
+**Import** : clic `Importer un JSON` → input file (`accept=".json"`) caché + clic programmatique. Lecture, `safeParse(Graph)` Zod côté front, modale de confirmation listant `nodes.length` / `edges.length`, ou modale d'erreur avec liste structurée (path + message Zod).
+
+**Suppression** : modal de confirmation Radix Dialog 480px qui nomme explicitement l'artefact ("Supprimer le workflow « Relance standard » ?"), bouton primary `Supprimer` (variant `Danger`), `Annuler` secondary à gauche.
 
 ### 7.8 Modals & dialogs
 
@@ -282,6 +447,87 @@ Every async surface must define all three.
 - **Empty:** explain what would appear here + one clear next action. No clip-art.
 - **Loading:** skeleton matching the final layout for >300ms operations; spinner only inside buttons.
 - **Error:** human sentence (what / why / how to retry), single primary retry button. Never a stack trace.
+
+### 7.11 Validation banner (canvas)
+
+Fixé en bas du canvas, pleine largeur, hauteur auto, max-height 25vh (scroll si dépassement).
+
+- **Hidden** quand `validationErrors.length === 0` ET aucun warning. Pas de bandeau "tout va bien".
+- **Visible** dès qu'il y a au moins un item :
+  - bg `#FEF2F2` (rouge clair) si une erreur ; `#FFFBEB` (jaune clair) si uniquement des warnings.
+  - border-top 2px `--danger` (ou `--warning`).
+  - padding `--space-3 --space-4`.
+- **Header** : icône `AlertCircle` 20px + `--text-sm` weight 600 — `N erreurs · M avertissements`. Bouton ghost `MoreVertical` à droite pour collapse/expand (mémo session).
+- **Liste** : `--text-sm`, chaque item = icône (`XCircle` `--danger` pour error, `AlertTriangle` `--warning` pour warning) + message + bouton ghost **"Centrer sur l'erreur"** (icône `Target` Lucide ou similaire) qui pan/zoom le canvas vers le nœud ou l'arête concernée (`nodeId` / `edgeId` du `ValidationError`).
+- **A11y** : `role="region"` `aria-label="Validation du workflow"`, le compteur dans le header en `aria-live="polite"` pour annoncer les changements.
+
+### 7.12 Live-preview interactions (ghosts)
+
+Le spec applique le principe **"preview is the confirmation"** : l'utilisateur voit l'impact temporel d'une mutation avant de la confirmer, plutôt que de subir un dialog. Trois interactions concernées : création d'arête, édition de `daysAfter`, suppression d'arête. Toutes utilisent les helpers `simulateAddEdge` / `simulateChangeDaysAfter` / `simulateRemoveEdge` (`shared/src/simulate.ts`).
+
+**Rendu commun : nœud ghost**
+- Opacité 0.5, bordure tiretée (`stroke-dasharray: 4 4` côté SVG ou `border-style: dashed` côté DOM), 1px de la couleur de famille.
+- Position : à la position **future** calculée (X cible).
+- Badge `+N j` (ou `-N j`) en `--text-xs` `tabular-nums` collé en haut-droite du ghost, bg `--surface`, border 1px `--border`.
+- Le nœud à sa position actuelle reste visible en arrière-plan, opacité 0.3 sans bordure (référence visuelle de "d'où il vient").
+
+**Création d'une connexion** (`onConnectStart` → `onConnectMove` → `onConnectEnd`)
+
+| Résultat de `simulateAddEdge` | Trait de connexion | Halo / overlay | Tooltip flottant |
+|---|---|---|---|
+| `selfLoop` | rouge 2px, dashed | halo rouge sur source | "Auto-connexion impossible" |
+| `cycle` | rouge 2px, dashed | halo rouge sur target | "Boucle détectée — connexion impossible" |
+| `handleConflict` | orange 2px, dashed | halo orange sur la source | "Ce handle a déjà une sortie" |
+| `shifts.size > 0` (valide, mais décale) | **vert** `--success` 2px | ghosts sur tous les nœuds décalés + badges `+N j` | aucun |
+| valide, pas de shift | **vert** `--success` 2px, solid | aucun | aucun |
+
+Au release :
+- Cas invalides → drop **rejeté**, toast `danger` "Connexion impossible : `<raison>`", aucun snapshot dans l'history.
+- Cas valide → commit : edge ajoutée, X recalculées via `recomputeXPositions`, **animation CSS 300ms** sur `transform` des nœuds décalés. Popover d'édition de `daysAfter` s'ouvre immédiatement.
+
+**Édition de `daysAfter` via popover edge**
+
+- Input numérique → à chaque keystroke (debounce 100ms), appel `simulateChangeDaysAfter`.
+- Les nœuds qui se décaleraient sont rendus en ghost en temps réel (même style que ci-dessus).
+- `Enter` ou bouton `Valider` → commit + animation 300ms. `Escape` ou clic-outside → annule, retour à l'état initial sans ghost.
+
+**Suppression d'arête**
+- Pas de confirmation (réversible via undo).
+- Recompute immédiat via `simulateRemoveEdge` puis commit. Animation 300ms sur les nœuds qui reculent en X.
+
+**Suppression d'un nœud** (cascade)
+- Toutes les edges entrantes ET sortantes sont retirées en une opération atomique. Recompute X. Animation 300ms.
+- Un seul snapshot dans l'history pour cette opération.
+- **Garde-fous** : `start` jamais supprimable (bouton désactivé, raccourci `Delete` ignoré, garde dans le store en safety net). `end` supprimable tant qu'il en reste ≥ 1 (sinon no-op + toast "Au moins un nœud Fin doit être présent").
+
+**Performance** : throttle à 60fps (`requestAnimationFrame`) sur `onConnectMove`. Sur graphes > 100 nœuds, fallback debounce 50ms.
+
+### 7.13 Patient view — états de reachability (bonus)
+
+Vue read-only du graphe avec curseur "jour courant" et 5 états par nœud calculés par `computeReachability(graph, profile, currentNodeId, history)`. **Aucune information par couleur seule** : chaque état embarque une icône ou un libellé.
+
+| État | Bg du nœud | Bordure | Décorations | A11y |
+|---|---|---|---|---|
+| `visited` (déjà traversé) | `--node-<family>-bg` (normal) | `--success` 1px | icône `Check` 16px `--success` en bas-droite | `aria-label="Étape terminée : <label>"` |
+| `current` (étape en cours) | `--node-<family>-bg` | `--primary` 2px **pulsante** (animation 2s `box-shadow` ; désactivée sous `prefers-reduced-motion`) | badge `--primary` "En cours" en haut-droite | `aria-current="step"`, `aria-label="Étape en cours : <label>"` |
+| `reachable` (futur possible) | `--node-<family>-bg` (normal) | `--node-<family>-border` (normal) | aucune | `aria-label="Étape à venir : <label>"` |
+| `blocked` (chemin coupé par donnée manquante) | `--surface-muted` | `--danger` 1px dashed | opacité 0.4, badge `XCircle` 16px `--danger` "Bloqué" + raison ("Email patient manquant") | `aria-label="Étape bloquée : <label> — <raison>"` |
+| `unreachable` (jamais accessible depuis le nœud courant) | `--surface-muted` | `--border` 1px | opacité 0.15, grisé, `pointer-events: none`, `aria-hidden="true"` | retiré de l'arbre AT |
+
+**Curseur "jour courant"** : `<line>` verticale à `X = X_dérivé[currentNodeId]`, 2px `--primary`, label flottant en haut "Jour courant : J+7" (`--text-sm` weight 600, bg `--primary-soft`, padding `2px 8px`, radius `--radius-sm`).
+
+**Edges** suivant l'état des nœuds qu'elles relient :
+- vers `visited` → couleur `--success`
+- vers `blocked` → couleur `--danger`, dashed
+- vers `unreachable` → opacité 0.15
+- vers `reachable` → couleur normale
+
+**Transitions** : fade 200ms sur le changement de bg/border quand le profil patient mute (montre la propagation). Respect `prefers-reduced-motion`.
+
+**Panneau latéral** (30% de la largeur, à droite, full-height scrollable) :
+1. **Profil patient éditable** : champs `name` / `email` / `phone` / `whatsapp` / `address`. Toggle "Ajouter" / "Supprimer" sur les champs optionnels. Debounce 500ms → `PATCH /patient-profiles/:id`. Bannière `--info` "Modifier ces données change immédiatement les chemins disponibles dans le workflow."
+2. **Avancement** : bouton primary `Étape suivante` + sélecteur d'outcome contextuel (dropdown statuts du canal pour `send_*`, radios Vrai/Faux pour `condition`, rien pour `start` / `single`). Bouton disabled si l'outcome choisi n'a pas de branche définie (tooltip explicatif). Pré-warning `--warning` si le nœud courant est `send_*` et la donnée nécessaire manque dans le profil. Bouton ghost `Réinitialiser le parcours`.
+3. **Historique** : liste chronologique des étapes traversées (label + jour d'entrée + outcome simulé), `--text-sm`, separators `<Separator />`.
 
 ---
 
@@ -319,14 +565,23 @@ These are gates, not nice-to-haves. Each will be re-checked before delivery.
 
 ### 9.2 Keyboard
 
-- **Tab order matches visual order.** Top bar → palette → canvas → inspector.
-- Canvas keyboard equivalents (must-have for an editor):
-  - `Tab` to move between nodes; `Enter` to open inspector for the focused node; arrows to nudge (8px / 1px with Shift).
-  - `Delete` / `Backspace` removes the selected node or edge.
-  - `Cmd/Ctrl+S` saves; `Cmd/Ctrl+Z` / `Cmd/Ctrl+Shift+Z` undo/redo (stretch).
-- **Focus rings always visible** (2px `--ring`, offset 2px).
-- **No keyboard traps** — modals trap focus *inside* the modal, ESC always closes.
-- Skip-link `Aller au canvas` at the top of `<main>`.
+- **Tab order matches visual order** : top bar → palette → canvas → modale (quand ouverte).
+- **Skip-link** `Aller au canvas` en haut de `<main>` (visible au focus clavier seulement).
+- **Focus rings always visible** (2px `--ring`, offset 2px). Jamais retirés sans remplacement équivalent.
+- **No keyboard traps** — Radix Dialog piège le focus *à l'intérieur* de la modale, `ESC` ferme et restaure le focus précédent.
+- **Canvas keyboard nav** (équivalents souris obligatoires) :
+
+| Touche | Action |
+|---|---|
+| `Tab` / `Shift+Tab` | Passe d'un nœud au suivant **en ordre topologique** (pour stabilité) |
+| `Enter` | Ouvre la modale d'édition (§7.4) sur le nœud focused |
+| `↑` / `↓` | Nudge Y de 8px |
+| `Shift+↑` / `Shift+↓` | Nudge Y de 1px |
+| `←` / `→` | **No-op** — X est dérivé du graphe, modifier `daysAfter` sur l'arête entrante pour décaler. Tooltip persistant au premier essai |
+| `Delete` / `Backspace` | Supprime le nœud ou edge sélectionné (sauf `start`) |
+| `Cmd/Ctrl+S` | Save explicite (déclenche `saveNow` ; ignoré si focus dans un input) |
+| `Cmd/Ctrl+Z` | Undo (désactivé si focus dans un input) |
+| `Cmd/Ctrl+Shift+Z` ou `Cmd/Ctrl+Y` | Redo (désactivé si focus dans un input) |
 
 ### 9.3 Screen reader
 
@@ -353,31 +608,43 @@ These are gates, not nice-to-haves. Each will be re-checked before delivery.
 
 ## 10. Layout & responsive
 
-Desktop-first (≥1024px is the design target — lab admins on a workstation). Tablet usable; mobile is **not** a v1 requirement and the editor is not expected to work below 768px.
+Desktop-first (≥1024px est la cible — chefs de labo sur poste de travail). Tablet utilisable ; mobile **n'est pas** une exigence v1.
 
-| Breakpoint | Behavior |
-|---|---|
-| `≥1280px` | Full layout: 320 palette + canvas + 360 inspector. |
-| `1024–1279px` | Inspector collapses behind a toggle button on the right edge; palette stays. |
-| `768–1023px` | Editor: both panels collapse behind toggles; list page reflows to single column cards. |
-| `<768px` | Show a friendly "Mieux sur grand écran" message for the editor route; the list route still works (single column). |
+L'éditeur a deux zones permanentes : **palette gauche (320px)** + **canvas plein-écran**. La modale d'édition (§7.4) est un overlay, pas un panneau de layout. La vue patient bonus ajoute un panneau latéral droit de 30% (read-only).
 
-- Container max-width for non-editor pages (list, settings): `max-w-6xl` (1152px), horizontal padding `--space-6` on desktop, `--space-4` on tablet.
-- Use `min-h-dvh` (not `100vh`) on full-height containers.
-- Z-index scale: `0` canvas, `10` panels, `20` top bar, `40` dropdowns/popovers, `100` modals, `1000` toasts.
+| Breakpoint | Comportement éditeur | Liste / autres pages |
+|---|---|---|
+| `≥1280px` | Layout complet : palette 320px + canvas | Container `max-w-6xl`, table dense |
+| `1024–1279px` | Palette toujours visible ; modale plein espace | Idem |
+| `768–1023px` | Palette **collapsable** derrière un bouton toggle (icône `PanelLeft`) ; canvas pleine largeur | Reflow en single column |
+| `<768px` | Message "Mieux sur grand écran" + CTA `Retour aux workflows` | Liste reste utilisable, single column |
+
+- Container max-width pour les pages non-éditeur (liste, profils, runs) : `max-w-6xl` (1152px), padding horizontal `--space-6` desktop, `--space-4` tablet.
+- `min-h-dvh` (pas `100vh`) sur les conteneurs full-height.
+- **Z-index scale** : `0` canvas, `10` panels (palette), `20` top bar, `40` dropdowns / popovers (`@floating-ui`), `100` modales (Radix Dialog), `1000` toasts.
 
 ---
 
 ## 11. Implementation notes (React + TS)
 
-- **CSS approach:** Tailwind v3+ with a token layer in `tailwind.config.ts` mapping the variables in §3–§5. Components author classes; no raw hex in components.
-- **Tokens file:** `src/styles/tokens.css` declares `:root { --bg: ...; ... }` (and `:root[data-theme="dark"]` for future dark mode). Tailwind reads them via `theme.extend.colors` using CSS variables.
-- **Component library:** **headless** (Radix UI primitives or React Aria) + Tailwind. Avoid full UI kits (MUI / Chakra / Ant) — they drag a contradictory visual system.
-- **Graph library:** **React Flow** (now `@xyflow/react`). Strongly recommended for this brief — supports custom nodes, custom edges, controlled state, accessibility hooks, deep-link-friendly snapshots. Discuss alternatives (Dagre + custom SVG, Rete.js) in the interview defense.
-- **Icons:** `lucide-react`, sized via Tailwind classes (`size-4`, `size-5`).
-- **Forms:** React Hook Form + Zod for validation. Errors rendered with the rules in §7.2.
-- **Motion:** Framer Motion only where springs matter (modals, sheet open). Use Tailwind transitions for hovers / presses.
-- **Date/relative time:** `date-fns` with French locale.
+Verrouillé par le spec §4.2 — réutiliser ces choix pour cohérence avec le plan d'implémentation.
+
+- **Bundler / framework :** Vite 5 + React 18 + TypeScript 5.
+- **CSS :** Tailwind v3+ avec un token layer dans `tailwind.config.ts` lisant les variables CSS de §3–§5. Pas de hex en dur dans les composants.
+- **Tokens :** `src/styles/tokens.css` déclare `:root { --bg: ...; ... }` (et `:root[data-theme="dark"]` pour future dark mode).
+- **Composants headless :** **Radix UI primitives** (`Dialog`, `Popover`, `DropdownMenu`, `Tabs`, `Tooltip`, `Accordion`, `Separator`). Pas de kit complet (MUI / Chakra / Ant).
+- **Graph :** **React Flow** (`@xyflow/react`). Custom nodes, custom edges, custom background.
+- **State éditeur :** **Zustand** (recommandé par xyflow) avec historique undo/redo (50 snapshots max).
+- **Cache API :** **TanStack Query** (workflows, templates, profils, runs).
+- **Popovers d'arête :** **`@floating-ui/react`** (`useFloating` + `autoUpdate` + middleware `flip` / `shift`). Pas Radix Popover sur les arêtes — ancrage dynamique au clic sur le path SVG.
+- **Icons :** `lucide-react` via wrapper `<Icon name="..." size={16|20|24} />`. Tailwind `size-4` / `size-5` / `size-6`.
+- **Forms :** **React Hook Form + Zod** (validation inline). Schémas Zod importés depuis `@rainpath/shared`.
+- **Motion :** **Framer Motion** uniquement sur les modales (spring `{stiffness: 320, damping: 30}`). Tailwind transitions sur hover / press. CSS `transition: transform 300ms ease-out` sur les nœuds qui se décalent post-mutation.
+- **Police :** `@fontsource/inter` (variable font), feature settings `cv11, ss01, ss03` dans `tokens.css`.
+- **Dates relatives :** `date-fns` locale `fr` (`formatDistanceToNow`).
+- **Toasts :** `sonner` ou `react-hot-toast` (bottom-right, max 3 stacked, dismiss 4s / 6s / manuel selon variant).
+- **Virtualisation listes :** `@tanstack/react-virtual` au-delà de 50 lignes.
+- **Lint anti-drift :** `eslint-plugin-tailwindcss` + règle custom interdisant les hex 6-digit hors `tokens.css` (R23).
 
 ---
 
