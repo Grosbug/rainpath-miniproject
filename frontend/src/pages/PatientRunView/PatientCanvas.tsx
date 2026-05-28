@@ -47,7 +47,7 @@ function CanvasInner({ graph, profile, currentNodeId, history }: Props) {
         address: profile.address
       } as any,
       currentNodeId,
-      history as any
+      history.map(h => h.nodeId) as any
     ) as Map<string, ReachabilityState>,
     [graph, profile.email, profile.phone, profile.whatsapp, profile.address, currentNodeId, history]
   )
