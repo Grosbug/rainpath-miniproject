@@ -1,0 +1,116 @@
+import { Test } from '@nestjs/testing'
+import { execSync } from 'node:child_process'
+import { existsSync, unlinkSync } from 'node:fs'
+import { join } from 'node:path'
+import { START_Y } from '@rainpath/shared'
+import { PrismaModule } from '../prisma/prisma.module'
+import { PrismaService } from '../prisma/prisma.service'
+import { PatientRunsService } from './patient-runs.service'
+
+const TEST_DB = join(__dirname, '..', '..', 'test', 'patient-runs-svc.db')
+
+function resetDb() {
+  if (existsSync(TEST_DB)) unlinkSync(TEST_DB)
+  process.env.DATABASE_URL = `file:${TEST_DB}`
+  execSync('pnpm exec prisma db push --skip-generate', {
+    cwd: join(__dirname, '..', '..'),
+    stdio: 'inherit',
+    env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL }
+  })
+}
+
+const SIMPLE_GRAPH = {
+  nodes: [
+    { id: 's', position: { x: 0, y: START_Y }, data: { kind: 'start' } },
+    { id: 'a', position: { x: 5, y: START_Y }, data: {
+      kind: 'send_email', params: { subject: '', body: '', output: { mode: 'single' } }
+    }},
+    { id: 'e', position: { x: 10, y: START_Y }, data: { kind: 'end' } }
+  ],
+  edges: [
+    { id: 'e1', source: 's', target: 'a', daysAfter: 5 },
+    { id: 'e2', source: 'a', target: 'e', daysAfter: 5 }
+  ]
+}
+
+describe('PatientRunsService', () => {
+  let service: PatientRunsService
+  let prisma: PrismaService
+
+  beforeAll(() => { resetDb() })
+  afterAll(async () => { await prisma?.$disconnect() })
+
+  beforeEach(async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [PrismaModule],
+      providers: [PatientRunsService]
+    }).compile()
+    service = moduleRef.get(PatientRunsService)
+    prisma = moduleRef.get(PrismaService)
+    await prisma.patientRun.deleteMany()
+    await prisma.patientProfile.deleteMany()
+    await prisma.workflow.deleteMany()
+  })
+
+  async function seedWorkflowAndPatient() {
+    const wf = await prisma.workflow.create({
+      data: { name: 'WF', graph: JSON.stringify(SIMPLE_GRAPH) }
+    })
+    const patient = await prisma.patientProfile.create({ data: { name: 'Alice' } })
+    return { wf, patient }
+  }
+
+  it('create() seeds currentNodeId to start and history with one entry', async () => {
+    const { wf, patient } = await seedWorkflowAndPatient()
+    const run = await service.create(wf.id, { patientId: patient.id })
+    expect(run.currentNodeId).toBe('s')
+    expect(run.history).toHaveLength(1)
+    expect(run.history[0]?.nodeId).toBe('s')
+  })
+
+  it('listForWorkflow() returns runs (incl. soft-deleted patients in the join)', async () => {
+    const { wf, patient } = await seedWorkflowAndPatient()
+    await service.create(wf.id, { patientId: patient.id })
+    await prisma.patientProfile.update({ where: { id: patient.id }, data: { deletedAt: new Date() } })
+    const list = await service.listForWorkflow(wf.id)
+    expect(list).toHaveLength(1)
+    expect(list[0]?.patient.name).toBe('Alice')
+    expect(list[0]?.patient.deletedAt).not.toBeNull()
+  })
+
+  it('get() returns the full run with parsed graph and patient', async () => {
+    const { wf, patient } = await seedWorkflowAndPatient()
+    const created = await service.create(wf.id, { patientId: patient.id })
+    const full = await service.get(created.id)
+    expect(full.workflow.id).toBe(wf.id)
+    expect(full.workflow.graph.nodes.length).toBe(3)
+    expect(full.patient.name).toBe('Alice')
+  })
+
+  it('advance() with single-mode email follows the only edge', async () => {
+    const { wf, patient } = await seedWorkflowAndPatient()
+    const created = await service.create(wf.id, { patientId: patient.id })
+    await service.advance(created.id, {})
+    const afterEmail = await service.advance(created.id, {})
+    expect(afterEmail.currentNodeId).toBe('e')
+    expect(afterEmail.history.length).toBe(3)
+  })
+
+  it('advance() on an end node throws 400', async () => {
+    const { wf, patient } = await seedWorkflowAndPatient()
+    const created = await service.create(wf.id, { patientId: patient.id })
+    await service.advance(created.id, {})
+    await service.advance(created.id, {})
+    await expect(service.advance(created.id, {})).rejects.toMatchObject({ status: 400 })
+  })
+
+  it('reset() rewinds currentNodeId to start and seeds history with one entry', async () => {
+    const { wf, patient } = await seedWorkflowAndPatient()
+    const created = await service.create(wf.id, { patientId: patient.id })
+    await service.advance(created.id, {})
+    await service.advance(created.id, {})
+    const reset = await service.reset(created.id)
+    expect(reset.currentNodeId).toBe('s')
+    expect(reset.history).toHaveLength(1)
+  })
+})
