@@ -73,8 +73,8 @@ export function ImportWorkflowDialog({ open, onOpenChange }: Props) {
     // Support two import shapes:
     //  (a) raw graph: { nodes, edges }
     //  (b) exported workflow: { name, graph: {...} }
-    const candidate =
-      json && typeof json === 'object' && 'graph' in (json as any) ? (json as any).graph : json
+    const obj = json && typeof json === 'object' ? (json as Record<string, unknown>) : null
+    const candidate = obj && 'graph' in obj ? obj['graph'] : json
     const r = Graph.safeParse(candidate)
     if (!r.success) {
       setIssues(r.error.issues.slice(0, 5).map(i => `${i.path.join('.') || '·'}: ${i.message}`))
@@ -83,9 +83,7 @@ export function ImportWorkflowDialog({ open, onOpenChange }: Props) {
     }
 
     const suggested =
-      (json && typeof json === 'object' && 'name' in (json as any)
-        ? String((json as any).name)
-        : null) ?? file.name.replace(/\.json$/i, '')
+      (obj && 'name' in obj ? String(obj['name']) : null) ?? file.name.replace(/\.json$/i, '')
     setParsed({ graph: r.data, suggestedName: suggested })
     setName(suggested)
     setIssues([])

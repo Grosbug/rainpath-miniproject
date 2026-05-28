@@ -78,11 +78,11 @@ export default function WorkflowsList() {
 
       <div className='mt-8'>
         {isLoading ? (
-          <div className='rounded-lg border border-border bg-surface p-8 text-center text-sm text-fg-muted'>
+          <div role="status" aria-live="polite" className='rounded-lg border border-border bg-surface p-8 text-center text-sm text-fg-muted'>
             Chargement…
           </div>
         ) : error ? (
-          <div className='rounded-lg border border-border bg-surface p-8 text-center'>
+          <div role="alert" className='rounded-lg border border-border bg-surface p-8 text-center'>
             <p className='text-sm text-fg'>Impossible de charger les workflows.</p>
             <Button variant='secondary' className='mt-4' onClick={() => refetch()}>
               <Icon name='RotateCw' size={16} />

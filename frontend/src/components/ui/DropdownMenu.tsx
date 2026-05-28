@@ -4,7 +4,6 @@ import { Icon, IconName } from '@/components/Icon'
 
 export const DropdownMenu = RDM.Root
 export const DropdownTrigger = RDM.Trigger
-export const DropdownPortal = RDM.Portal
 
 export function DropdownContent({ children }: { children: ReactNode }) {
   return (

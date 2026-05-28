@@ -38,7 +38,7 @@ const WorkflowDetailEnvelope = z.object({
   graph: z.unknown(),
   createdAt: z.string(),
   updatedAt: z.string(),
-  warnings: z.array(Warning)
+  warnings: z.array(Warning).default([])
 })
 
 type EnvelopeRaw = z.infer<typeof WorkflowDetailEnvelope>

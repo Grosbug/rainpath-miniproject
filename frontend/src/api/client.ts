@@ -28,7 +28,7 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
   const init: RequestInit = {
     method: opts.method ?? 'GET',
     signal: opts.signal,
-    headers: { 'Content-Type': 'application/json' }
+    headers: opts.body !== undefined ? { 'Content-Type': 'application/json' } : {}
   }
   if (opts.body !== undefined) init.body = JSON.stringify(opts.body)
 
