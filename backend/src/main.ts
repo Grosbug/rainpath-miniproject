@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core'
-import { AppModule } from './app.module'
 import * as express from 'express'
+import { AppModule } from './app.module'
+import { ZodExceptionFilter } from './validation/zod-exception.filter'
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false })
@@ -10,6 +11,7 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api')
   app.enableCors({ origin: 'http://localhost:5173' })
+  app.useGlobalFilters(new ZodExceptionFilter())
 
   await app.listen(3000)
 }
