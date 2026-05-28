@@ -1,12 +1,20 @@
 import { computeXPositions } from '@rainpath/shared'
+import { Icon } from '@/components/Icon'
 
 export default function App() {
-  // Demo: ensure the shared package is importable from the frontend.
-  const demo = computeXPositions({ nodes: [{ id: 's', position: { x: 0, y: 200 }, data: { kind: 'start' } }], edges: [] })
+  const demo = computeXPositions({
+    nodes: [{ id: 's', position: { x: 0, y: 200 }, data: { kind: 'start' } }],
+    edges: []
+  })
   return (
-    <main className="p-8 text-slate-900 antialiased">
-      <h1 className="text-2xl font-semibold tracking-tight">RainPath — frontend bootstrap</h1>
-      <p className="text-sm text-slate-600">shared loaded — start.X = {demo.get('s')}</p>
+    <main className="p-8">
+      <h1 className="text-2xl font-semibold tracking-tight text-fg">
+        RainPath — frontend bootstrap
+      </h1>
+      <p className="mt-2 flex items-center gap-2 text-sm text-fg-muted">
+        <Icon name="CircleCheck" size={16} className="text-success" />
+        shared loaded — start.X = {demo.get('s')}
+      </p>
     </main>
   )
 }

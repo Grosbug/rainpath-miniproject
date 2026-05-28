@@ -1,3 +1,8 @@
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+
 /* Design System tokens — see design-system/MASTER.md §3-§5 */
 :root {
   /* Chrome / surfaces (DS §3.1) */
