@@ -23,7 +23,7 @@ interface NodeCardProps {
   /** Whether this node is currently selected (drawn with primary ring + elev-2). */
   selected?: boolean
   /** Compact width override (used by start/end at 180 px). */
-  width?: 180 | 240
+  width?: 180 | 260
   /** Thicker outer border used by end node (DS §7.3 end variant). */
   thickBorder?: boolean
 }
@@ -37,7 +37,7 @@ interface NodeCardProps {
  * arbitrary class names like `bg-[var(--node-${family}-bg)]`).
  */
 export function NodeCard({
-  family, icon, title, familyLabel, details, handles, selected, width = 240, thickBorder
+  family, icon, title, familyLabel, details, handles, selected, width = 260, thickBorder
 }: NodeCardProps) {
   const ring = selected ? 'ring-2 ring-primary ring-offset-2 ring-offset-bg shadow-elev-2' : 'shadow-elev-1'
   const widthCls = width === 180 ? 'w-[180px]' : 'w-[260px]'

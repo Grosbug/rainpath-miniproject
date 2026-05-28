@@ -1,4 +1,4 @@
-import { KeyboardEvent, useState } from 'react'
+import { KeyboardEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -32,6 +32,13 @@ export function TopBar({ saveNow }: Props) {
   const [draftName, setDraftName] = useState(name)
   const [editingDesc, setEditingDesc] = useState(false)
   const [draftDesc, setDraftDesc] = useState(description)
+
+  useEffect(() => {
+    if (!editingName) setDraftName(name)
+  }, [name, editingName])
+  useEffect(() => {
+    if (!editingDesc) setDraftDesc(description)
+  }, [description, editingDesc])
 
   const qc = useQueryClient()
   const navigate = useNavigate()

@@ -25,6 +25,15 @@ export function useEditorShortcuts({ saveNow }: Options) {
 
       const mod = e.ctrlKey || e.metaKey
 
+      // Cmd/Ctrl+S is global (saving from inside an input still makes sense).
+      if (mod && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        saveNow()
+        return
+      }
+      // Undo/redo/Delete must yield to native behavior when an input/textarea has focus.
+      if (isEditing) return
+
       if (mod && e.key.toLowerCase() === 'z' && e.shiftKey) {
         e.preventDefault()
         redo()
@@ -40,12 +49,7 @@ export function useEditorShortcuts({ saveNow }: Options) {
         redo()
         return
       }
-      if (mod && e.key.toLowerCase() === 's') {
-        e.preventDefault()
-        saveNow()
-        return
-      }
-      if (!isEditing && (e.key === 'Delete' || e.key === 'Backspace')) {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
         const s = useEditorStore.getState()
         if (s.selectedNodeId) {
           e.preventDefault()

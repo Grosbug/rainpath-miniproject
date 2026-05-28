@@ -59,7 +59,11 @@ export function useAutoSave(): { saveNow: () => void } {
         s.setSaveStatus(retryIxRef.current >= RETRY_DELAYS.length ? 'offline' : 'error')
         const delay = RETRY_DELAYS[Math.min(retryIxRef.current, RETRY_DELAYS.length - 1)]
         retryIxRef.current = Math.min(retryIxRef.current + 1, RETRY_DELAYS.length)
-        setTimeout(() => { void performSave() }, delay)
+        setTimeout(() => {
+          // If another save has started since the failure, skip — that save replaces this retry.
+          if (inFlightRef.current) return
+          void performSave()
+        }, delay)
       }
     } finally {
       inFlightRef.current = false
