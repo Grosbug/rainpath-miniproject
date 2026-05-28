@@ -53,7 +53,7 @@ export function ValidationBanner() {
           ))}
           {warnings.map((w, i) => (
             <li key={`w-${i}`} className="flex items-start gap-2 text-warning">
-              <Icon name="CircleAlert" size={16} />
+              <Icon name="TriangleAlert" size={16} />
               <span>
                 <span className="font-medium">[{w.code}]</span> {w.message}
               </span>
