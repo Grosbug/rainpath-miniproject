@@ -89,6 +89,22 @@ function pushHistory(state: EditorState): EditorState {
   }
 }
 
+/**
+ * After a mutation has been applied, persist the post-mutation values into
+ * history[historyIndex] so that redo can restore them correctly.
+ */
+function recordCurrentSnapshot(state: EditorState): EditorState {
+  const snap: EditorSnapshot = {
+    name: state.name,
+    description: state.description,
+    nodes: state.nodes,
+    edges: state.edges
+  }
+  const history = [...state.history]
+  history[state.historyIndex] = snap
+  return { ...state, history }
+}
+
 function recomputeAndApply(nodes: GraphNode[], edges: GraphEdge[]): GraphNode[] {
   const existing = new Map<string, number>(nodes.map(n => [n.id, n.position.x]))
   try {
@@ -127,13 +143,13 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
   setName: name =>
     set(state => {
       const pushed = pushHistory(state)
-      return { ...pushed, name }
+      return recordCurrentSnapshot({ ...pushed, name })
     }),
 
   setDescription: description =>
     set(state => {
       const pushed = pushHistory(state)
-      return { ...pushed, description }
+      return recordCurrentSnapshot({ ...pushed, description })
     }),
 
   setSelectedNode: id => set({ selectedNodeId: id, selectedEdgeId: id ? null : get().selectedEdgeId }),
@@ -145,7 +161,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       const nodes = pushed.nodes.map(n =>
         n.id === id ? { ...n, position: { x: n.position.x, y } } : n
       )
-      return { ...pushed, nodes }
+      return recordCurrentSnapshot({ ...pushed, nodes })
     }),
 
   updateEdgeDays: (id, daysAfter) =>
@@ -153,7 +169,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       const pushed = pushHistory(state)
       const edges = pushed.edges.map(e => (e.id === id ? { ...e, daysAfter } : e))
       const nodes = recomputeAndApply(pushed.nodes, edges)
-      return { ...pushed, edges, nodes }
+      return recordCurrentSnapshot({ ...pushed, edges, nodes })
     }),
 
   removeNode: id =>
@@ -166,12 +182,12 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       const nodes = pushed.nodes.filter(n => n.id !== id)
       const edges = pushed.edges.filter(e => e.source !== id && e.target !== id)
       const recomputed = recomputeAndApply(nodes, edges)
-      return {
+      return recordCurrentSnapshot({
         ...pushed,
         nodes: recomputed,
         edges,
         selectedNodeId: pushed.selectedNodeId === id ? null : pushed.selectedNodeId
-      }
+      })
     }),
 
   removeEdge: id =>
@@ -179,12 +195,12 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       const pushed = pushHistory(state)
       const edges = pushed.edges.filter(e => e.id !== id)
       const nodes = recomputeAndApply(pushed.nodes, edges)
-      return {
+      return recordCurrentSnapshot({
         ...pushed,
         edges,
         nodes,
         selectedEdgeId: pushed.selectedEdgeId === id ? null : pushed.selectedEdgeId
-      }
+      })
     }),
 
   recomputeXPositions: () => set(state => ({ ...state, nodes: recomputeAndApply(state.nodes, state.edges) })),
