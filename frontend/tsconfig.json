@@ -15,9 +15,8 @@
     "isolatedModules": true,
     "useDefineForClassFields": true,
     "types": ["node"],
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
+      "@/*": ["./src/*"],
       "@rainpath/shared": ["../shared/src/index.ts"]
     }
   },
