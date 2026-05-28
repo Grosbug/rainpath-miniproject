@@ -23,7 +23,7 @@ export class ErrorBoundary extends Component<Props, State> {
     return (
       <div className='flex min-h-dvh items-center justify-center p-8'>
         <div className='max-w-md text-center'>
-          <Icon name='AlertCircle' size={24} className='mx-auto text-danger' />
+          <Icon name='CircleAlert' size={24} className='mx-auto text-danger' />
           <h1 className='mt-4 text-xl font-semibold text-fg'>Erreur de chargement</h1>
           <p className='mt-2 text-sm text-fg-muted'>
             Une erreur inattendue s'est produite. Rechargez la page pour réessayer.

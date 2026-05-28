@@ -25,25 +25,44 @@ const Warning = z.object({
   missingStatuses: z.array(z.string()).optional()
 })
 
-const WorkflowDetail = z.object({
+/**
+ * Envelope schema for the workflow detail response — `graph` is parsed as `unknown`
+ * here and re-validated with the shared `Graph` schema in `parseWorkflowDetail`.
+ * Composing the shared `Graph` directly into this `z.object({...})` triggers TS2719
+ * (dual-zod-instance type-identity mismatch).
+ */
+const WorkflowDetailEnvelope = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  graph: Graph,
+  graph: z.unknown(),
   createdAt: z.string(),
   updatedAt: z.string(),
   warnings: z.array(Warning)
 })
-export type WorkflowDetail = z.infer<typeof WorkflowDetail>
 
-function parseOrThrow<T>(schema: z.ZodSchema<T>, raw: unknown): T {
-  const r = schema.safeParse(raw)
-  if (!r.success) {
-    throw new ApiError(500, {
-      message: 'response_drift',
-      errors: r.error.issues.map(i => ({ code: 'response_drift', message: i.message, path: i.path }))
-    })
-  }
+type EnvelopeRaw = z.infer<typeof WorkflowDetailEnvelope>
+type GraphT = z.infer<typeof Graph>
+export type WorkflowDetail = Omit<EnvelopeRaw, 'graph'> & { graph: GraphT }
+
+function throwDrift(issues: z.ZodIssue[]): never {
+  throw new ApiError(500, {
+    message: 'response_drift',
+    errors: issues.map(i => ({ code: 'response_drift', message: i.message, path: i.path }))
+  })
+}
+
+function parseWorkflowDetail(raw: unknown): WorkflowDetail {
+  const envR = WorkflowDetailEnvelope.safeParse(raw)
+  if (!envR.success) throwDrift(envR.error.issues)
+  const graphR = Graph.safeParse(envR.data.graph)
+  if (!graphR.success) throwDrift(graphR.error.issues)
+  return { ...envR.data, graph: graphR.data }
+}
+
+function parseList(raw: unknown): WorkflowSummary[] {
+  const r = z.array(WorkflowSummary).safeParse(raw)
+  if (!r.success) throwDrift(r.error.issues)
   return r.data
 }
 
@@ -51,27 +70,27 @@ function parseOrThrow<T>(schema: z.ZodSchema<T>, raw: unknown): T {
 
 export async function listWorkflows(): Promise<WorkflowSummary[]> {
   const raw = await apiFetch<unknown>('/workflows')
-  return parseOrThrow(z.array(WorkflowSummary), raw)
+  return parseList(raw)
 }
 
 export async function getWorkflow(id: string): Promise<WorkflowDetail> {
   const raw = await apiFetch<unknown>(`/workflows/${id}`)
-  return parseOrThrow(WorkflowDetail, raw)
+  return parseWorkflowDetail(raw)
 }
 
 export async function createWorkflow(body: CreateWorkflowDto): Promise<WorkflowDetail> {
   const raw = await apiFetch<unknown>('/workflows', { method: 'POST', body })
-  return parseOrThrow(WorkflowDetail, raw)
+  return parseWorkflowDetail(raw)
 }
 
 export async function updateWorkflow(id: string, body: UpdateWorkflowDto): Promise<WorkflowDetail> {
   const raw = await apiFetch<unknown>(`/workflows/${id}`, { method: 'PATCH', body })
-  return parseOrThrow(WorkflowDetail, raw)
+  return parseWorkflowDetail(raw)
 }
 
 export async function duplicateWorkflow(id: string, body: DuplicateWorkflowDto): Promise<WorkflowDetail> {
   const raw = await apiFetch<unknown>(`/workflows/${id}/duplicate`, { method: 'POST', body })
-  return parseOrThrow(WorkflowDetail, raw)
+  return parseWorkflowDetail(raw)
 }
 
 export async function deleteWorkflow(id: string): Promise<void> {
