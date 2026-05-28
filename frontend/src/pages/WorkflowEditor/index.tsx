@@ -5,6 +5,8 @@ import { useAutoSave } from './hooks/useAutoSave'
 import { useEditorShortcuts } from './hooks/useEditorShortcuts'
 import { TopBar } from './TopBar'
 import { Canvas } from './Canvas'
+import { Palette } from './palette/Palette'
+import { ValidationBanner } from './ValidationBanner'
 
 export default function WorkflowEditor() {
   const { id } = useParams<{ id: string }>()
@@ -40,8 +42,12 @@ export default function WorkflowEditor() {
   return (
     <div className="flex h-[calc(100dvh-48px)] flex-col">
       <TopBar saveNow={saveNow} />
-      <div className="relative flex-1">
-        <Canvas />
+      <div className="flex flex-1 overflow-hidden">
+        <Palette />
+        <div className="relative flex-1">
+          <Canvas />
+          <ValidationBanner />
+        </div>
       </div>
     </div>
   )
