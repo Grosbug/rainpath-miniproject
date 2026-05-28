@@ -3,7 +3,9 @@
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
-  "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
+  "transform": { "^.+\\.(t|j)s$": "ts-jest" },
+  "globalSetup": "<rootDir>/setup-e2e.ts",
+  "moduleNameMapper": {
+    "^@rainpath/shared$": "<rootDir>/../../shared/src/index.ts"
   }
 }
