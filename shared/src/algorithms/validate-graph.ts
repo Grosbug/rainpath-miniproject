@@ -94,7 +94,7 @@ export function validateGraph(graph: Graph): ValidationResult {
     const data = n.data as Extract<NodeData, { kind: 'send_email' | 'send_sms' | 'send_whatsapp' | 'send_postal' }>
     const output = data.params.output
 
-    if (n.data.kind === 'send_postal' && !data.params.tracked && output.mode !== 'single') {
+    if (n.data.kind === 'send_postal' && !n.data.params.tracked && output.mode !== 'single') {
       errors.push({
         code: 'postal_untracked_must_be_single',
         message: 'Postal non suivi : seul le mode single est autorisé',
