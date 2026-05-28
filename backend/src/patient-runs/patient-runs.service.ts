@@ -150,11 +150,9 @@ export class PatientRunsService {
     }
 
     const history = JSON.parse(row.history) as RunHistoryEntry[]
-    history.push({
-      nodeId: result.nextNodeId,
-      enteredAt: new Date().toISOString(),
-      outcome: result.outcome
-    })
+    const entry: RunHistoryEntry = { nodeId: result.nextNodeId, enteredAt: new Date().toISOString() }
+    if (result.outcome !== undefined) entry.outcome = result.outcome
+    history.push(entry)
 
     await this.prisma.patientRun.update({
       where: { id },

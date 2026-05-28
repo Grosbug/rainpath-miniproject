@@ -79,6 +79,23 @@ describe('resolveAdvance', () => {
     })
   })
 
+  it('send_* mode=multi with no outcome → unhandled_outcome', () => {
+    const a = emailNode('a', {
+      mode: 'multi',
+      outputs: [{ id: 'engaged', label: 'Engagé', condition: { statuses: ['opened'] } }]
+    })
+    const g: Graph = {
+      nodes: [startNode(), a, endNode()],
+      edges: [edge('e1', 's', 'a', 1), edge('e2', 'a', 'e', 1, 'engaged')]
+    }
+    try {
+      resolveAdvance({ graph: g, currentNodeId: 'a' })
+      fail('expected throw')
+    } catch (e) {
+      expect((e as AdvanceError).code).toBe('unhandled_outcome')
+    }
+  })
+
   it('send_* mode=multi with unmatched status → unhandled_outcome', () => {
     const a = emailNode('a', {
       mode: 'multi',
