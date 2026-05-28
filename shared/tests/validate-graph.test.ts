@@ -171,6 +171,55 @@ describe('validateGraph — send_* output rules', () => {
     expect(r.errors.some(e => e.code === 'invalid_source_handle_for_single')).toBe(true)
   })
 
+  it('rejects multi outputs with duplicate output.id', () => {
+    const node = emailNode('a', {
+      mode: 'multi',
+      outputs: [
+        { id: 'same', label: 'First', condition: { statuses: ['opened'] } },
+        { id: 'same', label: 'Second', condition: { statuses: ['clicked'] } }
+      ]
+    })
+    const r = validateGraph({
+      nodes: [startNode, node, endNode('e1'), endNode('e2')],
+      edges: [
+        edge('e_sa', 's', 'a', 1),
+        edge('e_ae1', 'a', 'e1', 1, 'same'),
+        edge('e_ae2', 'a', 'e2', 1, 'same')
+      ]
+    })
+    expect(r.errors.some(e => e.code === 'duplicate_output_id')).toBe(true)
+  })
+
+  it('rejects sourceHandle not matching any multi output.id', () => {
+    const node = emailNode('a', {
+      mode: 'multi',
+      outputs: [{ id: 'engaged', label: 'Engagé', condition: { statuses: ['opened'] } }]
+    })
+    const r = validateGraph({
+      nodes: [startNode, node, endNode()],
+      edges: [
+        edge('e1', 's', 'a', 1),
+        edge('e2', 'a', 'e', 1, 'unknown_handle')
+      ]
+    })
+    expect(r.errors.some(e => e.code === 'invalid_source_handle_for_multi')).toBe(true)
+  })
+
+  it('rejects status outside channel in multi mode outputs', () => {
+    const node = emailNode('a', {
+      mode: 'multi',
+      outputs: [{ id: 'eng', label: 'Engagé', condition: { statuses: ['nonsense_status'] } }]
+    })
+    const r = validateGraph({
+      nodes: [startNode, node, endNode()],
+      edges: [
+        edge('e1', 's', 'a', 1),
+        edge('e2', 'a', 'e', 1, 'eng')
+      ]
+    })
+    expect(r.errors.some(e => e.code === 'status_not_in_channel')).toBe(true)
+  })
+
   it('warns on incomplete multi coverage', () => {
     // email has 6 statuses; cover only 'opened'
     const node = emailNode('a', {
