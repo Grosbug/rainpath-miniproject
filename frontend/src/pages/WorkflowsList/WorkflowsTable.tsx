@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   DropdownMenu,
   DropdownTrigger,
@@ -18,6 +18,7 @@ interface Props {
 }
 
 export function WorkflowsTable({ rows, onDuplicate, onExport, onDelete }: Props) {
+  const navigate = useNavigate()
   return (
     <div className='overflow-hidden rounded-lg border border-border bg-surface'>
       <table className='w-full text-sm'>
@@ -35,7 +36,7 @@ export function WorkflowsTable({ rows, onDuplicate, onExport, onDelete }: Props)
               <td className='px-4 py-3'>
                 <Link
                   to={`/workflows/${r.id}`}
-                  className='font-medium text-fg hover:text-primary focus-visible:outline-none focus-visible:underline'
+                  className='font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:underline'
                 >
                   {r.name}
                 </Link>
@@ -52,6 +53,9 @@ export function WorkflowsTable({ rows, onDuplicate, onExport, onDelete }: Props)
                     <IconButton icon='EllipsisVertical' aria-label={`Actions sur ${r.name}`} />
                   </DropdownTrigger>
                   <DropdownContent>
+                    <DropdownItem icon='Pencil' onSelect={() => navigate(`/workflows/${r.id}`)}>Ouvrir l’éditeur</DropdownItem>
+                    <DropdownItem icon='Play' onSelect={() => navigate(`/workflows/${r.id}/patient-runs`)}>Voir les parcours patients</DropdownItem>
+                    <DropdownSeparator />
                     <DropdownItem icon='Copy' onSelect={() => onDuplicate(r.id)}>Dupliquer</DropdownItem>
                     <DropdownItem icon='Download' onSelect={() => onExport(r.id)}>Exporter en JSON</DropdownItem>
                     <DropdownSeparator />

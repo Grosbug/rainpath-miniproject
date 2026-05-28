@@ -144,6 +144,10 @@ export function TopBar({ saveNow }: Props) {
             <IconButton icon='EllipsisVertical' aria-label="Plus d'actions" />
           </DropdownTrigger>
           <DropdownContent>
+            <DropdownItem icon='Play' onSelect={() => navigate(`/workflows/${id}/patient-runs`)}>
+              Voir les parcours patients
+            </DropdownItem>
+            <DropdownSeparator />
             <DropdownItem icon='Copy' onSelect={() => dupMut.mutate()}>Dupliquer</DropdownItem>
             <DropdownItem icon='Download' onSelect={handleExport}>Exporter en JSON</DropdownItem>
             <DropdownSeparator />
