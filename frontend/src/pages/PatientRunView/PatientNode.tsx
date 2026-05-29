@@ -87,7 +87,6 @@ export function PatientNode({ data }: NodeProps) {
             className="absolute right-2 top-2 rounded-full border bg-surface px-2 py-0.5 text-[10px] font-semibold tabular-nums leading-none shadow-elev-1"
             style={{ color: `var(--node-${meta.family}-accent)`, borderColor: `var(--node-${meta.family}-border)` }}
             aria-label={`Délai cumulé depuis le départ : ${d._dayX} jour${d._dayX > 1 ? 's' : ''}`}
-            data-rp-tooltip="Délai cumulé depuis le départ"
           >
             J+{d._dayX}
           </span>

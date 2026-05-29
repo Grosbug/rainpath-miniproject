@@ -112,7 +112,7 @@ export function TemplatesSection() {
                       className="group flex h-10 cursor-pointer items-center gap-2 rounded-md px-2 text-sm hover:bg-surface-muted active:cursor-grabbing"
                     >
                       <Icon name="GripVertical" size={16} className="text-fg-subtle" />
-                      <span className="flex-1 truncate font-medium text-fg" data-rp-tooltip={t.name}>
+                      <span className="flex-1 truncate font-medium text-fg">
                         {t.name}
                       </span>
                       <DropdownMenu>

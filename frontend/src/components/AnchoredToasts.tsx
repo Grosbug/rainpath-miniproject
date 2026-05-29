@@ -24,9 +24,9 @@ let dispatch: ((t: ShowInput) => void) | null = null
 let nextId = 1
 
 /**
- * Show a small toast bubble anchored at viewport coordinates (x, y). Used for action-local
+ * Show a small pill toast anchored at viewport coordinates (x, y). Used for action-local
  * feedback (illegal connection, invalid drop, etc.) so the message appears next to the user's
- * cursor instead of in a fixed corner. The bubble auto-clamps to the visible viewport so it
+ * cursor instead of in a fixed corner. The pill auto-clamps to the visible viewport so it
  * never gets cropped at edges.
  */
 export function showAnchoredToast(input: ShowInput) {
@@ -56,7 +56,7 @@ export function AnchoredToasts() {
 
   return (
     <div className='pointer-events-none fixed inset-0 z-[9000]' aria-live='polite' aria-atomic='true'>
-      {toasts.map(t => <Bubble key={t.id} toast={t} onDismiss={() => dismiss(t.id)} />)}
+      {toasts.map(t => <Pill key={t.id} toast={t} onDismiss={() => dismiss(t.id)} />)}
     </div>
   )
 }
@@ -67,8 +67,8 @@ const TYPE_STYLE: Record<AnchoredToastType, { bg: string; icon: IconName }> = {
   info:    { bg: 'bg-info',    icon: 'Info' }
 }
 
-function Bubble({ toast, onDismiss }: { toast: AnchoredToast; onDismiss: () => void }) {
-  // Clamp to viewport so the bubble stays fully visible even near edges. The 16px padding
+function Pill({ toast, onDismiss }: { toast: AnchoredToast; onDismiss: () => void }) {
+  // Clamp to viewport so the pill stays fully visible even near edges. The 16px padding
   // is rough breathing room — actual width is content-driven (whitespace-nowrap).
   const padding = 16
   const x = Math.max(padding, Math.min(window.innerWidth - padding, toast.x))
@@ -79,19 +79,13 @@ function Bubble({ toast, onDismiss }: { toast: AnchoredToast; onDismiss: () => v
       role='alert'
       onClick={onDismiss}
       data-rp-tooltip='Cliquer pour fermer'
-      className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-[calc(100%+12px)] cursor-pointer whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium text-white shadow-elev-2 ${meta.bg}`}
+      className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-[calc(100%+12px)] cursor-pointer whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-medium text-white shadow-elev-2 ${meta.bg}`}
       style={{ left: x, top: y }}
     >
       <div className='flex items-center gap-2'>
         <Icon name={meta.icon} size={16} />
         <span>{toast.message}</span>
       </div>
-      {/* Tail pointing down toward the anchor point */}
-      <div
-        className={`absolute left-1/2 top-full -translate-x-1/2 h-2 w-2 rotate-45 ${meta.bg}`}
-        style={{ marginTop: -4 }}
-        aria-hidden='true'
-      />
     </div>
   )
 }
