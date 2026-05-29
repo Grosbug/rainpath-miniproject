@@ -96,7 +96,10 @@ export function TopBar({ saveNow }: Props) {
         Workflows
       </button>
 
-      <div className='flex min-w-0 flex-1 flex-col'>
+      {/* Left-aligned with a small leading gap so the title/description sit slightly
+          further from the back button than the default flex `gap-4` allows, without
+          drifting into the centered position. */}
+      <div className='flex min-w-0 flex-1 flex-col pl-6'>
         {editingName ? (
           <input
             autoFocus
@@ -104,13 +107,13 @@ export function TopBar({ saveNow }: Props) {
             onChange={e => setDraftName(e.target.value)}
             onBlur={() => { setName(draftName.trim() || name); setEditingName(false) }}
             onKeyDown={onNameKey}
-            className='h-7 w-full max-w-md rounded border border-border bg-surface px-2 text-sm font-semibold text-fg'
+            className='h-7 w-full max-w-md rounded border border-border bg-surface px-2 text-base font-semibold text-fg'
           />
         ) : (
           <button
             type='button'
             onClick={() => { setDraftName(name); setEditingName(true) }}
-            className='truncate text-left text-sm font-semibold text-fg hover:underline'
+            className='truncate text-left text-base font-semibold text-fg hover:underline'
           >
             {name || '(sans titre)'}
           </button>
