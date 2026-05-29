@@ -16,50 +16,262 @@ Mini-application web qui permet à un chef de laboratoire d'anatomopathologie de
 
 ## Prérequis
 
-| Outil | Version minimum |
-|---|---|
-| Node.js | ≥ 20.0 |
-| pnpm | ≥ 9.0 (`corepack enable pnpm`) |
+| Outil | Version minimum | Installation |
+|---|---|---|
+| **Git** | récent | [git-scm.com](https://git-scm.com/) |
+| **Node.js** | ≥ 20.0 (LTS recommandé) | [nodejs.org](https://nodejs.org/) ou `nvm install 20` |
+| **pnpm** | ≥ 9.0 (verrouillé à `9.0.0` dans le repo) | `corepack enable` puis `corepack prepare pnpm@9.0.0 --activate` |
 
-## Démarrage en local
+Le monorepo déclare aussi `engines` dans le `package.json` racine : Node ≥ 20 et pnpm ≥ 9.
+
+**Packages du workspace** (installés ensemble via pnpm à la racine) :
+
+| Package | Rôle |
+|---|---|
+| `@rainpath/shared` | Schémas Zod + algorithmes (compilé en `shared/dist/`) |
+| `@rainpath/backend` | API NestJS 10 + Prisma 6 |
+| `@rainpath/frontend` | SPA Vite + React 18 |
+
+---
+
+## Installation des dépendances
+
+Depuis la racine du dépôt :
 
 ```bash
-# 1. Cloner + installer
-git clone <repo>
-cd rainpath-mini-project
+git clone <url-du-repo>
+cd rainpath-miniproject   # adapter au nom du dossier cloné
+
+# Installer toutes les dépendances des workspaces (shared, backend, frontend)
 pnpm install
+```
 
-# 2. Initialiser la DB SQLite (générée dans backend/dev.db, ignorée par git)
-cp backend/.env.example backend/.env             # DATABASE_URL="file:./dev.db"
-pnpm --filter @rainpath/backend prisma:migrate   # crée + applique les migrations
-pnpm --filter @rainpath/backend prisma:seed      # peuple quelques workflows + patients
+Ensuite, **générer le client Prisma** (obligatoire avant le premier build ou démarrage du backend — le client n’est pas versionné) :
 
-# 3. Lancer en mode dev (3 workers en parallèle : shared tsc --watch, backend, frontend)
+```bash
+pnpm --filter @rainpath/backend prisma:generate
+```
+
+> **Pourquoi ?** `@prisma/client` s’appuie sur du code généré à partir de `backend/prisma/schema.prisma`. Sans `prisma generate`, `nest build` ou `start:prod` échouent avec des erreurs de types ou de module manquant.
+
+---
+
+## Configuration (variables d’environnement)
+
+### Backend — `backend/.env`
+
+Copier le modèle fourni :
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+| Variable | Obligatoire | Exemple | Description |
+|---|---|---|---|
+| `DATABASE_URL` | oui | `file:./dev.db` | URL Prisma ([doc connection URLs](https://www.prisma.io/docs/reference/database-reference/connection-urls)). En SQLite, le chemin est **relatif au répertoire de travail du processus backend** (souvent `backend/` quand on utilise les scripts pnpm du package). |
+
+Le fichier `.env` est ignoré par git ; ne jamais committer de secrets.
+
+### Frontend — build (optionnel)
+
+| Variable | Quand | Exemple | Description |
+|---|---|---|---|
+| `VITE_API_BASE_URL` | build Vite (`pnpm build`) | `https://api.example.com/api` | URL de base des appels API. Par défaut : `/api` (même origine ou reverse-proxy). Voir `frontend/src/api/client.ts`. |
+
+En **développement**, le proxy Vite redirige déjà `/api` vers `http://localhost:3000` — aucune variable nécessaire.
+
+---
+
+## Prisma — base de données, migrations et seed
+
+Schéma : `backend/prisma/schema.prisma` (SQLite par défaut). Migrations versionnées : `backend/prisma/migrations/`.
+
+| Migration | Contenu |
+|---|---|
+| `20260529070202_init` | Tables `Workflow`, `NodeTemplate`, `PatientProfile`, `PatientRun` |
+| `20260529160000_patient_run_focused_node` | Colonne `focusedNodeId` sur `PatientRun` |
+
+### Commandes (via pnpm, depuis la racine)
+
+| Commande | Usage | Effet |
+|---|---|---|
+| `pnpm --filter @rainpath/backend prisma:generate` | Après `pnpm install` ou changement de schéma | Régénère `@prisma/client` |
+| `pnpm --filter @rainpath/backend prisma:migrate` | **Développement uniquement** | `prisma migrate dev` : applique les migrations, peut créer une nouvelle migration si le schéma a changé |
+| `pnpm --filter @rainpath/backend exec prisma migrate deploy` | **Production / CI / staging** | Applique **uniquement** les migrations déjà commitées, sans en créer de nouvelles |
+| `pnpm --filter @rainpath/backend prisma:seed` | Démo / premier lancement local | Exécute `backend/prisma/seed.ts` (workflows, modèles de nœuds, profils et parcours de démo) |
+
+Équivalent en se plaçant dans `backend/` (avec `.env` présent) :
+
+```bash
+cd backend
+pnpm exec prisma generate
+pnpm exec prisma migrate dev      # dev
+pnpm exec prisma migrate deploy   # prod
+pnpm exec prisma db seed          # seed (configuré dans package.json → tsx prisma/seed.ts)
+```
+
+### Premier lancement en local (base vide)
+
+```bash
+cp backend/.env.example backend/.env
+pnpm --filter @rainpath/backend prisma:generate
+pnpm --filter @rainpath/backend prisma:migrate   # crée backend/dev.db + tables
+pnpm --filter @rainpath/backend prisma:seed      # données de démo (optionnel mais recommandé)
+```
+
+Fichier SQLite créé : `backend/dev.db` (ignoré par git). Journaux WAL éventuels : `backend/dev.db-journal`.
+
+### Déploiement — appliquer le schéma en production
+
+Ordre recommandé **à chaque déploiement** qui inclut de nouvelles migrations :
+
+1. Définir `DATABASE_URL` sur l’environnement cible (fichier `.env`, secrets du PaaS, etc.).
+2. Installer les dépendances et builder l’application (voir section suivante).
+3. **Avant** de démarrer le serveur Nest :
+
+```bash
+pnpm --filter @rainpath/backend prisma:generate
+pnpm --filter @rainpath/backend exec prisma migrate deploy
+```
+
+4. Démarrer le backend : `pnpm --filter @rainpath/backend start:prod`.
+
+> **Ne pas** utiliser `prisma migrate dev` en production : cette commande est interactive, peut proposer de créer des migrations et n’est pas faite pour les pipelines de déploiement.
+
+**Seed en production** : `prisma:seed` est utile pour une démo ou un environnement de recette. Sur une base déjà peuplée, il peut créer des doublons — à n’exécuter qu’une fois ou à désactiver en prod.
+
+### Modifier le schéma (développeurs)
+
+1. Éditer `backend/prisma/schema.prisma`.
+2. `pnpm --filter @rainpath/backend prisma:migrate` — Prisma génère un dossier sous `prisma/migrations/` ; **committer** ce dossier avec le code.
+3. `pnpm --filter @rainpath/backend prisma:generate` si le client n’a pas été régénéré automatiquement.
+4. Les autres environnements appliquent la nouvelle migration via `migrate deploy`.
+
+### Passer à PostgreSQL ou MySQL
+
+1. Changer `provider` et `url` dans `backend/prisma/schema.prisma` et `backend/prisma/migrations/migration_lock.toml` (ou repartir d’un historique de migrations adapté au SGBD cible).
+2. Mettre à jour `DATABASE_URL` (ex. `postgresql://user:pass@host:5432/rainpath?schema=public`).
+3. En dev : `prisma migrate dev` ; en prod : `prisma migrate deploy`.
+4. Réexécuter `prisma:generate` après tout changement de provider.
+
+Le service Nest `PrismaService` se connecte au démarrage du module (`$connect` dans `onModuleInit`).
+
+---
+
+## Démarrage en local (mode développement)
+
+```bash
+# Prérequis : pnpm install, backend/.env, prisma:generate, prisma:migrate (et seed optionnel)
 pnpm dev
 ```
 
-- **Backend** → `http://localhost:3000/api`
-- **Frontend** → `http://localhost:5173` (proxy `/api` vers le backend, cf. `frontend/vite.config.ts`)
+`pnpm dev` lance en parallèle :
 
-## Build & déploiement
+- `shared` — `tsc -w`
+- `backend` — `nest start --watch` (port **3000**, préfixe global `/api`)
+- `frontend` — Vite (port **5173**, proxy `/api` → backend)
+
+URLs :
+
+- **API** → [http://localhost:3000/api](http://localhost:3000/api)
+- **Application** → [http://localhost:5173](http://localhost:5173)
+
+Lancer un seul package si besoin :
 
 ```bash
-# Build prod des 3 packages (shared → tsc, backend → nest build, frontend → vite build)
-pnpm build
-
-# Servir le backend compilé
-pnpm --filter @rainpath/backend start:prod        # node dist/main, port 3000
-
-# Servir le frontend statique (preview Vite, ou n'importe quel serveur statique)
-pnpm --filter @rainpath/frontend preview          # http://localhost:4173
+pnpm dev:shared
+pnpm dev:backend
+pnpm dev:frontend
 ```
 
-**Notes de déploiement** :
+---
 
-- Le backend nécessite la variable `DATABASE_URL` (SQLite par défaut : `file:./dev.db`). Pour Postgres / MySQL, changer le `provider` dans `backend/prisma/schema.prisma` puis `prisma migrate dev`.
-- Le frontend est purement statique après `vite build` (dossier `frontend/dist/`) ; il attend une API à `/api`. Pour un déploiement séparé, configurer un reverse-proxy ou poser un `VITE_API_BASE_URL` (à brancher dans `frontend/src/api/client.ts`).
-- **Pas d'authentification** : mono-utilisateur. Un déploiement public doit ajouter une couche d'auth (cf. Limites assumées).
-- Les workflows + parcours sont **soft-deleted** (`deletedAt` non-null). Une routine de purge mature reste à écrire pour un usage prod.
+## Build, déploiement et lancement du serveur
+
+### 1. Build de production
+
+```bash
+pnpm install
+pnpm --filter @rainpath/backend prisma:generate
+pnpm build
+```
+
+`pnpm build` enchaîne le build des trois packages (`shared` → `tsc`, `backend` → `nest build`, `frontend` → `tsc` + `vite build`).
+
+Artefacts :
+
+- `shared/dist/`
+- `backend/dist/` (point d’entrée `dist/main.js`)
+- `frontend/dist/` (assets statiques)
+
+Pour un frontend hébergé séparément, builder avec l’URL d’API cible :
+
+```bash
+VITE_API_BASE_URL=https://votre-api.example.com/api pnpm --filter @rainpath/frontend build
+```
+
+### 2. Migrations base de données (production)
+
+```bash
+# DATABASE_URL doit être défini (backend/.env ou variable d'environnement système)
+pnpm --filter @rainpath/backend exec prisma migrate deploy
+```
+
+### 3. Démarrer le backend
+
+```bash
+pnpm --filter @rainpath/backend start:prod
+```
+
+Écoute par défaut sur le port **3000** (`backend/src/main.ts`). Le processus charge `dotenv` depuis `backend/.env` si présent.
+
+Vérification rapide : `curl http://localhost:3000/api/workflows`
+
+### 4. Servir le frontend
+
+**Option A — preview Vite (test local du build)**
+
+```bash
+pnpm --filter @rainpath/frontend preview   # http://localhost:4173
+```
+
+Sans reverse-proxy, configurer le preview pour proxy `/api` ou utiliser `VITE_API_BASE_URL` pointant vers le backend.
+
+**Option B — serveur statique + reverse-proxy (recommandé en prod)**
+
+Servir `frontend/dist/` (nginx, Caddy, S3 + CloudFront, etc.) et router `/api` vers le backend Nest.
+
+Exemple nginx (schéma) :
+
+```nginx
+location /api/ {
+  proxy_pass http://127.0.0.1:3000/api/;
+}
+location / {
+  root /chemin/vers/frontend/dist;
+  try_files $uri $uri/ /index.html;
+}
+```
+
+### Checklist déploiement complet
+
+| Étape | Commande / action |
+|---|---|
+| 1 | `pnpm install` |
+| 2 | `cp backend/.env.example backend/.env` et renseigner `DATABASE_URL` |
+| 3 | `pnpm --filter @rainpath/backend prisma:generate` |
+| 4 | `pnpm build` (+ `VITE_API_BASE_URL` si frontend distant) |
+| 5 | `pnpm --filter @rainpath/backend exec prisma migrate deploy` |
+| 6 | (optionnel) `pnpm --filter @rainpath/backend prisma:seed` |
+| 7 | `pnpm --filter @rainpath/backend start:prod` |
+| 8 | Publier `frontend/dist/` derrière un reverse-proxy |
+
+### Notes de déploiement
+
+- **CORS** : en l’état, le backend n’autorise que `http://localhost:5173` (`backend/src/main.ts`). Pour un domaine de prod, adapter `enableCors({ origin: ... })` ou placer front et API derrière le même domaine via le proxy.
+- **SQLite en prod** : possible pour une démo mono-instance ; prévoir un volume persistant pour `dev.db` (ou le chemin configuré dans `DATABASE_URL`). Pour la haute dispo, migrer vers PostgreSQL (voir Prisma ci-dessus).
+- **Pas d’authentification** : mono-utilisateur. Un déploiement public doit ajouter une couche d’auth (cf. Limites assumées).
+- **Soft delete** : les enregistrements ont `deletedAt` ; une purge physique reste à implémenter pour un usage prod long terme.
 
 ## Tests
 
@@ -84,12 +296,16 @@ pnpm --filter @rainpath/frontend test           # frontend uniquement
 
 | Commande | Description |
 |---|---|
+| `pnpm install` | Installe les dépendances de tous les workspaces |
 | `pnpm dev` | Lance shared (tsc --watch), backend (nest --watch), frontend (vite) en parallèle |
 | `pnpm build` | Build production des 3 packages |
 | `pnpm test` | Suites unitaires partagées + backend + frontend |
-| `pnpm --filter @rainpath/backend prisma:migrate` | Crée + applique les migrations Prisma |
-| `pnpm --filter @rainpath/backend prisma:seed` | Peuple la DB avec un jeu de démo |
-| `pnpm --filter @rainpath/backend prisma:generate` | Régénère le client Prisma (à faire après changement de schéma) |
+| `pnpm --filter @rainpath/backend prisma:generate` | Régénère le client Prisma (après install ou changement de schéma) |
+| `pnpm --filter @rainpath/backend prisma:migrate` | **Dev** : `migrate dev` — applique et peut créer des migrations |
+| `pnpm --filter @rainpath/backend exec prisma migrate deploy` | **Prod** : applique les migrations commitées sans en créer |
+| `pnpm --filter @rainpath/backend prisma:seed` | Peuple la DB avec un jeu de démo (`backend/prisma/seed.ts`) |
+| `pnpm --filter @rainpath/backend start:prod` | Lance l’API compilée (`node dist/main`, port 3000) |
+| `pnpm --filter @rainpath/frontend preview` | Sert le build frontend en local (port 4173) |
 | `pnpm lint` | ESLint sur les 3 packages |
 
 ## Architecture
