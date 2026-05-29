@@ -319,6 +319,15 @@ function InlineStatusPicker({
             <Popover.Trigger asChild>
               <button
                 type="button"
+                // `z-index: 100` + `position: relative` are LOAD-BEARING here.
+                // Without them an invisible overlay from a sibling React Flow
+                // layer (likely the .react-flow__nodes container's own pane
+                // capture) sat on top of the trigger and swallowed every
+                // click. Forcing the button into its own stacking context
+                // above z-100 lifts it past anything RF renders within the
+                // node tree. `pointer-events: auto` is belt-and-braces in
+                // case a parent flips to `none` during a hover transition.
+                style={{ pointerEvents: 'auto', zIndex: 100, position: 'relative' }}
                 className="flex h-7 w-full items-center justify-between gap-1 rounded border border-border bg-surface px-1.5 text-[11px] hover:bg-surface-muted focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 aria-label="Choisir le statut observé"
               >
@@ -343,12 +352,12 @@ function InlineStatusPicker({
                       role="option"
                       aria-selected={value === s}
                       onClick={() => { onChange(s); setOpen(false) }}
-                      className={`flex cursor-pointer items-center gap-1.5 px-2 py-1.5 text-[11px] hover:bg-surface-muted ${
+                      className={`flex cursor-pointer items-center justify-center gap-1.5 px-2 py-1.5 text-center text-[11px] hover:bg-surface-muted ${
                         value === s ? 'font-medium text-primary' : 'text-fg'
                       }`}
                     >
-                      {value === s ? <Icon name="Check" size={16} /> : <span className="w-4" />}
-                      {frStatus(s)}
+                      {value === s ? <Icon name="Check" size={16} /> : null}
+                      <span>{frStatus(s)}</span>
                     </li>
                   ))}
                 </ul>
