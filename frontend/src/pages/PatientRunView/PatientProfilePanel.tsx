@@ -204,7 +204,7 @@ function PanelField({
     : 'border-border focus-visible:border-primary focus-visible:ring-ring'
   return (
     <div>
-      <label htmlFor={id} className="mb-1 flex items-center gap-1.5 text-xs font-medium text-fg-muted">
+      <label htmlFor={id} className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-fg-muted">
         {icon ? <Icon name={icon} size={16} /> : null}
         {label}
       </label>
