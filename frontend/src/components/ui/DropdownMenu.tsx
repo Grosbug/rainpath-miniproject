@@ -5,13 +5,18 @@ import { Icon, IconName } from '@/components/Icon'
 export const DropdownMenu = RDM.Root
 export const DropdownTrigger = RDM.Trigger
 
-export function DropdownContent({ children }: { children: ReactNode }) {
+export function DropdownContent({
+  children,
+  className = ''
+}: { children: ReactNode; className?: string }) {
   return (
     <RDM.Portal>
       <RDM.Content
         align='end'
         sideOffset={4}
-        className='z-50 min-w-[200px] rounded-md border border-border bg-surface p-1 shadow-elev-2'
+        // Default width = content-driven (whitespace-nowrap items + p-1 padding). Callers with
+        // long items can opt in to a min-width via `className="min-w-[…]"`.
+        className={`z-50 rounded-md border border-border bg-surface p-1 shadow-elev-2 ${className}`}
       >
         {children}
       </RDM.Content>
@@ -31,7 +36,7 @@ export function DropdownItem({ icon, onSelect, danger, children }: DropdownItemP
     <RDM.Item
       onSelect={onSelect}
       className={
-        'flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm outline-none ' +
+        'flex cursor-pointer items-center gap-2 whitespace-nowrap rounded px-2 py-1.5 text-sm outline-none ' +
         (danger ? 'text-danger hover:bg-[#FEF2F2]' : 'text-fg hover:bg-surface-muted')
       }
     >

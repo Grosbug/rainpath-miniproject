@@ -87,63 +87,61 @@ export function TopBar({ saveNow }: Props) {
 
   return (
     <div className='sticky top-12 z-10 flex h-12 items-center gap-4 border-b border-border bg-surface px-6'>
-      <button
-        type='button'
-        onClick={() => navigate('/workflows')}
-        className='flex items-center gap-1 text-sm text-fg-muted hover:text-fg'
-      >
-        <Icon name='ArrowLeft' size={16} />
-        Workflows
-      </button>
-
-      {/* Left-aligned with a small leading gap so the title/description sit slightly
-          further from the back button than the default flex `gap-4` allows, without
-          drifting into the centered position. */}
-      <div className='flex min-w-0 flex-1 flex-col pl-6'>
-        {editingName ? (
-          <input
-            autoFocus
-            value={draftName}
-            onChange={e => setDraftName(e.target.value)}
-            onBlur={() => { setName(draftName.trim() || name); setEditingName(false) }}
-            onKeyDown={onNameKey}
-            className='h-7 w-full max-w-md rounded border border-border bg-surface px-2 text-base font-semibold text-fg'
-          />
-        ) : (
-          <button
-            type='button'
-            onClick={() => { setDraftName(name); setEditingName(true) }}
-            className='truncate text-left text-base font-semibold text-fg hover:underline'
-          >
-            {name || '(sans titre)'}
-          </button>
-        )}
-        {editingDesc ? (
-          <input
-            autoFocus
-            value={draftDesc}
-            onChange={e => setDraftDesc(e.target.value)}
-            onBlur={() => { setDescription(draftDesc); setEditingDesc(false) }}
-            onKeyDown={onDescKey}
-            className='mt-0.5 h-6 w-full max-w-md rounded border border-border bg-surface px-2 text-xs text-fg-muted'
-          />
-        ) : (
-          <button
-            type='button'
-            onClick={() => { setDraftDesc(description); setEditingDesc(true) }}
-            className='truncate text-left text-xs text-fg-muted hover:text-fg'
-          >
-            {description || 'Ajouter une description'}
-          </button>
-        )}
+      {/* LEFT zone — back button + editable title/description. Equal-flex with the other
+          two zones so the CENTER zone sits at the geometric middle of the bar regardless
+          of the title length or the actions width. */}
+      <div className='flex min-w-0 flex-1 items-center gap-4'>
+        <button
+          type='button'
+          onClick={() => navigate('/workflows')}
+          className='flex shrink-0 items-center gap-1 text-sm text-fg-muted hover:text-fg'
+        >
+          <Icon name='ArrowLeft' size={16} />
+          Workflows
+        </button>
+        <div className='flex min-w-0 flex-1 flex-col pl-2'>
+          {editingName ? (
+            <input
+              autoFocus
+              value={draftName}
+              onChange={e => setDraftName(e.target.value)}
+              onBlur={() => { setName(draftName.trim() || name); setEditingName(false) }}
+              onKeyDown={onNameKey}
+              className='h-7 w-full max-w-md rounded border border-border bg-surface px-2 text-base font-semibold text-fg'
+            />
+          ) : (
+            <button
+              type='button'
+              onClick={() => { setDraftName(name); setEditingName(true) }}
+              className='truncate text-left text-base font-semibold text-fg hover:underline'
+            >
+              {name || '(sans titre)'}
+            </button>
+          )}
+          {editingDesc ? (
+            <input
+              autoFocus
+              value={draftDesc}
+              onChange={e => setDraftDesc(e.target.value)}
+              onBlur={() => { setDescription(draftDesc); setEditingDesc(false) }}
+              onKeyDown={onDescKey}
+              className='mt-0.5 h-6 w-full max-w-md rounded border border-border bg-surface px-2 text-xs text-fg-muted'
+            />
+          ) : (
+            <button
+              type='button'
+              onClick={() => { setDraftDesc(description); setEditingDesc(true) }}
+              className='truncate text-left text-xs text-fg-muted hover:text-fg'
+            >
+              {description || 'Ajouter une description'}
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className='flex items-center gap-3'>
+      {/* CENTER zone — validation badge + Parcours patients shortcut, geometrically centered. */}
+      <div className='flex flex-1 items-center justify-center gap-3'>
         <ValidationStatusBadge />
-        <SaveStatusBadge />
-      </div>
-
-      <div className='flex items-center gap-1'>
         <Button
           variant='secondary'
           size='sm'
@@ -152,6 +150,10 @@ export function TopBar({ saveNow }: Props) {
           <Icon name='Play' size={16} />
           Parcours patients
         </Button>
+      </div>
+
+      {/* RIGHT zone — editor actions, right-aligned. */}
+      <div className='flex flex-1 items-center justify-end gap-1'>
         <IconButton
           icon='Undo2'
           aria-label='Annuler'
@@ -166,6 +168,9 @@ export function TopBar({ saveNow }: Props) {
           disabled={!canRedo}
           data-rp-tooltip={canRedo ? `Rétablir (${redoCount} action${redoCount > 1 ? 's' : ''} en avant)` : 'Rien à rétablir'}
         />
+        {/* Save status sits inline between the redo and save buttons so the "saved a few
+            seconds ago" tooltip is right next to the action that triggered it. */}
+        <SaveStatusBadge />
         <IconButton
           icon='Save'
           aria-label='Enregistrer maintenant'
