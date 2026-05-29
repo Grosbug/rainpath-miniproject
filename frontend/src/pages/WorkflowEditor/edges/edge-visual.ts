@@ -50,9 +50,8 @@ export function edgeStrokeWidth(selected: boolean): number {
   return selected ? 2 : 1.5
 }
 
-export function edgeShowsHalo(handle: string | undefined, routeRevealed?: boolean): boolean {
-  if (routeRevealed === false || !handle) return false
-  return true
+export function edgeShowsHalo(_handle: string | undefined, _routeRevealed?: boolean): boolean {
+  return false
 }
 
 export function edgeHaloStrokeWidth(mainWidth: number): number {
