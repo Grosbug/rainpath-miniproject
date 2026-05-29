@@ -58,7 +58,11 @@ function toRFEdges(edges: ReturnType<typeof useEditorStore.getState>['edges']): 
       id: e.id,
       source: e.source,
       target: e.target,
-      sourceHandleId: routeHandle ?? e.sourceHandle ?? null,
+      // React Flow v12's Edge object expects `sourceHandle` (not `sourceHandleId`,
+      // which is only the prop NAME on EdgeProps). Using the wrong key here makes
+      // RF silently ignore the handle binding and anchor every edge on the first
+      // source slot — visually merging échec branches into the succès handle.
+      sourceHandle: routeHandle ?? e.sourceHandle ?? null,
       type: 'default',
       data: {
         daysAfter: e.daysAfter,
@@ -93,6 +97,7 @@ function CanvasInner() {
   const addNode = useEditorStore(s => s.addNode)
   const addEdge = useEditorStore(s => s.addEdge)
   const openModal = useModalState(s => s.open)
+  const modalOpen = useModalState(s => s.content !== null)
   const { screenToFlowPosition } = useReactFlow()
   // 56 px of breathing room left of J+0 so the Start node and the timeline labels stay clear
 // of the canvas left edge at any zoom level — without it, deep-zoomed views clip the origin.
@@ -349,6 +354,8 @@ useLeftAnchoredZoom(56)
         connectOnClick={false}
         isValidConnection={isValidConnection}
         zoomOnDoubleClick={false}
+        zoomOnScroll={!modalOpen}
+        zoomOnPinch={!modalOpen}
         panOnDrag={[1, 2]}
         selectionOnDrag={false}
         deleteKeyCode={null}
