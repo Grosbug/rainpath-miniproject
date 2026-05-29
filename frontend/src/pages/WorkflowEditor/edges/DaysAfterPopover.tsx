@@ -54,7 +54,7 @@ export function DaysAfterPopover({ open, anchor, onDismiss, onDelete }: Props) {
           position: 'fixed',
           left: anchor.left,
           top: anchor.y,
-          transform: 'translate(calc(-100% - 6px), -50%)'
+          transform: 'translate(calc(-100% - 2px), -50%)'
         }}
         className='z-50'
       >
@@ -73,7 +73,7 @@ export function DaysAfterPopover({ open, anchor, onDismiss, onDelete }: Props) {
           position: 'fixed',
           left: anchor.right,
           top: anchor.y,
-          transform: 'translate(6px, -50%)'
+          transform: 'translate(2px, -50%)'
         }}
         className='z-50'
       >
