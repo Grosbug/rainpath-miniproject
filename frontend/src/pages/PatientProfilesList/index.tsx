@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Icon } from '@/components/Icon'
+import { Icon, type IconName } from '@/components/Icon'
 import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { Dialog } from '@/components/ui/Dialog'
@@ -454,11 +454,11 @@ function ProfileDetailDialog({ open, profile, onOpenChange, onEdit, onCreateRun 
               </Button>
             </div>
           </div>
-          <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-            <InfoRow label="Email" value={profile.email} />
-            <InfoRow label="Téléphone" value={profile.phone ? formatPhone(profile.phone) : null} />
-            <InfoRow label="WhatsApp" value={profile.whatsapp ? formatPhone(profile.whatsapp) : null} />
-            <InfoRow label="Adresse" value={formatAddress(profile.address)} span2 />
+          <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+            <InfoRow icon="Mail" label="Email" value={profile.email} />
+            <InfoRow icon="Phone" label="Téléphone" value={profile.phone ? formatPhone(profile.phone) : null} />
+            <InfoRow icon="MessageCircle" label="WhatsApp" value={profile.whatsapp ? formatPhone(profile.whatsapp) : null} />
+            <InfoRow icon="MapPin" label="Adresse" value={formatAddress(profile.address)} span2 />
           </dl>
         </section>
 
@@ -538,10 +538,23 @@ function ProfileDetailDialog({ open, profile, onOpenChange, onEdit, onCreateRun 
   )
 }
 
-function InfoRow({ label, value, span2 }: { label: string; value: string | null; span2?: boolean }) {
+function InfoRow({
+  icon,
+  label,
+  value,
+  span2
+}: {
+  icon: IconName
+  label: string
+  value: string | null
+  span2?: boolean
+}) {
   return (
     <div className={span2 ? 'col-span-2' : undefined}>
-      <dt className="text-xs uppercase tracking-wide text-fg-muted">{label}</dt>
+      <dt className="mb-0.5 flex items-center gap-1.5 text-xs font-semibold text-fg-muted">
+        <Icon name={icon} size={16} className="shrink-0" />
+        {label}
+      </dt>
       <dd className="text-sm text-fg">{value ?? '—'}</dd>
     </div>
   )
