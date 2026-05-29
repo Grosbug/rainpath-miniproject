@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Icon } from '@/components/Icon'
-import { Button } from '@/components/ui/Button'
+import { ParcoursPatientsButton } from '@/components/ParcoursPatientsButton'
 import { IconButton } from '@/components/ui/IconButton'
 import {
   DropdownMenu, DropdownTrigger, DropdownContent, DropdownItem, DropdownSeparator
@@ -144,15 +144,6 @@ export function TopBar({ saveNow }: Props) {
       </div>
 
       <div className='relative z-[1] flex flex-1 items-center justify-end gap-2'>
-        <Button
-          variant='secondary'
-          size='sm'
-          className='mr-2'
-          onClick={() => navigate(`/workflows/${id}/patient-runs`)}
-        >
-          <Icon name='Play' size={16} />
-          Parcours patients
-        </Button>
         <div className='flex items-center gap-1'>
         <IconButton
           icon='Undo2'
@@ -188,6 +179,7 @@ export function TopBar({ saveNow }: Props) {
           </DropdownContent>
         </DropdownMenu>
         </div>
+        {id ? <ParcoursPatientsButton workflowId={id} /> : null}
       </div>
     </div>
   )

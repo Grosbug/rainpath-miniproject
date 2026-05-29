@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Icon } from '@/components/Icon'
+import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/Button'
 import {
   DropdownMenu, DropdownTrigger, DropdownContent, DropdownItem, DropdownSeparator
@@ -109,22 +110,24 @@ export default function WorkflowsList() {
 
   return (
     <div className='mx-auto max-w-6xl px-6 py-8'>
-      <header className='flex items-center justify-between'>
-        <h1 className='text-2xl font-semibold tracking-tight text-fg'>
-          Workflows
-          {data ? (
-            <span className='ml-2 text-base font-normal text-fg-muted tabular-nums'>
-              ({filtered.length}{filtered.length !== data.length ? ` / ${data.length}` : ''})
-            </span>
-          ) : null}
-        </h1>
-        <div className='flex gap-2'>
+      <PageHeader
+        title={
+          <h1 className='text-2xl font-semibold tracking-tight text-fg'>
+            Workflows
+            {data ? (
+              <span className='ml-2 text-base font-normal text-fg-muted tabular-nums'>
+                ({filtered.length}{filtered.length !== data.length ? ` / ${data.length}` : ''})
+              </span>
+            ) : null}
+          </h1>
+        }
+        actions={
           <Button variant='primary' onClick={() => setCreateOpen(true)}>
             <Icon name='Plus' size={16} />
             Nouveau workflow
           </Button>
-        </div>
-      </header>
+        }
+      />
 
       {data && data.length > 0 ? (
         <div className='mt-6 flex flex-wrap items-center gap-2'>

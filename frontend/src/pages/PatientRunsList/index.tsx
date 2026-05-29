@@ -11,6 +11,7 @@ import { displayRunTitle } from '@/lib/display-run-title'
 import { queryKeys } from '@/api/query-keys'
 import { listPatientRunsForWorkflow } from '@/api/patient-runs'
 import { getWorkflow } from '@/api/workflows'
+import { PageHeader } from '@/components/PageHeader'
 import { CreateRunDialog } from './CreateRunDialog'
 
 interface CurrentNodeInfo {
@@ -68,27 +69,31 @@ export default function PatientRunsList() {
         <Icon name="ArrowLeft" size={16} />
         Workflows
       </Link>
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">Parcours patients</h1>
-          {wfQuery.data ? (
-            <p className="mt-1 text-sm text-fg-muted">{wfQuery.data.name}</p>
-          ) : null}
-        </div>
-        <div className="flex gap-2">
-          <Link
-            to={`/workflows/${workflowId}`}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 text-sm font-medium text-fg hover:bg-surface-muted"
-          >
-            <Icon name="Pencil" size={16} />
-            Éditer le workflow
-          </Link>
-          <Button variant="primary" onClick={() => setCreateOpen(true)}>
-            <Icon name="Plus" size={16} />
-            Nouveau parcours
-          </Button>
-        </div>
-      </header>
+      <PageHeader
+        title={
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-fg">Parcours patients</h1>
+            {wfQuery.data ? (
+              <p className="mt-1 text-sm text-fg-muted">{wfQuery.data.name}</p>
+            ) : null}
+          </div>
+        }
+        actions={
+          <>
+            <Link
+              to={`/workflows/${workflowId}`}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 text-sm font-medium text-fg hover:bg-surface-muted"
+            >
+              <Icon name="Pencil" size={16} />
+              Éditer le workflow
+            </Link>
+            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+              <Icon name="Plus" size={16} />
+              Nouveau parcours
+            </Button>
+          </>
+        }
+      />
 
       <div className="mt-8">
         {runsQuery.isLoading ? (

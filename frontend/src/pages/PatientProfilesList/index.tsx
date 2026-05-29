@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Icon, type IconName } from '@/components/Icon'
+import { PageHeader } from '@/components/PageHeader'
 import { PatientRunsBadge } from '@/components/PatientRunsBadge'
 import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
@@ -153,20 +154,24 @@ export default function PatientProfilesList() {
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">
-          Profils patients
-          {data ? (
-            <span className="ml-2 text-base font-normal text-fg-muted tabular-nums">
-              ({filtered.length}{filtered.length !== data.length ? ` / ${data.length}` : ''})
-            </span>
-          ) : null}
-        </h1>
-        <Button variant="primary" onClick={handleNew}>
-          <Icon name="Plus" size={16} />
-          Nouveau profil
-        </Button>
-      </header>
+      <PageHeader
+        title={
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">
+            Profils patients
+            {data ? (
+              <span className="ml-2 text-base font-normal text-fg-muted tabular-nums">
+                ({filtered.length}{filtered.length !== data.length ? ` / ${data.length}` : ''})
+              </span>
+            ) : null}
+          </h1>
+        }
+        actions={
+          <Button variant="primary" onClick={handleNew}>
+            <Icon name="Plus" size={16} />
+            Nouveau profil
+          </Button>
+        }
+      />
 
       {data && data.length > 0 ? (
         <div className="mt-6 flex flex-wrap items-center gap-2">
