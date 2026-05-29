@@ -32,8 +32,6 @@ export interface DaySimulator {
   autoAdvancing: boolean
   /** Why auto-advance is paused. null = runs free. */
   pauseReason: 'multi_output' | 'end' | null
-  /** Add N days to the cursor. Triggers auto-advance if it crosses the next event. */
-  addDays: (n: number) => void
   /** Jump straight to the day the next event fires. No-op if none is pending. */
   jumpToNextEvent: () => void
   /** Reset cursor back to currentNodeDay (used when the user wants to "back to now"). */
@@ -119,10 +117,6 @@ export function useDaySimulator({ runId, workflowId, graph, currentNodeId, histo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [day, pendingEdge, nextEventDay, pauseReason, advanceMut.isPending, currentNodeId, graph, profile])
 
-  const addDays = useCallback((n: number) => {
-    setUserCursor(prev => Math.max(prev, currentNodeDay) + n)
-  }, [currentNodeDay])
-
   const jumpToNextEvent = useCallback(() => {
     if (nextEventDay === null) return
     setUserCursor(prev => Math.max(prev, nextEventDay))
@@ -136,7 +130,6 @@ export function useDaySimulator({ runId, workflowId, graph, currentNodeId, histo
     nextEventDay,
     autoAdvancing: advanceMut.isPending,
     pauseReason,
-    addDays,
     jumpToNextEvent,
     syncToCurrentNode
   }
