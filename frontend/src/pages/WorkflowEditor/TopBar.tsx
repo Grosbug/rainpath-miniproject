@@ -14,6 +14,7 @@ import { useEditorStore } from './store'
 import { useHistoryActions } from './hooks/useHistoryActions'
 import { SaveStatusBadge } from './SaveStatusBadge'
 import { ValidationStatusBadge } from './ValidationStatusBadge'
+import { TOOLBAR_DIVIDER, TOOLBAR_LEADING_GRID } from '@/lib/toolbar-layout'
 
 interface Props {
   saveNow: () => void
@@ -87,16 +88,17 @@ export function TopBar({ saveNow }: Props) {
 
   return (
     <div className='relative flex h-12 items-center gap-4 border-b border-border bg-surface px-6'>
-      <div className='flex min-w-0 flex-1 items-center gap-4'>
+      <div className={`min-w-0 flex-1 ${TOOLBAR_LEADING_GRID}`}>
         <button
           type='button'
           onClick={() => navigate('/workflows')}
-          className='flex shrink-0 items-center gap-1 text-sm text-fg-muted hover:text-fg'
+          className='flex shrink-0 items-center gap-1 whitespace-nowrap text-sm text-fg-muted hover:text-fg'
         >
           <Icon name='ArrowLeft' size={16} />
           Workflows
         </button>
-        <div className='flex min-w-0 flex-1 flex-col pl-2'>
+        <div className={TOOLBAR_DIVIDER} aria-hidden='true' />
+        <div className='flex min-w-0 flex-col'>
           {editingName ? (
             <input
               autoFocus

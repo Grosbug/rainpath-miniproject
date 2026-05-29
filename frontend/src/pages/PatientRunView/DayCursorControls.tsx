@@ -5,6 +5,10 @@ import { nodeDisplayTitle } from '@rainpath/shared'
 import { Button } from '@/components/ui/Button'
 import { Icon, type IconName } from '@/components/Icon'
 import type { DaySimulator } from './use-day-simulator'
+import {
+  PATIENT_RUN_TOOLBAR_DIVIDER,
+  PATIENT_RUN_TOOLBAR_GRID
+} from './patient-run-toolbar-layout'
 
 interface Props {
   sim: DaySimulator
@@ -121,15 +125,15 @@ export function DayCursorControls({ sim, graph, activeFrontiers }: Props) {
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border bg-surface px-3 py-2 shadow-elev-1">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className={PATIENT_RUN_TOOLBAR_GRID}>
         <div className="flex flex-col leading-tight">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">Aujourd'hui</span>
           <span className="font-mono text-base font-semibold tabular-nums text-primary">J+{day}</span>
         </div>
 
-        <div className="mx-1 h-8 w-px bg-border" aria-hidden="true" />
+        <div className={PATIENT_RUN_TOOLBAR_DIVIDER} aria-hidden="true" />
 
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           <Button
             type="button" variant="secondary" size="sm"
             onClick={onClickPrecedent}

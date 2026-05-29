@@ -16,6 +16,11 @@ import { PatientProfilePanel } from './PatientProfilePanel'
 import { PatientHistoryList } from './PatientHistoryList'
 import { DayCursorControls } from './DayCursorControls'
 import { useDaySimulator } from './use-day-simulator'
+import {
+  PATIENT_RUN_TOOLBAR_DIVIDER,
+  PATIENT_RUN_TOOLBAR_GRID,
+  PATIENT_RUN_TOOLBAR_INSET
+} from './patient-run-toolbar-layout'
 
 export default function PatientRunView() {
   const { id: workflowId, runId } = useParams<{ id: string; runId: string }>()
@@ -99,39 +104,44 @@ function LoadedView({ run, workflowId }: { run: import('@/api/patient-runs').Pat
 
   return (
     <div className="flex h-dvh flex-col">
-      <div className="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-4 border-b border-border bg-surface px-6">
-        <Link
-          to={`/workflows/${workflowId}/patient-runs`}
-          className="flex items-center gap-1 text-sm text-fg-muted hover:text-fg"
-        >
-          <Icon name="ArrowLeft" size={16} />
-          Parcours
-        </Link>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-sm font-semibold text-fg" data-rp-tooltip={displayRunTitle(run.title)}>
-            {displayRunTitle(run.title)}
-          </h1>
-          <p className="truncate text-xs text-fg-muted">
-            {formatPatientFullName(run.patient)}
-            <span className="mx-1.5 text-fg-subtle">·</span>
-            {run.workflow.name}
-            <span className="mx-1.5 text-fg-subtle">·</span>
-            J+0 le {new Date(run.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-            {run.patient.deletedAt ? (
-              <span className="ml-2 inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 text-xs text-fg-muted">
-                Patient supprimé
-              </span>
-            ) : null}
-          </p>
+      <div className="sticky top-0 z-10 grid shrink-0 grid-cols-[1fr_360px] border-b border-border bg-surface">
+        <div className={`h-12 min-w-0 ${PATIENT_RUN_TOOLBAR_GRID} ${PATIENT_RUN_TOOLBAR_INSET}`}>
+          <Link
+            to={`/workflows/${workflowId}/patient-runs`}
+            className="flex items-center gap-1 text-sm text-fg-muted hover:text-fg"
+          >
+            <Icon name="ArrowLeft" size={16} />
+            Parcours
+          </Link>
+          <div className={PATIENT_RUN_TOOLBAR_DIVIDER} aria-hidden="true" />
+          <div className="min-w-0">
+            <h1 className="truncate text-sm font-semibold text-fg" data-rp-tooltip={displayRunTitle(run.title)}>
+              {displayRunTitle(run.title)}
+            </h1>
+            <p className="truncate text-xs text-fg-muted">
+              {formatPatientFullName(run.patient)}
+              <span className="mx-1.5 text-fg-subtle">·</span>
+              {run.workflow.name}
+              <span className="mx-1.5 text-fg-subtle">·</span>
+              J+0 le {new Date(run.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+              {run.patient.deletedAt ? (
+                <span className="ml-2 inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 text-xs text-fg-muted">
+                  Patient supprimé
+                </span>
+              ) : null}
+            </p>
+          </div>
         </div>
-        <Link
-          to={`/workflows/${run.workflowId}`}
-          className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-fg hover:bg-surface-muted"
-          data-rp-tooltip={`Ouvrir « ${run.workflow.name} » dans l'éditeur`}
-        >
-          <Icon name="Pencil" size={16} />
-          Éditer le workflow
-        </Link>
+        <div className="flex h-12 items-center justify-end border-l border-border px-6">
+          <Link
+            to={`/workflows/${run.workflowId}`}
+            className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-fg hover:bg-surface-muted"
+            data-rp-tooltip={`Ouvrir « ${run.workflow.name} » dans l'éditeur`}
+          >
+            <Icon name="Pencil" size={16} />
+            Éditer le workflow
+          </Link>
+        </div>
       </div>
 
       <div className="grid flex-1 grid-cols-[1fr_360px] overflow-hidden">
