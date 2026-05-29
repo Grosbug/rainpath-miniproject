@@ -18,7 +18,7 @@ export default function WorkflowEditor() {
 
   if (query.isLoading) {
     return (
-      <div className="flex min-h-[calc(100dvh-48px)] items-center justify-center">
+      <div className="flex min-h-dvh items-center justify-center">
         <div className="flex items-center gap-2 text-sm text-fg-muted">
           <Icon name="LoaderCircle" size={20} className="animate-spin" />
           Chargement…
@@ -29,7 +29,7 @@ export default function WorkflowEditor() {
 
   if (query.error || !query.data) {
     return (
-      <div className="flex min-h-[calc(100dvh-48px)] items-center justify-center p-8">
+      <div className="flex min-h-dvh items-center justify-center p-8">
         <div className="max-w-md text-center">
           <Icon name="CircleAlert" size={24} className="mx-auto text-danger" />
           <h1 className="mt-4 text-xl font-semibold text-fg">Workflow introuvable</h1>
@@ -42,7 +42,7 @@ export default function WorkflowEditor() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-48px)] flex-col">
+    <div className="flex h-dvh flex-col">
       <TopBar saveNow={saveNow} />
       <div className="flex flex-1 overflow-hidden">
         <Palette />

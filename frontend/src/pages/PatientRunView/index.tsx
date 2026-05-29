@@ -27,7 +27,7 @@ export default function PatientRunView() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[calc(100dvh-48px)] items-center justify-center">
+      <div className="flex min-h-dvh items-center justify-center">
         <div className="flex items-center gap-2 text-sm text-fg-muted">
           <Icon name="LoaderCircle" size={20} className="animate-spin" />
           Chargement…
@@ -41,7 +41,7 @@ export default function PatientRunView() {
     const backTo = workflowId ? `/workflows/${workflowId}/patient-runs` : '/workflows'
     const backLabel = workflowId ? 'Retour aux parcours' : 'Retour aux workflows'
     return (
-      <div className="flex min-h-[calc(100dvh-48px)] items-center justify-center p-8">
+      <div className="flex min-h-dvh items-center justify-center p-8">
         <div className="max-w-md text-center">
           <Icon
             name={notFound ? 'MapPinOff' : 'CircleAlert'}
@@ -98,8 +98,8 @@ function LoadedView({ run, workflowId }: { run: import('@/api/patient-runs').Pat
   })
 
   return (
-    <div className="flex h-[calc(100dvh-48px)] flex-col">
-      <div className="sticky top-12 z-10 flex h-12 items-center gap-4 border-b border-border bg-surface px-6">
+    <div className="flex h-dvh flex-col">
+      <div className="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-4 border-b border-border bg-surface px-6">
         <Link
           to={`/workflows/${workflowId}/patient-runs`}
           className="flex items-center gap-1 text-sm text-fg-muted hover:text-fg"

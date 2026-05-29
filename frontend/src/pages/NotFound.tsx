@@ -3,7 +3,7 @@ import { Icon } from '@/components/Icon'
 
 export default function NotFound() {
   return (
-    <div className='flex min-h-[calc(100dvh-48px)] items-center justify-center p-8'>
+    <div className='flex min-h-dvh items-center justify-center p-8'>
       <div className='max-w-md text-center'>
         <Icon name='MapPinOff' size={24} className='mx-auto text-fg-muted' />
         <h1 className='mt-4 text-2xl font-semibold text-fg'>Page introuvable</h1>

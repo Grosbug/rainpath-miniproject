@@ -1,6 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" rx="7" fill="#4F46E5"/>
-  <path d="M16 6 C12 11 10 14 10 17 a6 6 0 0 0 12 0 c0 -3 -2 -6 -6 -11 Z" fill="#ECFEFF" opacity="0.95"/>
-  <path d="M6 24 Q12 18 16 24 T26 24" stroke="#A7F3D0" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+<!-- RainPath mark — DS tokens: primary #0E7490, on-primary #FFFFFF, start-border #A7F3D0, primary-soft #ECFEFF, radius-md 8px -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-label="RainPath">
+  <rect width="32" height="32" rx="8" fill="#0E7490"/>
+  <!-- Goutte : point de départ du parcours patient -->
+  <path
+    d="M16 6.75c-2.85 4.25-4.25 6.55-4.25 9.25a4.25 4.25 0 0 0 8.5 0c0-2.7-1.4-5-4.25-9.25Z"
+    fill="#FFFFFF"
+  />
+  <!-- Branchement workflow (nœud start → deux suites) -->
+  <path
+    d="M16 16.25v2.25M16 18.5L10.75 24.25M16 18.5l5.25 5.75"
+    stroke="#A7F3D0"
+    stroke-width="2.15"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle cx="10.75" cy="24.75" r="2" fill="#ECFEFF"/>
+  <circle cx="21.25" cy="24.75" r="2" fill="#ECFEFF"/>
 </svg>
