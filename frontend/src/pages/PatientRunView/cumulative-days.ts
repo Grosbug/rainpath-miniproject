@@ -119,37 +119,17 @@ export function dayAtNode(graph: Graph, history: HistoryEntry[], nodeId: string)
   for (const e of incoming) {
     const source = graph.nodes.find(n => n.id === e.source)
     const srcHist = lastHistoryEntry(history, e.source)
-    let step = dayAtNode(graph, history, e.source) + e.daysAfter
+    const sourceDay = dayAtNode(graph, history, e.source)
+    let step = sourceDay + e.daysAfter
     if (source && srcHist?.outcome !== undefined) {
       const via = findOutgoingEdge(graph, e.source, resolveOutcomeHandle(source, srcHist.outcome))
       if (via?.target === nodeId) {
-        step = dayAtNode(graph, history, e.source) + via.daysAfter
+        step = sourceDay + via.daysAfter
       }
     }
     day = Math.max(day, step)
   }
   return day
-}
-
-/**
- * The edge the patient would take next from `currentNodeId` if we had to pick
- * a single default — the "happy path" outgoing edge. Returns undefined when
- * the node has no outgoing edges (end) or no default is meaningful (multi).
- *
- * Used by the day simulator to know when the next event is due:
- *   nextEventDay = dayAtNode(focused) + (nextDefaultEdge?.daysAfter ?? Infinity)
- */
-export function nextDefaultEdge(graph: Graph, currentNodeId: string): Graph['edges'][number] | undefined {
-  const node = graph.nodes.find(n => n.id === currentNodeId)
-  if (!node || node.data.kind === 'end') return undefined
-  const outs = graph.edges.filter(e => e.source === currentNodeId)
-  if (outs.length === 0) return undefined
-
-  if (node.data.kind === 'start') return outs[0]
-
-  const out = node.data.params.output
-  if (out.mode === 'simple') return outs.find(e => e.sourceHandle === 'success')
-  return undefined // multi-output → no single default
 }
 
 /**
