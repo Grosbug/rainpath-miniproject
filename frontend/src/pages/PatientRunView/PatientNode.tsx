@@ -1,10 +1,9 @@
+import { useState } from 'react'
 import { Handle, NodeProps, Position } from '@xyflow/react'
+import * as Popover from '@radix-ui/react-popover'
 import { CHANNEL_STATUSES } from '@rainpath/shared'
 import type { Graph, OutputConfig } from '@rainpath/shared'
 import { Icon, IconName } from '@/components/Icon'
-import {
-  DropdownMenu, DropdownTrigger, DropdownContent, DropdownItem
-} from '@/components/ui/DropdownMenu'
 import { frStatus } from '@/pages/WorkflowEditor/modal/status-labels'
 import {
   hasChannelData, failureStatusesForNode, missingChannelLabel,
@@ -86,10 +85,17 @@ function titleFor(data: NodeData): string {
  * Outer wrapper class per reachability state. Tuned so non-active nodes stay
  * readable (50% opacity, no grayscale) — the previous 20% + grayscale was
  * almost invisible and made fresh runs look broken.
+ *
+ * Note: `current` deliberately has no animation. `animate-pulse` (opacity
+ * keyframes) creates a stacking context + compositing layer that interferes
+ * with hit-testing of the inline status picker dropdown trigger inside the
+ * card. The "en cours" emphasis is already carried by the primary border,
+ * 2-px ring, elev-2 shadow, and the "En cours" badge — no need to pulse on
+ * top of that.
  */
 const REACH_OUTER: Record<ReachabilityState, string> = {
   visited:     '',
-  current:     'animate-pulse',
+  current:     '',
   reachable:   '',
   blocked:     'opacity-80',
   unreachable: 'opacity-75'
@@ -269,6 +275,11 @@ function isSendData(data: PatientNodeData): data is PatientNodeData & SendNodeDa
  * stages the user's choice in the simulator's pendingByNode map — the actual
  * mutation fires from the top-bar "Prochain" button, not from this select.
  *
+ * The options list is rendered through a Radix Popover Portal so it escapes
+ * React Flow's viewport stacking context entirely. Without the portal, the
+ * absolute-positioned dropdown stayed nested inside `.react-flow__node` and
+ * any sibling node card painted over it, making the options uncliquable.
+ *
  * Filters statuses through `routableStatusesFor` so we never offer a status
  * that would crash the backend with `unhandled_outcome`. When the patient
  * lacks the channel's contact data, only failure statuses are offered (with
@@ -285,14 +296,8 @@ function InlineStatusPicker({
   const statuses = routableStatusesFor(data, profile)
   const lacksData = profile ? !hasChannelData(data, profile) : false
   const missingLabel = lacksData ? missingChannelLabel(data) : null
+  const [open, setOpen] = useState(false)
 
-  // React Flow's drag/pan/zoom listeners run on the node wrapper and reliably
-  // swallow native <select> dropdowns — even with nodrag/nopan classes the
-  // browser-managed list refuses to open inside a RF node. Radix's
-  // DropdownMenu sidesteps this entirely by rendering its content in a Portal
-  // (outside the React Flow surface), so RF can't intercept anything. The
-  // `nodrag nowheel nopan` classes on the trigger wrapper are still useful
-  // belt-and-braces to keep the canvas from panning when the user clicks.
   return (
     <div className="nodrag nowheel nopan mt-2 space-y-1">
       {lacksData && missingLabel ? (
@@ -306,12 +311,12 @@ function InlineStatusPicker({
           Aucun statut routable depuis ce nœud.
         </p>
       ) : (
-        <>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
+        <div>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
             Statut observé
           </p>
-          <DropdownMenu>
-            <DropdownTrigger asChild>
+          <Popover.Root open={open} onOpenChange={setOpen}>
+            <Popover.Trigger asChild>
               <button
                 type="button"
                 className="flex h-7 w-full items-center justify-between gap-1 rounded border border-border bg-surface px-1.5 text-[11px] hover:bg-surface-muted focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -322,20 +327,35 @@ function InlineStatusPicker({
                 </span>
                 <Icon name="ChevronDown" size={16} className="shrink-0 text-fg-muted" />
               </button>
-            </DropdownTrigger>
-            <DropdownContent className="min-w-[160px]">
-              {statuses.map(s => (
-                <DropdownItem
-                  key={s}
-                  icon={value === s ? 'Check' : undefined}
-                  onSelect={() => onChange(s)}
-                >
-                  {frStatus(s)}
-                </DropdownItem>
-              ))}
-            </DropdownContent>
-          </DropdownMenu>
-        </>
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content
+                align="start"
+                sideOffset={4}
+                // Match the trigger width so the options column stays visually anchored.
+                style={{ width: 'var(--radix-popover-trigger-width)' }}
+                className="z-[1000] max-h-48 overflow-auto rounded-md border border-border bg-surface py-1 shadow-elev-2"
+              >
+                <ul role="listbox">
+                  {statuses.map(s => (
+                    <li
+                      key={s}
+                      role="option"
+                      aria-selected={value === s}
+                      onClick={() => { onChange(s); setOpen(false) }}
+                      className={`flex cursor-pointer items-center gap-1.5 px-2 py-1.5 text-[11px] hover:bg-surface-muted ${
+                        value === s ? 'font-medium text-primary' : 'text-fg'
+                      }`}
+                    >
+                      {value === s ? <Icon name="Check" size={16} /> : <span className="w-4" />}
+                      {frStatus(s)}
+                    </li>
+                  ))}
+                </ul>
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
+        </div>
       )}
     </div>
   )
