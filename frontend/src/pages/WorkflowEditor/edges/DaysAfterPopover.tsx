@@ -5,37 +5,26 @@ interface Props {
   open: boolean
   /** Right-center of the edge label chip in viewport coords — popover sits just to its right. */
   anchor: { x: number; y: number } | null
-  onCancel: () => void
+  onHoverStay: () => void
+  onHoverEnd: () => void
   onDelete: () => void
 }
 
 /**
  * Compact delete control for an edge chip — a single trash button sized to its content.
- * Positioned immediately to the right of the label, vertically centered on it.
+ * Shown on edge/label hover; stays open while the pointer is over the label or this control.
  */
-export function DaysAfterPopover({ open, anchor, onCancel, onDelete }: Props) {
+export function DaysAfterPopover({ open, anchor, onHoverStay, onHoverEnd, onDelete }: Props) {
   const ref = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!open) return
-    function onPointerDown(e: PointerEvent) {
-      if (!ref.current) return
-      if (!ref.current.contains(e.target as Node)) onCancel()
-    }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onCancel()
+      if (e.key === 'Escape') onHoverEnd()
     }
-    // Defer one frame so the click that opened the popover doesn't immediately close it.
-    const raf = requestAnimationFrame(() => {
-      document.addEventListener('pointerdown', onPointerDown, true)
-    })
     document.addEventListener('keydown', onKey)
-    return () => {
-      cancelAnimationFrame(raf)
-      document.removeEventListener('pointerdown', onPointerDown, true)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open, onCancel])
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, onHoverEnd])
 
   if (!open || !anchor) return null
 
@@ -43,6 +32,8 @@ export function DaysAfterPopover({ open, anchor, onCancel, onDelete }: Props) {
     <div
       ref={ref}
       role='dialog'
+      onMouseEnter={onHoverStay}
+      onMouseLeave={onHoverEnd}
       style={{
         position: 'fixed',
         left: anchor.x,
@@ -50,6 +41,7 @@ export function DaysAfterPopover({ open, anchor, onCancel, onDelete }: Props) {
         transform: 'translate(6px, -50%)'
       }}
       className='z-50'
+      data-edge-delete
     >
       <button
         type='button'

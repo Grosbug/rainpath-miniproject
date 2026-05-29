@@ -118,6 +118,32 @@ useLeftAnchoredZoom(56)
   const rfEdges = useMemo(() => toRFEdges(edges), [edges])
 
   const [popover, setPopover] = useState<{ edgeId: string; anchor: { x: number; y: number } } | null>(null)
+  const hidePopoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const cancelHidePopover = useCallback(() => {
+    if (hidePopoverTimer.current) {
+      clearTimeout(hidePopoverTimer.current)
+      hidePopoverTimer.current = null
+    }
+  }, [])
+
+  const showPopoverForChip = useCallback((chip: HTMLElement) => {
+    cancelHidePopover()
+    const id = chip.dataset['edgeLabelId']
+    if (!id) return
+    const rect = chip.getBoundingClientRect()
+    setPopover({
+      edgeId: id,
+      anchor: { x: rect.right, y: rect.top + rect.height / 2 }
+    })
+  }, [cancelHidePopover])
+
+  const scheduleHidePopover = useCallback(() => {
+    cancelHidePopover()
+    hidePopoverTimer.current = setTimeout(() => setPopover(null), 150)
+  }, [cancelHidePopover])
+
+  useEffect(() => () => cancelHidePopover(), [cancelHidePopover])
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -231,25 +257,35 @@ useLeftAnchoredZoom(56)
     openModal({ mode: 'node-edit', nodeId: node.id, kind: node.data.kind as NodeKind })
   }, [nodes, openModal])
 
-  const onCanvasClick = useCallback((e: MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement
-    const chip = target.closest('[data-edge-label-id]') as HTMLElement | null
-    if (chip) {
-      const id = chip.dataset['edgeLabelId']!
-      const rect = chip.getBoundingClientRect()
-      setPopover({
-        edgeId: id,
-        anchor: { x: rect.right, y: rect.top + rect.height / 2 }
-      })
+  const onEdgeMouseEnter = useCallback((_e: MouseEvent, edge: RFEdge) => {
+    const chip = document.querySelector(`[data-edge-label-id="${CSS.escape(edge.id)}"]`) as HTMLElement | null
+    if (chip) showPopoverForChip(chip)
+  }, [showPopoverForChip])
+
+  const onEdgeMouseLeave = useCallback(() => {
+    scheduleHidePopover()
+  }, [scheduleHidePopover])
+
+  const onCanvasMouseOver = useCallback((e: MouseEvent<HTMLDivElement>) => {
+    const chip = (e.target as HTMLElement).closest('[data-edge-label-id]') as HTMLElement | null
+    if (chip) showPopoverForChip(chip)
+  }, [showPopoverForChip])
+
+  const onCanvasMouseOut = useCallback((e: MouseEvent<HTMLDivElement>) => {
+    const from = e.target as HTMLElement
+    const to = e.relatedTarget as HTMLElement | null
+    if (from.closest('[data-edge-label-id]') && !to?.closest('[data-edge-label-id]') && !to?.closest('[data-edge-delete]')) {
+      scheduleHidePopover()
     }
-  }, [])
+  }, [scheduleHidePopover])
 
   const popoverEdge = popover ? edges.find(e => e.id === popover.edgeId) ?? null : null
 
   return (
     <div
       className='relative h-full w-full'
-      onClick={onCanvasClick}
+      onMouseOver={onCanvasMouseOver}
+      onMouseOut={onCanvasMouseOut}
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
@@ -262,6 +298,8 @@ useLeftAnchoredZoom(56)
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeDoubleClick={onNodeDoubleClick}
+        onEdgeMouseEnter={onEdgeMouseEnter}
+        onEdgeMouseLeave={onEdgeMouseLeave}
         nodesConnectable
         connectOnClick={false}
         isValidConnection={isValidConnection}
@@ -285,7 +323,8 @@ useLeftAnchoredZoom(56)
       <DaysAfterPopover
         open={!!popover && !!popoverEdge}
         anchor={popover?.anchor ?? null}
-        onCancel={() => setPopover(null)}
+        onHoverStay={cancelHidePopover}
+        onHoverEnd={scheduleHidePopover}
         onDelete={() => {
           if (popover) removeEdge(popover.edgeId)
           setPopover(null)

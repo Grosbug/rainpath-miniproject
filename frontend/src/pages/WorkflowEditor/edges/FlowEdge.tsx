@@ -59,10 +59,11 @@ export function FlowEdge(props: EdgeProps) {
         path={path}
         className={pathClass}
         style={pathStyle}
+        interactionWidth={20}
       />
       <EdgeLabelRenderer>
         <div
-          className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-md border px-2 py-0.5 text-xs font-medium tabular-nums text-fg ${labelBorder}`}
+          className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 rounded-md border px-2 py-0.5 text-xs font-medium tabular-nums text-fg ${labelBorder}`}
           style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
           data-edge-label-id={id}
         >
