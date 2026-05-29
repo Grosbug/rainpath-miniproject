@@ -60,6 +60,18 @@
   user-select: text;
 }
 
+/* React Flow zoom/fit-view Controls — soften the default hard-edged rectangle so it
+   matches the rest of the DS. Applied globally so editor Canvas and PatientCanvas
+   share the same look. Inner buttons get a smaller radius and the corner buttons
+   inherit the outer rounding via overflow-hidden. */
+.react-flow__controls {
+  border-radius: 0.5rem; /* rounded-lg */
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  border-radius: 0.375rem; /* rounded-md */
+}
+
 /* Proactive connection-validity feedback — set by useClickConnection on hover and by
    React Flow's `valid` / drag classes during drag-to-connect. The combined selectors
    cover both interaction paths (custom click + native drag).

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useEditorStore } from './store'
 import { Icon } from '@/components/Icon'
 import { relativeFromNow } from '@/lib/format-date'
@@ -11,6 +11,9 @@ import { relativeFromNow } from '@/lib/format-date'
  * "create patient run" guard.
  */
 const INVALID_AUTO_DISMISS_MS = 6000
+
+/** Tooltip refresh cadence so the relative "il y a X min" stays fresh between saves. */
+const TOOLTIP_REFRESH_MS = 30_000
 
 export function SaveStatusBadge() {
   const status = useEditorStore(s => s.saveStatus)
@@ -26,8 +29,16 @@ export function SaveStatusBadge() {
     return () => clearTimeout(timer)
   }, [status, lastSavedHash, setSaveStatus])
 
-  const map: Record<typeof status, { label: string; icon: 'CircleCheck' | 'LoaderCircle' | 'WifiOff' | 'CircleAlert' | 'TriangleAlert'; tone: string }> = {
-    idle: { label: 'Modifications non enregistrées', icon: 'CircleCheck', tone: 'text-fg-muted' },
+  // Bump a tick every 30s so the tooltip's relative time is recomputed on the next hover.
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    if (status !== 'saved' && status !== 'saved_invalid') return
+    const id = setInterval(() => setTick(t => t + 1), TOOLTIP_REFRESH_MS)
+    return () => clearInterval(id)
+  }, [status])
+
+  const map: Record<typeof status, { label: string; icon: 'CircleCheck' | 'LoaderCircle' | 'WifiOff' | 'CircleAlert' | 'TriangleAlert' | 'Circle'; tone: string }> = {
+    idle: { label: 'Modifications non enregistrées', icon: 'Circle', tone: 'text-fg-muted' },
     saving: { label: 'Enregistrement…', icon: 'LoaderCircle', tone: 'text-fg-muted' },
     saved: {
       label: savedAt ? `Enregistré ${relativeFromNow(savedAt)}` : 'Enregistré',
@@ -49,11 +60,12 @@ export function SaveStatusBadge() {
 
   return (
     <div
-      className={`flex min-w-[260px] items-center justify-center gap-2 text-sm ${item.tone}`}
+      className={`flex items-center justify-center ${item.tone}`}
       aria-live='polite'
+      aria-label={item.label}
+      data-rp-tooltip={item.label}
     >
       <Icon name={item.icon} size={16} className={status === 'saving' ? 'animate-spin' : ''} />
-      <span>{item.label}</span>
     </div>
   )
 }

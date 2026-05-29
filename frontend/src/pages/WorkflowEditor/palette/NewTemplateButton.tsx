@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import { Icon, IconName } from '@/components/Icon'
+import { Button } from '@/components/ui/Button'
 import { useModalState, type NodeKind } from '../modal-state'
 
 const OPTIONS: Array<{ kind: NodeKind; label: string; icon: IconName }> = [
@@ -16,13 +17,10 @@ export function NewTemplateButton() {
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button
-          type="button"
-          className="flex h-7 items-center gap-1 rounded-md border border-border bg-surface px-2 text-xs font-medium text-fg hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
+        <Button variant="primary" size="sm">
           <Icon name="Plus" size={16} />
           Nouveau
-        </button>
+        </Button>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
