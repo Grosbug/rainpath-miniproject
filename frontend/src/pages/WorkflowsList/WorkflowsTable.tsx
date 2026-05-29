@@ -7,6 +7,7 @@ import {
   DropdownSeparator
 } from '@/components/ui/DropdownMenu'
 import { Icon } from '@/components/Icon'
+import { PatientRunsBadge } from '@/components/PatientRunsBadge'
 import { IconButton } from '@/components/ui/IconButton'
 import { relativeFromNow } from '@/lib/format-date'
 import type { WorkflowSummary } from '@/api/workflows'
@@ -112,8 +113,7 @@ export function WorkflowsTable({ rows, onDuplicate, onDelete }: Props) {
                   doesn't fire when the user interacts with the menu or the Play button. */}
               <td className='px-2 py-2 text-right' onClick={e => e.stopPropagation()}>
                 <div className='inline-flex items-center gap-1'>
-                  <IconButton
-                    icon='Play'
+                  <PatientRunsBadge
                     aria-label={`Voir les parcours patients de ${r.name}`}
                     data-rp-tooltip='Voir les parcours patients'
                     onClick={() => navigate(`/workflows/${r.id}/patient-runs`)}

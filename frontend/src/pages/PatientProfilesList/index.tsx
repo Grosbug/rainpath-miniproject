@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Icon, type IconName } from '@/components/Icon'
+import { PatientRunsBadge } from '@/components/PatientRunsBadge'
 import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { Dialog } from '@/components/ui/Dialog'
@@ -392,22 +393,8 @@ function FilterGroupLabel({ children }: { children: string }) {
 }
 
 function RunsBadge({ count }: { count: number }) {
-  if (count === 0) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5 text-[11px] text-fg-subtle">
-        <Icon name="Minus" size={16} />
-        Aucun
-      </span>
-    )
-  }
   return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary-soft px-2 py-0.5 text-[11px] font-medium text-primary tabular-nums"
-      data-rp-tooltip={`${count} parcours en cours`}
-    >
-      <Icon name="Play" size={16} />
-      {count}
-    </span>
+    <PatientRunsBadge count={count} data-rp-tooltip={count > 0 ? `${count} parcours en cours` : undefined} />
   )
 }
 
