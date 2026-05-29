@@ -69,7 +69,7 @@ export function WorkflowsTable({ rows, onDuplicate, onDelete }: Props) {
             <th className='whitespace-nowrap px-4 py-3 text-left'>Nom</th>
             <th className='whitespace-nowrap px-4 py-3 text-left'>Description</th>
             <th className='whitespace-nowrap px-4 py-3 text-center'>État</th>
-            <th className='whitespace-nowrap px-4 py-3 text-right tabular-nums'>Modifié</th>
+            <th className='whitespace-nowrap px-4 py-3 text-left tabular-nums'>Modifié</th>
             <th className='px-2 py-3' aria-label='Actions' />
           </tr>
         </thead>
@@ -105,7 +105,7 @@ export function WorkflowsTable({ rows, onDuplicate, onDelete }: Props) {
               <td className='px-4 py-3 text-center'>
                 <ValidityBadge isValid={r.isValid} />
               </td>
-              <td className='whitespace-nowrap px-4 py-3 text-right text-fg-muted tabular-nums'>
+              <td className='whitespace-nowrap px-4 py-3 text-left text-fg-muted tabular-nums'>
                 {relativeFromNow(r.updatedAt)}
               </td>
               {/* Action buttons live in a cell that swallows clicks so the row's onClick
