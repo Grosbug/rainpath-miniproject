@@ -38,4 +38,9 @@ export class PatientRunsController {
   reset(@Param('id') id: string) {
     return this.service.reset(id)
   }
+
+  @Post('patient-runs/:id/step-back')
+  stepBack(@Param('id') id: string) {
+    return this.service.stepBack(id)
+  }
 }

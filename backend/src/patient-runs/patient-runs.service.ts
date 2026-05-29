@@ -269,4 +269,31 @@ export class PatientRunsService {
 
     return this.get(id)
   }
+
+  /**
+   * Pop the last history entry and point `currentNodeId` back at the previous one.
+   * No-op when the run is already at start (history length ≤ 1). Symmetric with
+   * `advance` for one step — useful when the user wants to undo a wrongly-picked
+   * outcome without losing the rest of the run's progress.
+   */
+  async stepBack(id: string): Promise<PatientRunFull> {
+    const row = await this.db.patientRun.findUnique({ where: { id } })
+    if (!row) throw new NotFoundException(`PatientRun ${id} not found`)
+
+    const history: RunHistoryEntry[] = JSON.parse(row.history)
+    if (history.length <= 1) return this.get(id)
+
+    const trimmed = history.slice(0, -1)
+    const newCurrent = trimmed[trimmed.length - 1]!
+
+    await this.prisma.patientRun.update({
+      where: { id },
+      data: {
+        currentNodeId: newCurrent.nodeId,
+        history: JSON.stringify(trimmed)
+      }
+    })
+
+    return this.get(id)
+  }
 }

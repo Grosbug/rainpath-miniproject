@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { Graph } from '@rainpath/shared'
-import { advancePatientRun } from '@/api/patient-runs'
+import { advancePatientRun, resetPatientRun, stepBackPatientRun } from '@/api/patient-runs'
 import { queryKeys } from '@/api/query-keys'
 import { describeError } from '@/api/error-messages'
 import {
-  dayOfHistory, defaultOutcomeFor, nextDefaultEdge,
+  dayOfHistory, nextDefaultEdge,
   type PatientContactData
 } from './cumulative-days'
 
@@ -18,7 +18,8 @@ interface Args {
   graph: Graph
   currentNodeId: string | null
   history: HistoryEntry[]
-  profile: PatientContactData
+  /** Kept on the API for forward-compat with per-node status filtering; not read here. */
+  profile?: PatientContactData
 }
 
 export interface DaySimulator {
@@ -28,30 +29,55 @@ export interface DaySimulator {
   currentNodeDay: number
   /** Day at which the next default event would fire. Null when nothing is pending. */
   nextEventDay: number | null
-  /** True while an auto-advance mutation is in flight. */
+  /** True while an /advance mutation is in flight. */
   autoAdvancing: boolean
-  /** Why auto-advance is paused. null = runs free. */
-  pauseReason: 'multi_output' | 'end' | null
+  /** Hint about why the run can't move on its own. null = ready to advance. */
+  pauseReason: 'multi_output' | 'awaiting_status' | 'end' | null
   /** Jump straight to the day the next event fires. No-op if none is pending. */
   jumpToNextEvent: () => void
   /** Reset cursor back to currentNodeDay (used when the user wants to "back to now"). */
   syncToCurrentNode: () => void
+  /** IDs of nodes currently awaiting an observed status from the user. */
+  currentNodeIds: readonly string[]
+  /** Pending status selections keyed by node id (cleared on advance / node-change). */
+  pendingByNode: Readonly<Record<string, string | undefined>>
+  /** Stage a status choice locally — mutation fires later via advanceAllPending. */
+  setPending: (nodeId: string, status: string | undefined) => void
+  /** True when every current node has a pending status (or there are no current nodes). */
+  allCurrentsHaveStatus: boolean
+  /** True when at least one node still needs a status from the user. */
+  anyCurrentMissingStatus: boolean
+  /**
+   * Fire /advance for every current node that has a pending status, sequentially.
+   * No-op (returns false) when any current node is missing a selection.
+   * Returns true on full success.
+   */
+  advanceAllPending: () => Promise<boolean>
+  /** True when the run has visited at least one node beyond Start (i.e. step-back is meaningful). */
+  canStepBack: boolean
+  /** Pop the last history entry and rewind currentNodeId to the previous one. */
+  stepBack: () => Promise<boolean>
+  /** Wipe the run back to its Start node with an empty history. Always available. */
+  resetRun: () => Promise<boolean>
 }
 
 /**
- * Drives the patient-run time cursor and the auto-advance loop.
+ * Drives the patient-run time cursor and the user-driven per-node status
+ * resolution. All forward progress is explicit — the user picks an observed
+ * status on each current send_* card and clicks the top-bar "Prochain", which
+ * fires `advanceAllPending`.
  *
  * Cursor lives on the frontend (per the spec — progression is "simulée"):
- *   - `day = max(userCursor, currentNodeDay)` — auto-snaps forward when a
- *     manual advance moves the patient past the user's cursor.
- *   - Whenever `day >= currentNodeDay + nextDefaultEdge.daysAfter`, we POST
- *     /advance with the default success outcome, refetch, and the effect
- *     re-evaluates against the new node.
- *   - Pauses on multi-output / end — user picks a branch in
- *     PatientAdvanceControls and the loop resumes.
+ *   - `day = max(userCursor, currentNodeDay)` — auto-snaps forward when an
+ *     advance moves the patient past the user's cursor.
  *   - Detects a reset (history shrinks back to [start]) and rewinds the cursor.
+ *
+ * Multi-current readiness: the backend still tracks a single currentNodeId, so
+ * `currentNodeIds` is a one-element array in practice. The pending-status map
+ * is keyed by nodeId so that the day a multi-incoming fan-out lands, no plumbing
+ * change is needed here.
  */
-export function useDaySimulator({ runId, workflowId, graph, currentNodeId, history, profile }: Args): DaySimulator {
+export function useDaySimulator({ runId, workflowId, graph, currentNodeId, history }: Args): DaySimulator {
   const qc = useQueryClient()
 
   const currentNodeDay = useMemo(() => dayOfHistory(graph, history), [graph, history])
@@ -61,14 +87,55 @@ export function useDaySimulator({ runId, workflowId, graph, currentNodeId, histo
     [graph, currentNodeId]
   )
 
+  const currentNode = useMemo(
+    () => currentNodeId ? graph.nodes.find(n => n.id === currentNodeId) ?? null : null,
+    [graph, currentNodeId]
+  )
+
+  // Nodes the user can resolve / advance through. `end` is terminal so it's
+  // excluded. `start` needs no status pick but still requires an explicit
+  // "Prochain" to leave (the old auto-advance is gone). Every `send_*` node
+  // requires an observed status before "Prochain" can fire.
+  const currentNodeIds = useMemo<readonly string[]>(() => {
+    if (!currentNode) return []
+    if (currentNode.data.kind === 'end') return []
+    return [currentNode.id]
+  }, [currentNode])
+
+  // Pending per-node selections. Reset whenever the set of current ids changes
+  // (i.e. after an advance moves the run forward) so stale selections don't
+  // leak into the next node.
+  const [pendingByNode, setPendingByNode] = useState<Record<string, string | undefined>>({})
+  const lastCurrentKey = useRef<string>('')
+  useEffect(() => {
+    const key = [...currentNodeIds].sort().join('|')
+    if (key !== lastCurrentKey.current) {
+      lastCurrentKey.current = key
+      setPendingByNode({})
+    }
+  }, [currentNodeIds])
+
+  // `start` needs no status — it counts as "satisfied". For send_* the user
+  // must have staged something in pendingByNode.
+  const nodesById = useMemo(() => new Map(graph.nodes.map(n => [n.id, n])), [graph.nodes])
+  const needsStatus = useCallback(
+    (id: string) => nodesById.get(id)?.data.kind !== 'start',
+    [nodesById]
+  )
+  const allCurrentsHaveStatus =
+    currentNodeIds.length === 0 ||
+    currentNodeIds.every(id => !needsStatus(id) || !!pendingByNode[id])
+  const anyCurrentMissingStatus =
+    currentNodeIds.length > 0 &&
+    currentNodeIds.some(id => needsStatus(id) && !pendingByNode[id])
+
   const pauseReason = useMemo<DaySimulator['pauseReason']>(() => {
-    if (!currentNodeId) return null
-    const node = graph.nodes.find(n => n.id === currentNodeId)
-    if (!node) return null
-    if (node.data.kind === 'end') return 'end'
-    if (node.data.kind !== 'start' && node.data.params.output.mode === 'multi') return 'multi_output'
-    return null
-  }, [graph, currentNodeId])
+    if (!currentNode) return null
+    if (currentNode.data.kind === 'end') return 'end'
+    if (currentNode.data.kind === 'start') return null
+    if (currentNode.data.params.output.mode === 'multi') return 'multi_output'
+    return 'awaiting_status'
+  }, [currentNode])
 
   const [userCursor, setUserCursor] = useState(0)
   const day = Math.max(userCursor, currentNodeDay)
@@ -93,29 +160,37 @@ export function useDaySimulator({ runId, workflowId, graph, currentNodeId, histo
       qc.invalidateQueries({ queryKey: queryKeys.patientRuns.listForWorkflow(workflowId) })
     },
     onError: e => {
-      toast.error(describeError(e, 'Échec de l\'auto-avancement.'))
-      // Pull the cursor back to "now" so the loop doesn't immediately retry.
+      toast.error(describeError(e, 'Échec de l\'avancement.'))
       setUserCursor(currentNodeDay)
     }
   })
 
-  // Auto-advance loop: fire one /advance per render tick when the cursor has
-  // crossed the next event day. After the refetch, currentNodeDay jumps up,
-  // pendingEdge is recomputed, and the effect runs again until either the
-  // cursor catches the node again or we hit a pause condition.
-  useEffect(() => {
-    if (advanceMut.isPending) return
-    if (pauseReason) return
-    if (!pendingEdge) return
-    if (nextEventDay === null) return
-    if (day < nextEventDay) return
-    if (!currentNodeId) return
-    const outcome = defaultOutcomeFor(graph, currentNodeId, profile)
-    if (outcome === undefined) return // no realistic outcome (no contact data + no failure status) → pause
-    advanceMut.mutate(outcome)
-    // advanceMut.mutate / advanceMut.isPending stable refs across renders, safe to omit
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [day, pendingEdge, nextEventDay, pauseReason, advanceMut.isPending, currentNodeId, graph, profile])
+  const stepBackMut = useMutation({
+    mutationFn: () => stepBackPatientRun(runId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.patientRuns.detail(runId) })
+      qc.invalidateQueries({ queryKey: queryKeys.patientRuns.listForWorkflow(workflowId) })
+      setPendingByNode({})
+    },
+    onError: e => toast.error(describeError(e, 'Échec du retour en arrière.'))
+  })
+
+  const resetMut = useMutation({
+    mutationFn: () => resetPatientRun(runId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.patientRuns.detail(runId) })
+      qc.invalidateQueries({ queryKey: queryKeys.patientRuns.listForWorkflow(workflowId) })
+      setPendingByNode({})
+      setUserCursor(0)
+      toast.success('Parcours réinitialisé')
+    },
+    onError: e => toast.error(describeError(e, 'Échec de la réinitialisation.'))
+  })
+
+  // Auto-advance is gone: every node now waits on the user's "Prochain" button
+  // in the top bar (start needs no status; send_* needs a pending pick). The
+  // day cursor still advances visually when currentNodeDay jumps forward after
+  // a successful /advance, so the J+N line on the canvas stays in sync.
 
   const jumpToNextEvent = useCallback(() => {
     if (nextEventDay === null) return
@@ -124,13 +199,62 @@ export function useDaySimulator({ runId, workflowId, graph, currentNodeId, histo
 
   const syncToCurrentNode = useCallback(() => setUserCursor(currentNodeDay), [currentNodeDay])
 
+  const setPending = useCallback((nodeId: string, status: string | undefined) => {
+    setPendingByNode(prev => ({ ...prev, [nodeId]: status }))
+  }, [])
+
+  // Fire one /advance per current node sequentially. The backend's currentNodeId
+  // changes after each call, so the second mutation only makes sense once the
+  // first has settled — hence the await per call. `start` nodes advance with no
+  // outcome; send_* nodes use the staged pending status. Returns false (no-op)
+  // when any send_* node is missing a selection.
+  const advanceAllPending = useCallback(async (): Promise<boolean> => {
+    if (currentNodeIds.length === 0) return false
+    for (const id of currentNodeIds) {
+      if (needsStatus(id) && !pendingByNode[id]) return false
+    }
+    for (const id of currentNodeIds) {
+      const status = needsStatus(id) ? pendingByNode[id] : undefined
+      await advanceMut.mutateAsync(status)
+    }
+    setPendingByNode({})
+    return true
+    // mutateAsync is a stable reference from react-query
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentNodeIds, pendingByNode, needsStatus])
+
+  const canStepBack = history.length > 1
+  const stepBack = useCallback(async (): Promise<boolean> => {
+    if (!canStepBack) return false
+    await stepBackMut.mutateAsync()
+    return true
+    // mutateAsync is stable from react-query
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canStepBack])
+
+  const resetRun = useCallback(async (): Promise<boolean> => {
+    await resetMut.mutateAsync()
+    return true
+    // mutateAsync is stable from react-query
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return {
     day,
     currentNodeDay,
     nextEventDay,
-    autoAdvancing: advanceMut.isPending,
+    autoAdvancing: advanceMut.isPending || stepBackMut.isPending || resetMut.isPending,
     pauseReason,
     jumpToNextEvent,
-    syncToCurrentNode
+    syncToCurrentNode,
+    currentNodeIds,
+    pendingByNode,
+    setPending,
+    allCurrentsHaveStatus,
+    anyCurrentMissingStatus,
+    advanceAllPending,
+    canStepBack,
+    stepBack,
+    resetRun
   }
 }

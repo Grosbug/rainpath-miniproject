@@ -3,6 +3,7 @@ import { CHANNEL_FAILURE_STATUSES } from '@rainpath/shared'
 import { Icon, IconName } from '@/components/Icon'
 import { relativeFromNow } from '@/lib/format-date'
 import { frStatus } from '@/pages/WorkflowEditor/modal/status-labels'
+import { useSidebarCollapsed } from './use-sidebar-collapsed'
 
 type HistoryEntry = { nodeId: string; enteredAt: string; outcome?: string }
 
@@ -78,9 +79,21 @@ const TONE_STYLES: Record<Tone, { container: string; icon: IconName; iconClass: 
 }
 
 export function PatientHistoryList({ graph, history, startDate }: Props) {
+  const [collapsed, setCollapsed] = useSidebarCollapsed('history')
   return (
     <div className="space-y-2">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">Historique</h2>
+      <button
+        type="button"
+        onClick={() => setCollapsed(c => !c)}
+        aria-expanded={!collapsed}
+        className="flex w-full items-center justify-between gap-2 text-left"
+      >
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">
+          Historique <span className="ml-1 normal-case text-fg-subtle">({history.length})</span>
+        </h2>
+        <Icon name={collapsed ? 'ChevronDown' : 'ChevronUp'} size={16} className="text-fg-muted" />
+      </button>
+      {collapsed ? null : (
       <ol className="space-y-1">
         {history.map((entry, ix) => {
           const tone = classifyOutcome(entry.outcome)
@@ -112,6 +125,7 @@ export function PatientHistoryList({ graph, history, startDate }: Props) {
           )
         })}
       </ol>
+      )}
     </div>
   )
 }

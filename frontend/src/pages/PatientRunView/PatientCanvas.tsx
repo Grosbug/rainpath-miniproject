@@ -9,14 +9,17 @@ import type { Graph } from '@rainpath/shared'
 import { computeReachability } from '@rainpath/shared'
 import { TimelineBackground } from '@/pages/WorkflowEditor/TimelineBackground'
 import { edgeTypes } from '@/pages/WorkflowEditor/edges/edge-types'
+import { useLeftAnchoredZoom } from '@/pages/WorkflowEditor/hooks/useLeftAnchoredZoom'
 import { PatientNode, type PatientNodeData, type ReachabilityState } from './PatientNode'
 import { computeLanes } from './compute-lanes'
+import type { PatientContactData } from './cumulative-days'
 
 const PX_PER_DAY = 28
 // LANE_HEIGHT must be >= the actual rendered card height (~110–130 px with the
-// "J+N" badge + reachability pill), plus a visual gap, otherwise cards on adjacent
+// "J+N" badge + reachability pill, +50–70 px when the `current` card sprouts
+// its inline status picker), plus a visual gap, otherwise cards on adjacent
 // lanes touch / overlap vertically even though compute-lanes correctly assigned them.
-const LANE_HEIGHT = 140
+const LANE_HEIGHT = 200
 const LANE_TOP_OFFSET = 40
 
 const nodeTypes: NodeTypes = {
@@ -42,9 +45,18 @@ interface Props {
   history: { nodeId: string; outcome?: string }[]
   /** Day cursor for the time simulator (J+N from start). Renders a vertical "today" line. */
   dayCursor: number
+  /** Pending observed-status selections per node, used to render the inline picker on current cards. */
+  pendingByNode: Readonly<Record<string, string | undefined>>
+  /** Setter passed into each `current` send_* node so the user can stage a status from the canvas. */
+  onPendingChange: (nodeId: string, status: string | undefined) => void
 }
 
-function CanvasInner({ graph, profile, currentNodeId, history, dayCursor }: Props) {
+function CanvasInner({ graph, profile, currentNodeId, history, dayCursor, pendingByNode, onPendingChange }: Props) {
+  // 40 px of breathing room left of J+0 so the rail (vertical green line in
+  // TimelineBackground) and the first node card stay clear of the canvas edge
+  // at any zoom level — mirrors the editor's left-anchored zoom behavior.
+  useLeftAnchoredZoom(40)
+
   const reach: Map<string, ReachabilityState> = useMemo(
     () => computeReachability(
       graph,
@@ -62,24 +74,39 @@ function CanvasInner({ graph, profile, currentNodeId, history, dayCursor }: Prop
 
   const lanes = useMemo(() => computeLanes(graph), [graph])
 
+  const contactProfile: PatientContactData = useMemo(() => ({
+    email: profile.email,
+    phone: profile.phone,
+    whatsapp: profile.whatsapp,
+    address: profile.address
+  }), [profile.email, profile.phone, profile.whatsapp, profile.address])
+
   const rfNodes: RFNode<PatientNodeData>[] = useMemo(() => {
-    return graph.nodes.map(n => ({
-      id: n.id,
-      type: n.data.kind,
-      position: {
-        x: n.position.x * PX_PER_DAY,
-        y: LANE_TOP_OFFSET + (lanes.get(n.id) ?? 0) * LANE_HEIGHT
-      },
-      data: {
-        ...n.data,
-        reachability: reach.get(n.id) ?? 'unreachable',
-        _dayX: n.data.kind === 'start' ? undefined : Math.max(0, Math.round(n.position.x))
-      } as PatientNodeData,
-      draggable: false,
-      selectable: false,
-      focusable: false
-    }))
-  }, [graph.nodes, reach, lanes])
+    return graph.nodes.map(n => {
+      const isCurrent = reach.get(n.id) === 'current'
+      return {
+        id: n.id,
+        type: n.data.kind,
+        position: {
+          x: n.position.x * PX_PER_DAY,
+          y: LANE_TOP_OFFSET + (lanes.get(n.id) ?? 0) * LANE_HEIGHT
+        },
+        data: {
+          ...n.data,
+          reachability: reach.get(n.id) ?? 'unreachable',
+          _dayX: n.data.kind === 'start' ? undefined : Math.max(0, Math.round(n.position.x)),
+          // Inline status picker plumbing — only the `current` send_* card uses
+          // these, but we pass them on every card to keep the rfNodes memo stable.
+          _profile: contactProfile,
+          _pendingStatus: isCurrent ? pendingByNode[n.id] : undefined,
+          _onPickStatus: isCurrent ? (s: string | undefined) => onPendingChange(n.id, s) : undefined
+        } as PatientNodeData,
+        draggable: false,
+        selectable: false,
+        focusable: false
+      }
+    })
+  }, [graph.nodes, reach, lanes, contactProfile, pendingByNode, onPendingChange])
 
   const rfEdges: RFEdge[] = useMemo(() =>
     graph.edges.map(e => ({
@@ -107,9 +134,10 @@ function CanvasInner({ graph, profile, currentNodeId, history, dayCursor }: Prop
         elementsSelectable={false}
         proOptions={{ hideAttribution: true }}
         minZoom={0.4}
-        maxZoom={1.5}
+        maxZoom={2}
+        translateExtent={[[-48, -Infinity], [Infinity, Infinity]]}
         fitView
-        fitViewOptions={{ padding: 0.15 }}
+        fitViewOptions={{ padding: 0.05 }}
       >
         <TimelineBackground />
         <TodayCursor day={dayCursor} />
@@ -132,19 +160,33 @@ function TodayCursor({ day }: { day: number }) {
   if (day <= 0) return null
   const screenX = day * PX_PER_DAY * viewport.zoom + viewport.x
   if (screenX < 0 || screenX > widthPx) return null
+  // z-index 2 puts the cursor above edges (z-index 1) but UNDER node cards
+  // (z-index 3–4 in React Flow v12). Combined with explicit pointer-events:none
+  // on every SVG node (the CSS inheritance isn't always honored by SVG paint
+  // elements like <rect>/<text>), this guarantees the cursor never blocks
+  // clicks on inline node controls (status picker dropdown trigger).
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ zIndex: 4 }}>
-      <svg width={widthPx} height={heightPx} className="block">
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ zIndex: 2 }}>
+      <svg
+        width={widthPx} height={heightPx}
+        className="block"
+        style={{ pointerEvents: 'none' }}
+      >
         <line
           x1={screenX} y1={0} x2={screenX} y2={heightPx}
           stroke="var(--primary)" strokeWidth={2} strokeDasharray="6 4" opacity={0.7}
+          style={{ pointerEvents: 'none' }}
         />
-        <g transform={`translate(${screenX}, 14)`}>
-          <rect x={-22} y={-11} width={44} height={20} rx={10} fill="var(--primary)" />
+        <g transform={`translate(${screenX}, 14)`} style={{ pointerEvents: 'none' }}>
+          <rect
+            x={-22} y={-11} width={44} height={20} rx={10}
+            fill="var(--primary)"
+            style={{ pointerEvents: 'none' }}
+          />
           <text
             x={0} y={3} textAnchor="middle"
             fontSize={11} fontFamily="var(--font-sans)" fontWeight={600}
-            style={{ fontVariantNumeric: 'tabular-nums' }}
+            style={{ fontVariantNumeric: 'tabular-nums', pointerEvents: 'none' }}
             fill="white"
           >
             J+{day}

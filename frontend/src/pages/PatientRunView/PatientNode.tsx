@@ -1,6 +1,15 @@
 import { Handle, NodeProps, Position } from '@xyflow/react'
+import { CHANNEL_STATUSES } from '@rainpath/shared'
 import type { Graph, OutputConfig } from '@rainpath/shared'
 import { Icon, IconName } from '@/components/Icon'
+import {
+  DropdownMenu, DropdownTrigger, DropdownContent, DropdownItem
+} from '@/components/ui/DropdownMenu'
+import { frStatus } from '@/pages/WorkflowEditor/modal/status-labels'
+import {
+  hasChannelData, failureStatusesForNode, missingChannelLabel,
+  type PatientContactData
+} from './cumulative-days'
 
 /** Read-only mirror of the editor's handle styling — smaller, no hover/interaction. */
 const readOnlyHandleClass = '!h-2 !w-2 !border-2 !bg-surface pointer-events-none'
@@ -13,6 +22,40 @@ export type PatientNodeData = NodeData & {
   blockedReason?: string
   /** Cumulative delay from start in days (J+N badge top-right). */
   _dayX?: number
+  /** Patient contact data — used by the inline status picker to filter the channel statuses. */
+  _profile?: PatientContactData
+  /** Currently staged observed status for this node (undefined = nothing picked yet). */
+  _pendingStatus?: string
+  /** Setter wired by PatientCanvas; absent on non-current nodes. */
+  _onPickStatus?: (status: string | undefined) => void
+}
+
+type SendNodeData = Extract<NodeData, { kind: 'send_email' | 'send_sms' | 'send_whatsapp' | 'send_postal' }>
+
+/**
+ * Statuses the simulator can actually route from this node — mirrors the editor
+ * coverage rules so the inline picker doesn't offer a status that would crash
+ * with `unhandled_outcome` on the backend. Patients missing the channel's
+ * contact data only see the failure subset (a "delivered" status with no email
+ * makes no sense).
+ */
+function routableStatusesFor(data: SendNodeData, profile: PatientContactData | undefined): string[] {
+  const channel: readonly string[] =
+    data.kind === 'send_email'    ? CHANNEL_STATUSES.email :
+    data.kind === 'send_sms'      ? CHANNEL_STATUSES.sms :
+    data.kind === 'send_whatsapp' ? CHANNEL_STATUSES.whatsapp :
+    data.params.tracked ? CHANNEL_STATUSES.postal_tracked : CHANNEL_STATUSES.postal_untracked
+  let candidates: string[] = [...channel]
+  const out = data.params.output
+  if (out.mode === 'multi') {
+    const routed = new Set(out.outputs.flatMap(o => o.condition.statuses))
+    candidates = candidates.filter(s => routed.has(s))
+  }
+  if (profile && !hasChannelData(data, profile)) {
+    const failures = new Set<string>(failureStatusesForNode(data))
+    candidates = candidates.filter(s => failures.has(s))
+  }
+  return candidates
 }
 
 const KIND_META: Record<NodeData['kind'], {
@@ -102,6 +145,15 @@ export function PatientNode({ data }: NodeProps) {
         <div className="mt-2">
           <ReachabilityBadge state={d.reachability} blockedReason={d.blockedReason} />
         </div>
+
+        {d.reachability === 'current' && d._onPickStatus && isSendData(d) ? (
+          <InlineStatusPicker
+            data={d}
+            profile={d._profile}
+            value={d._pendingStatus}
+            onChange={d._onPickStatus}
+          />
+        ) : null}
 
         {d.kind !== 'start' && (
           <Handle type="target" position={Position.Left} className={readOnlyHandleClass} />
@@ -204,5 +256,87 @@ function ReachabilityBadge({ state, blockedReason }: { state: ReachabilityState;
     <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5 text-[10px] font-semibold text-fg-subtle">
       Inatteignable
     </span>
+  )
+}
+
+function isSendData(data: PatientNodeData): data is PatientNodeData & SendNodeData {
+  return data.kind === 'send_email' || data.kind === 'send_sms'
+      || data.kind === 'send_whatsapp' || data.kind === 'send_postal'
+}
+
+/**
+ * Inline status picker rendered on the `current` send_* card. The dropdown
+ * stages the user's choice in the simulator's pendingByNode map — the actual
+ * mutation fires from the top-bar "Prochain" button, not from this select.
+ *
+ * Filters statuses through `routableStatusesFor` so we never offer a status
+ * that would crash the backend with `unhandled_outcome`. When the patient
+ * lacks the channel's contact data, only failure statuses are offered (with
+ * a small warning line above the select).
+ */
+function InlineStatusPicker({
+  data, profile, value, onChange
+}: {
+  data: SendNodeData
+  profile: PatientContactData | undefined
+  value: string | undefined
+  onChange: (status: string | undefined) => void
+}) {
+  const statuses = routableStatusesFor(data, profile)
+  const lacksData = profile ? !hasChannelData(data, profile) : false
+  const missingLabel = lacksData ? missingChannelLabel(data) : null
+
+  // React Flow's drag/pan/zoom listeners run on the node wrapper and reliably
+  // swallow native <select> dropdowns — even with nodrag/nopan classes the
+  // browser-managed list refuses to open inside a RF node. Radix's
+  // DropdownMenu sidesteps this entirely by rendering its content in a Portal
+  // (outside the React Flow surface), so RF can't intercept anything. The
+  // `nodrag nowheel nopan` classes on the trigger wrapper are still useful
+  // belt-and-braces to keep the canvas from panning when the user clicks.
+  return (
+    <div className="nodrag nowheel nopan mt-2 space-y-1">
+      {lacksData && missingLabel ? (
+        <p className="rounded border border-warning/60 bg-[#FFFBEB] px-1.5 py-1 text-[10px] leading-tight text-warning">
+          <Icon name="TriangleAlert" size={16} className="-mt-0.5 mr-0.5 inline" />
+          Pas de {missingLabel} — statuts d'échec seulement.
+        </p>
+      ) : null}
+      {statuses.length === 0 ? (
+        <p className="rounded border border-warning/60 bg-[#FFFBEB] px-1.5 py-1 text-[10px] leading-tight text-warning">
+          Aucun statut routable depuis ce nœud.
+        </p>
+      ) : (
+        <>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
+            Statut observé
+          </p>
+          <DropdownMenu>
+            <DropdownTrigger asChild>
+              <button
+                type="button"
+                className="flex h-7 w-full items-center justify-between gap-1 rounded border border-border bg-surface px-1.5 text-[11px] hover:bg-surface-muted focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                aria-label="Choisir le statut observé"
+              >
+                <span className={value ? 'text-fg' : 'text-fg-muted'}>
+                  {value ? frStatus(value) : 'Choisir…'}
+                </span>
+                <Icon name="ChevronDown" size={16} className="shrink-0 text-fg-muted" />
+              </button>
+            </DropdownTrigger>
+            <DropdownContent className="min-w-[160px]">
+              {statuses.map(s => (
+                <DropdownItem
+                  key={s}
+                  icon={value === s ? 'Check' : undefined}
+                  onSelect={() => onChange(s)}
+                >
+                  {frStatus(s)}
+                </DropdownItem>
+              ))}
+            </DropdownContent>
+          </DropdownMenu>
+        </>
+      )}
+    </div>
   )
 }

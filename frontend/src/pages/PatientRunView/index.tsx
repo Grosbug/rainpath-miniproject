@@ -5,7 +5,9 @@ import { queryKeys } from '@/api/query-keys'
 import { getPatientRun } from '@/api/patient-runs'
 import { PatientCanvas } from './PatientCanvas'
 import { PatientProfilePanel } from './PatientProfilePanel'
-import { PatientAdvanceControls } from './PatientAdvanceControls'
+// PatientAdvanceControls is intentionally no longer mounted — status resolution
+// now happens inline on each `current` send_* card (T10). The file remains in
+// the directory for reference.
 import { PatientHistoryList } from './PatientHistoryList'
 import { DayCursorControls } from './DayCursorControls'
 import { useDaySimulator } from './use-day-simulator'
@@ -91,7 +93,7 @@ function LoadedView({ run, workflowId }: { run: import('@/api/patient-runs').Pat
       <div className="grid flex-1 grid-cols-[1fr_360px] overflow-hidden">
         <div className="relative flex flex-col">
           <div className="border-b border-border bg-surface px-4 py-2">
-            <DayCursorControls sim={sim} />
+            <DayCursorControls sim={sim} graph={run.workflow.graph} />
           </div>
           <div className="relative flex-1">
             <PatientCanvas
@@ -100,19 +102,13 @@ function LoadedView({ run, workflowId }: { run: import('@/api/patient-runs').Pat
               currentNodeId={run.currentNodeId}
               history={run.history}
               dayCursor={sim.day}
+              pendingByNode={sim.pendingByNode}
+              onPendingChange={sim.setPending}
             />
           </div>
         </div>
 
         <aside className="flex flex-col gap-6 overflow-y-auto border-l border-border bg-surface p-6">
-          <PatientAdvanceControls
-            runId={run.id}
-            workflowId={run.workflowId}
-            graph={run.workflow.graph}
-            currentNodeId={run.currentNodeId}
-            profile={run.patient}
-          />
-          <div className="h-px bg-border" />
           <PatientProfilePanel patient={run.patient} runId={run.id} />
           <div className="h-px bg-border" />
           <PatientHistoryList graph={run.workflow.graph} history={run.history} startDate={run.startDate} />

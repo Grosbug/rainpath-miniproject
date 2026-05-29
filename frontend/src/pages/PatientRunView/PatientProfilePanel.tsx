@@ -5,6 +5,7 @@ import { Icon } from '@/components/Icon'
 import { updatePatientProfile } from '@/api/patient-profiles'
 import { describeError } from '@/api/error-messages'
 import { queryKeys } from '@/api/query-keys'
+import { useSidebarCollapsed } from './use-sidebar-collapsed'
 
 interface PatientShape {
   id: string
@@ -80,6 +81,8 @@ export function PatientProfilePanel({ patient, runId }: Props) {
     timer.current = setTimeout(() => saveMut.mutate(next), 500)
   }
 
+  const [collapsed, setCollapsed] = useSidebarCollapsed('profile')
+
   if (patient.deletedAt) {
     return (
       <div className="rounded-md border border-border bg-surface-muted p-3 text-sm text-fg-muted">
@@ -90,41 +93,53 @@ export function PatientProfilePanel({ patient, runId }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">Profil patient</h2>
-        {saveMut.isPending ? (
-          <span className="inline-flex items-center gap-1 text-xs text-fg-muted">
-            <Icon name="LoaderCircle" size={16} className="animate-spin" />
-            Enregistrement…
-          </span>
-        ) : null}
-      </div>
+      <button
+        type="button"
+        onClick={() => setCollapsed(c => !c)}
+        aria-expanded={!collapsed}
+        className="flex w-full items-center justify-between gap-2 text-left"
+      >
+        <span className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">Profil patient</h2>
+          {saveMut.isPending ? (
+            <span className="inline-flex items-center gap-1 text-xs text-fg-muted">
+              <Icon name="LoaderCircle" size={16} className="animate-spin" />
+              Enregistrement…
+            </span>
+          ) : null}
+        </span>
+        <Icon name={collapsed ? 'ChevronDown' : 'ChevronUp'} size={16} className="text-fg-muted" />
+      </button>
 
-      <p className="text-xs text-fg-muted">
-        Modifier ces données change immédiatement les chemins disponibles dans le workflow.
-      </p>
+      {collapsed ? null : (
+        <>
+          <p className="text-xs text-fg-muted">
+            Modifier ces données change immédiatement les chemins disponibles dans le workflow.
+          </p>
 
-      <PanelField label="Email"    value={draft.email}    onChange={v => setField('email', v)}    placeholder="alice@example.com" />
-      <PanelField label="Téléphone" value={draft.phone}   onChange={v => setField('phone', v)}    placeholder="+33 …" />
-      <PanelField label="WhatsApp" value={draft.whatsapp} onChange={v => setField('whatsapp', v)} placeholder="+33 …" />
+          <PanelField label="Email"    value={draft.email}    onChange={v => setField('email', v)}    placeholder="alice@example.com" />
+          <PanelField label="Téléphone" value={draft.phone}   onChange={v => setField('phone', v)}    placeholder="+33 …" />
+          <PanelField label="WhatsApp" value={draft.whatsapp} onChange={v => setField('whatsapp', v)} placeholder="+33 …" />
 
-      {/* Adresse postale — bloc commun pour que les 3 champs (rue, CP, ville) se lisent
-          comme une unité. Une bordure légère + un label de section les distingue des
-          contacts au-dessus, et un message d'aide explicite la règle "tout-ou-rien". */}
-      <fieldset className='space-y-2 rounded-md border border-border bg-surface-muted/40 p-3'>
-        <legend className='px-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted'>
-          Adresse postale
-        </legend>
-        <PanelField label="Rue"      value={draft.street}   onChange={v => setField('street', v)}   placeholder="123 rue …" />
-        <div className='grid grid-cols-[6.5rem_1fr] gap-2'>
-          <PanelField label="CP"     value={draft.postalCode} onChange={v => setField('postalCode', v)} placeholder="75001" />
-          <PanelField label="Ville"  value={draft.city}     onChange={v => setField('city', v)}     placeholder="Paris" />
-        </div>
-        <p className='px-1 text-[11px] leading-snug text-fg-subtle'>
-          Les trois champs doivent être complétés et le CP au format 5 chiffres pour que
-          l'adresse soit enregistrée.
-        </p>
-      </fieldset>
+          {/* Adresse postale — bloc commun pour que les 3 champs (rue, CP, ville) se lisent
+              comme une unité. Une bordure légère + un label de section les distingue des
+              contacts au-dessus, et un message d'aide explicite la règle "tout-ou-rien". */}
+          <fieldset className='space-y-2 rounded-md border border-border bg-surface-muted/40 p-3'>
+            <legend className='px-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted'>
+              Adresse postale
+            </legend>
+            <PanelField label="Rue"      value={draft.street}   onChange={v => setField('street', v)}   placeholder="123 rue …" />
+            <div className='grid grid-cols-[6.5rem_1fr] gap-2'>
+              <PanelField label="CP"     value={draft.postalCode} onChange={v => setField('postalCode', v)} placeholder="75001" />
+              <PanelField label="Ville"  value={draft.city}     onChange={v => setField('city', v)}     placeholder="Paris" />
+            </div>
+            <p className='px-1 text-[11px] leading-snug text-fg-subtle'>
+              Les trois champs doivent être complétés et le CP au format 5 chiffres pour que
+              l'adresse soit enregistrée.
+            </p>
+          </fieldset>
+        </>
+      )}
     </div>
   )
 }
