@@ -236,12 +236,10 @@ useLeftAnchoredZoom(56)
     const chip = target.closest('[data-edge-label-id]') as HTMLElement | null
     if (chip) {
       const id = chip.dataset['edgeLabelId']!
-      // Anchor at the CHIP's center (not the cursor) so the popover overlays the "+ N j"
-      // label cleanly, regardless of which pixel inside the chip the user happened to click.
       const rect = chip.getBoundingClientRect()
       setPopover({
         edgeId: id,
-        anchor: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+        anchor: { x: rect.right, y: rect.top + rect.height / 2 }
       })
     }
   }, [])
