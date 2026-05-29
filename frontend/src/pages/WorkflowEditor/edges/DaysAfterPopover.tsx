@@ -61,7 +61,7 @@ export function DaysAfterPopover({ open, anchor, onCancel, onDelete }: Props) {
         top: anchor.y,
         transform: 'translate(-50%, -50%)'
       }}
-      className='z-50 rounded-full border border-border bg-surface p-1 shadow-elev-2'
+      className='z-50 flex min-w-[60px] items-center justify-center rounded-full border border-border bg-surface px-2 py-1 shadow-elev-2'
     >
       <button
         type='button'

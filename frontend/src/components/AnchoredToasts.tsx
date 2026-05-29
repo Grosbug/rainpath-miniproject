@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Icon, IconName } from './Icon'
 
 export type AnchoredToastType = 'error' | 'warning' | 'info'
@@ -21,6 +22,7 @@ interface ShowInput {
 }
 
 let dispatch: ((t: ShowInput) => void) | null = null
+let clearAll: (() => void) | null = null
 let nextId = 1
 
 /**
@@ -35,6 +37,7 @@ export function showAnchoredToast(input: ShowInput) {
 
 export function AnchoredToasts() {
   const [toasts, setToasts] = useState<AnchoredToast[]>([])
+  const location = useLocation()
 
   useEffect(() => {
     dispatch = (t: ShowInput) => {
@@ -47,8 +50,19 @@ export function AnchoredToasts() {
         }, duration)
       }
     }
-    return () => { dispatch = null }
+    clearAll = () => setToasts([])
+    return () => {
+      dispatch = null
+      clearAll = null
+    }
   }, [])
+
+  // Anchored toasts are positioned in viewport coords and reference UI from the previous
+  // route — leaving them up after a navigation would float orphaned pills over an unrelated
+  // page. Clear on every pathname change.
+  useEffect(() => {
+    clearAll?.()
+  }, [location.pathname])
 
   const dismiss = useCallback((id: number) => {
     setToasts(prev => prev.filter(x => x.id !== id))
@@ -74,12 +88,16 @@ function Pill({ toast, onDismiss }: { toast: AnchoredToast; onDismiss: () => voi
   const x = Math.max(padding, Math.min(window.innerWidth - padding, toast.x))
   const y = Math.max(padding + 24, Math.min(window.innerHeight - padding, toast.y))
   const meta = TYPE_STYLE[toast.type]
+  // Flip below the anchor when it sits in the top third — rendering above would clip
+  // against the viewport edge for anchors near the header.
+  const below = toast.y < window.innerHeight / 3
+  const translateY = below ? 'translate-y-3' : '-translate-y-[calc(100%+12px)]'
   return (
     <div
       role='alert'
       onClick={onDismiss}
       data-rp-tooltip='Cliquer pour fermer'
-      className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-[calc(100%+12px)] cursor-pointer whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-medium text-white shadow-elev-2 ${meta.bg}`}
+      className={`pointer-events-auto absolute -translate-x-1/2 ${translateY} cursor-pointer whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-medium text-white shadow-elev-2 ${meta.bg}`}
       style={{ left: x, top: y }}
     >
       <div className='flex items-center gap-2'>

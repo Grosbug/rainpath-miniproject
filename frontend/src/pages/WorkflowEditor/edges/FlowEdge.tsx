@@ -13,7 +13,7 @@ export function FlowEdge(props: EdgeProps) {
       <BaseEdge id={id} path={path} style={{ stroke, strokeWidth }} />
       <EdgeLabelRenderer>
         <div
-          className='pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 rounded-md border border-border bg-surface px-2 py-0.5 text-xs font-medium tabular-nums text-fg shadow-elev-1'
+          className='pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-md border border-border bg-surface px-2 py-0.5 text-xs font-medium tabular-nums text-fg shadow-elev-1'
           style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
           data-edge-label-id={id}
         >

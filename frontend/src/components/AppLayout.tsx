@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { Icon } from '@/components/Icon'
 import { Tooltip } from '@/components/Tooltip'
+import { AnchoredToasts } from '@/components/AnchoredToasts'
 
 export function AppLayout() {
   const location = useLocation()
@@ -39,6 +40,7 @@ export function AppLayout() {
         <Outlet />
       </main>
       <Tooltip />
+      <AnchoredToasts />
     </div>
   )
 }
