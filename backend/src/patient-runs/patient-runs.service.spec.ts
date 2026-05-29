@@ -104,6 +104,45 @@ describe('PatientRunsService', () => {
     await expect(service.advance(created.id, {})).rejects.toMatchObject({ status: 400 })
   })
 
+  it('parallel branches: enter each child at the same day then merge', async () => {
+    const parallelGraph = {
+      nodes: [
+        { id: 's', position: { x: 0, y: START_Y }, data: { kind: 'start' } },
+        { id: 'a', position: { x: 7, y: START_Y }, data: {
+          kind: 'send_email', params: { subject: 'A', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
+        }},
+        { id: 'b', position: { x: 7, y: START_Y + 200 }, data: {
+          kind: 'send_email', params: { subject: 'B', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
+        }},
+        { id: 'e', position: { x: 14, y: START_Y }, data: { kind: 'end' } }
+      ],
+      edges: [
+        { id: 'e1', source: 's', target: 'a', daysAfter: 7 },
+        { id: 'e2', source: 's', target: 'b', daysAfter: 7 },
+        { id: 'e3', source: 'a', target: 'e', daysAfter: 7, sourceHandle: 'success' },
+        { id: 'e4', source: 'b', target: 'e', daysAfter: 7, sourceHandle: 'success' }
+      ]
+    }
+    const wf = await prisma.workflow.create({ data: { name: 'Parallel', graph: JSON.stringify(parallelGraph) } })
+    const patient = await prisma.patientProfile.create({ data: { firstName: 'A', lastName: 'B', gender: 'female' } })
+    const run = await service.create(wf.id, { patientId: patient.id })
+    expect(run.activeFrontiers).toEqual(expect.arrayContaining(['a', 'b']))
+
+    let state = await service.focus(run.id, { nodeId: 'a' })
+    state = await service.advance(state.id, { nodeId: 'a' })
+    expect(state.history.map(h => h.nodeId)).toContain('a')
+    expect(state.activeFrontiers).toContain('b')
+
+    state = await service.advance(state.id, { nodeId: 'a', outcome: 'delivered' })
+    expect(state.focusedNodeId).toBe('b')
+
+    state = await service.focus(state.id, { nodeId: 'b' })
+    state = await service.advance(state.id, { nodeId: 'b' })
+    state = await service.advance(state.id, { nodeId: 'b', outcome: 'delivered' })
+    expect(state.history.map(h => h.nodeId)).toContain('b')
+    expect(state.activeFrontiers).toContain('e')
+  })
+
   it('reset() rewinds currentNodeId to start and seeds history with one entry', async () => {
     const { wf, patient } = await seedWorkflowAndPatient()
     const created = await service.create(wf.id, { patientId: patient.id })

@@ -98,6 +98,13 @@ export const CreatePatientRunDto = z.object({
 export type CreatePatientRunDto = z.infer<typeof CreatePatientRunDto>
 
 export const AdvancePatientRunDto = z.object({
-  outcome: z.string().optional()
+  outcome: z.string().optional(),
+  /** Node to enter (frontier) or leave (visited). Defaults to focusedNodeId. */
+  nodeId: z.string().min(1).optional()
 })
 export type AdvancePatientRunDto = z.infer<typeof AdvancePatientRunDto>
+
+export const FocusPatientRunDto = z.object({
+  nodeId: z.string().min(1)
+})
+export type FocusPatientRunDto = z.infer<typeof FocusPatientRunDto>

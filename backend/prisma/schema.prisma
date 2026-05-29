@@ -58,6 +58,7 @@ model PatientRun {
   patientId     String
   patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Restrict)
   currentNodeId String?
+  focusedNodeId String?
   history       String         // JSON-encoded [{ nodeId, enteredAt, outcome? }]
   startDate     DateTime       @default(now())
   createdAt     DateTime       @default(now())

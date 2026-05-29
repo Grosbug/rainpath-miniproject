@@ -1,11 +1,12 @@
 import { BadRequestException, HttpException, Injectable, NotFoundException } from '@nestjs/common'
 import type {
-  AdvancePatientRunDto, CreatePatientRunDto, Graph, PatientGender, PostalAddress
+  AdvancePatientRunDto, CreatePatientRunDto, FocusPatientRunDto, Graph, PatientGender, PostalAddress
 } from '@rainpath/shared'
-import { validateGraph } from '@rainpath/shared'
+import { AdvanceRunError, applyRunAdvance, validateGraph } from '@rainpath/shared'
 import { PrismaService, buildSoftDeleteClient } from '../prisma/prisma.service'
 import { decodeGraph } from '../workflows/graph-codec'
 import { AdvanceError, resolveAdvance } from './advance'
+import { buildRunSimulationState } from './run-state'
 
 type RunHistoryEntry = { nodeId: string; enteredAt: string; outcome?: string }
 
@@ -43,6 +44,9 @@ type PatientRunFull = {
     deletedAt: string | null
   }
   currentNodeId: string | null
+  focusedNodeId: string | null
+  activeFrontiers: string[]
+  actionableNodeIds: string[]
   history: RunHistoryEntry[]
   startDate: string
   createdAt: string
@@ -152,6 +156,7 @@ export class PatientRunsService {
     const graph = decodeGraph(wf.graph, wf.id)
     const history = JSON.parse(row.history) as RunHistoryEntry[]
     const gender: PatientGender = patient.gender === 'female' ? 'female' : 'male'
+    const sim = buildRunSimulationState(graph, history, row.focusedNodeId ?? row.currentNodeId)
 
     return {
       id: row.id,
@@ -169,7 +174,10 @@ export class PatientRunsService {
         address: parsePatientAddress(patient.address),
         deletedAt: patient.deletedAt ? patient.deletedAt.toISOString() : null
       },
-      currentNodeId: row.currentNodeId,
+      currentNodeId: sim.currentNodeId,
+      focusedNodeId: sim.focusedNodeId,
+      activeFrontiers: sim.activeFrontiers,
+      actionableNodeIds: sim.actionableNodeIds,
       history,
       startDate: row.startDate.toISOString(),
       createdAt: row.createdAt.toISOString(),
@@ -201,6 +209,7 @@ export class PatientRunsService {
         workflowId,
         patientId: dto.patientId,
         currentNodeId: startNode.id,
+        focusedNodeId: startNode.id,
         history: JSON.stringify(history),
         startDate
       }
@@ -212,35 +221,71 @@ export class PatientRunsService {
   async advance(id: string, dto: AdvancePatientRunDto): Promise<PatientRunFull> {
     const row = await this.db.patientRun.findUnique({ where: { id } })
     if (!row) throw new NotFoundException(`PatientRun ${id} not found`)
-    if (!row.currentNodeId) throw new BadRequestException(`PatientRun ${id} has no current node`)
 
     const wf = await this.prisma.workflow.findUnique({ where: { id: row.workflowId } })
     if (!wf) throw new NotFoundException(`Workflow ${row.workflowId} not found`)
     const graph = decodeGraph(wf.graph, wf.id)
+    const history = JSON.parse(row.history) as RunHistoryEntry[]
+    const sim = buildRunSimulationState(graph, history, row.focusedNodeId ?? row.currentNodeId)
+    const nodeId = dto.nodeId ?? sim.focusedNodeId
+    if (!nodeId) throw new BadRequestException(`PatientRun ${id} has no focused node`)
 
-    let result: { nextNodeId: string; outcome?: string }
+    let nextHistory: RunHistoryEntry[]
+    let focusNodeId: string | null
     try {
-      result = resolveAdvance({ graph, currentNodeId: row.currentNodeId, outcome: dto.outcome })
+      const applied = applyRunAdvance(graph, history, nodeId, dto.outcome, ctx => {
+        try {
+          return resolveAdvance(ctx)
+        } catch (e) {
+          if (e instanceof AdvanceError) {
+            throw new HttpException(
+              { statusCode: e.status, errors: [{ code: e.code, message: e.message, ...e.detail }], warnings: [] },
+              e.status
+            )
+          }
+          throw e
+        }
+      })
+      nextHistory = applied.history
+      focusNodeId = applied.focusNodeId
     } catch (e) {
-      if (e instanceof AdvanceError) {
-        throw new HttpException(
-          { statusCode: e.status, errors: [{ code: e.code, message: e.message, ...e.detail }], warnings: [] },
-          e.status
-        )
+      if (e instanceof AdvanceRunError) {
+        throw new BadRequestException(e.message)
       }
       throw e
     }
 
+    await this.prisma.patientRun.update({
+      where: { id },
+      data: {
+        currentNodeId: focusNodeId,
+        focusedNodeId: focusNodeId,
+        history: JSON.stringify(nextHistory)
+      }
+    })
+
+    return this.get(id)
+  }
+
+  async focus(id: string, dto: FocusPatientRunDto): Promise<PatientRunFull> {
+    const row = await this.db.patientRun.findUnique({ where: { id } })
+    if (!row) throw new NotFoundException(`PatientRun ${id} not found`)
+
+    const wf = await this.prisma.workflow.findUnique({ where: { id: row.workflowId } })
+    if (!wf) throw new NotFoundException(`Workflow ${row.workflowId} not found`)
+    const graph = decodeGraph(wf.graph, wf.id)
     const history = JSON.parse(row.history) as RunHistoryEntry[]
-    const entry: RunHistoryEntry = { nodeId: result.nextNodeId, enteredAt: new Date().toISOString() }
-    if (result.outcome !== undefined) entry.outcome = result.outcome
-    history.push(entry)
+    const sim = buildRunSimulationState(graph, history, dto.nodeId)
+
+    if (!sim.actionableNodeIds.includes(dto.nodeId)) {
+      throw new BadRequestException(`Node ${dto.nodeId} is not actionable`)
+    }
 
     await this.prisma.patientRun.update({
       where: { id },
       data: {
-        currentNodeId: result.nextNodeId,
-        history: JSON.stringify(history)
+        focusedNodeId: dto.nodeId,
+        currentNodeId: dto.nodeId
       }
     })
 
@@ -263,6 +308,7 @@ export class PatientRunsService {
       where: { id },
       data: {
         currentNodeId: startNode.id,
+        focusedNodeId: startNode.id,
         history: JSON.stringify(history)
       }
     })
@@ -284,12 +330,16 @@ export class PatientRunsService {
     if (history.length <= 1) return this.get(id)
 
     const trimmed = history.slice(0, -1)
-    const newCurrent = trimmed[trimmed.length - 1]!
+    const wf = await this.prisma.workflow.findUnique({ where: { id: row.workflowId } })
+    if (!wf) throw new NotFoundException(`Workflow ${row.workflowId} not found`)
+    const graph = decodeGraph(wf.graph, wf.id)
+    const sim = buildRunSimulationState(graph, trimmed, trimmed[trimmed.length - 1]?.nodeId ?? null)
 
     await this.prisma.patientRun.update({
       where: { id },
       data: {
-        currentNodeId: newCurrent.nodeId,
+        currentNodeId: sim.focusedNodeId,
+        focusedNodeId: sim.focusedNodeId,
         history: JSON.stringify(trimmed)
       }
     })

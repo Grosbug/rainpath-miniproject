@@ -6,7 +6,6 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import type { Graph } from '@rainpath/shared'
-import { computeReachability } from '@rainpath/shared'
 import { TimelineBackground } from '@/pages/WorkflowEditor/TimelineBackground'
 import { edgeTypes } from '@/pages/WorkflowEditor/edges/edge-types'
 import { useLeftAnchoredZoom } from '@/pages/WorkflowEditor/hooks/useLeftAnchoredZoom'
@@ -41,36 +40,38 @@ interface PatientProfileShape {
 interface Props {
   graph: Graph
   profile: PatientProfileShape
-  currentNodeId: string | null
+  focusedNodeId: string | null
+  activeFrontiers: readonly string[]
+  actionableNodeIds: readonly string[]
   history: { nodeId: string; outcome?: string }[]
-  /** Day cursor for the time simulator (J+N from start). Renders a vertical "today" line. */
   dayCursor: number
-  /** Pending observed-status selections per node, used to render the inline picker on current cards. */
   pendingByNode: Readonly<Record<string, string | undefined>>
-  /** Setter passed into each `current` send_* node so the user can stage a status from the canvas. */
   onPendingChange: (nodeId: string, status: string | undefined) => void
+  /** Select which parallel branch (or visited node) is active — no extra chrome. */
+  onFocusNode: (nodeId: string) => void
 }
 
-function CanvasInner({ graph, profile, currentNodeId, history, dayCursor, pendingByNode, onPendingChange }: Props) {
+function displayReachability(
+  nodeId: string,
+  focusedNodeId: string | null,
+  history: { nodeId: string }[],
+  activeFrontiers: readonly string[]
+): ReachabilityState {
+  const visited = new Set(history.map(h => h.nodeId))
+  if (focusedNodeId === nodeId) return 'current'
+  if (visited.has(nodeId)) return 'visited'
+  if (activeFrontiers.includes(nodeId)) return 'reachable'
+  return 'unreachable'
+}
+
+function CanvasInner({
+  graph, profile, focusedNodeId, activeFrontiers, actionableNodeIds,
+  history, dayCursor, pendingByNode, onPendingChange, onFocusNode
+}: Props) {
   // 40 px of breathing room left of J+0 so the rail (vertical green line in
   // TimelineBackground) and the first node card stay clear of the canvas edge
   // at any zoom level — mirrors the editor's left-anchored zoom behavior.
   useLeftAnchoredZoom(40)
-
-  const reach: Map<string, ReachabilityState> = useMemo(
-    () => computeReachability(
-      graph,
-      {
-        email: profile.email,
-        phone: profile.phone,
-        whatsapp: profile.whatsapp,
-        address: profile.address
-      } as any,
-      currentNodeId,
-      history.map(h => h.nodeId) as any
-    ) as Map<string, ReachabilityState>,
-    [graph, profile.email, profile.phone, profile.whatsapp, profile.address, currentNodeId, history]
-  )
 
   const lanes = useMemo(() => computeLanes(graph), [graph])
 
@@ -83,7 +84,9 @@ function CanvasInner({ graph, profile, currentNodeId, history, dayCursor, pendin
 
   const rfNodes: RFNode<PatientNodeData>[] = useMemo(() => {
     return graph.nodes.map(n => {
-      const isCurrent = reach.get(n.id) === 'current'
+      const reachability = displayReachability(n.id, focusedNodeId, history, activeFrontiers)
+      const isCurrent = reachability === 'current'
+      const canFocus = actionableNodeIds.includes(n.id) && !isCurrent
       return {
         id: n.id,
         type: n.data.kind,
@@ -93,20 +96,19 @@ function CanvasInner({ graph, profile, currentNodeId, history, dayCursor, pendin
         },
         data: {
           ...n.data,
-          reachability: reach.get(n.id) ?? 'unreachable',
+          reachability,
           _dayX: n.data.kind === 'start' ? undefined : Math.max(0, Math.round(n.position.x)),
-          // Inline status picker plumbing — only the `current` send_* card uses
-          // these, but we pass them on every card to keep the rfNodes memo stable.
           _profile: contactProfile,
           _pendingStatus: isCurrent ? pendingByNode[n.id] : undefined,
-          _onPickStatus: isCurrent ? (s: string | undefined) => onPendingChange(n.id, s) : undefined
+          _onPickStatus: isCurrent ? (s: string | undefined) => onPendingChange(n.id, s) : undefined,
+          _onFocus: canFocus ? () => onFocusNode(n.id) : undefined
         } as PatientNodeData,
         draggable: false,
         selectable: false,
-        focusable: false
+        focusable: canFocus
       }
     })
-  }, [graph.nodes, reach, lanes, contactProfile, pendingByNode, onPendingChange])
+  }, [graph.nodes, focusedNodeId, activeFrontiers, actionableNodeIds, history, lanes, contactProfile, pendingByNode, onPendingChange, onFocusNode])
 
   const rfEdges: RFEdge[] = useMemo(() =>
     graph.edges.map(e => ({
@@ -201,7 +203,7 @@ function Legend() {
   const items: { dot: string; label: string }[] = [
     { dot: 'bg-success', label: 'Terminé' },
     { dot: 'bg-primary animate-pulse', label: 'En cours' },
-    { dot: 'bg-surface border border-border', label: 'À venir' },
+    { dot: 'bg-primary-soft border border-primary/30', label: 'À traiter' },
     { dot: 'bg-danger', label: 'Bloqué' },
     { dot: 'bg-fg-subtle/40', label: 'Inatteignable' }
   ]

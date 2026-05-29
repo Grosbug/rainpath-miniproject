@@ -16,10 +16,9 @@ interface Args {
   runId: string
   workflowId: string
   graph: Graph
-  currentNodeId: string | null
+  focusedNodeId: string | null
   history: HistoryEntry[]
-  /** Kept on the API for forward-compat with per-node status filtering; not read here. */
-  profile?: PatientContactData
+  profile: PatientContactData
 }
 
 export interface DaySimulator {
@@ -77,30 +76,26 @@ export interface DaySimulator {
  * is keyed by nodeId so that the day a multi-incoming fan-out lands, no plumbing
  * change is needed here.
  */
-export function useDaySimulator({ runId, workflowId, graph, currentNodeId, history }: Args): DaySimulator {
+export function useDaySimulator({ runId, workflowId, graph, focusedNodeId, history, profile }: Args): DaySimulator {
   const qc = useQueryClient()
 
   const currentNodeDay = useMemo(() => dayOfHistory(graph, history), [graph, history])
 
   const pendingEdge = useMemo(
-    () => currentNodeId ? nextDefaultEdge(graph, currentNodeId) : undefined,
-    [graph, currentNodeId]
+    () => focusedNodeId ? nextDefaultEdge(graph, focusedNodeId) : undefined,
+    [graph, focusedNodeId]
   )
 
   const currentNode = useMemo(
-    () => currentNodeId ? graph.nodes.find(n => n.id === currentNodeId) ?? null : null,
-    [graph, currentNodeId]
+    () => focusedNodeId ? graph.nodes.find(n => n.id === focusedNodeId) ?? null : null,
+    [graph, focusedNodeId]
   )
 
-  // Nodes the user can resolve / advance through. `end` is terminal so it's
-  // excluded. `start` needs no status pick but still requires an explicit
-  // "Prochain" to leave (the old auto-advance is gone). Every `send_*` node
-  // requires an observed status before "Prochain" can fire.
   const currentNodeIds = useMemo<readonly string[]>(() => {
-    if (!currentNode) return []
+    if (!focusedNodeId || !currentNode) return []
     if (currentNode.data.kind === 'end') return []
-    return [currentNode.id]
-  }, [currentNode])
+    return [focusedNodeId]
+  }, [focusedNodeId, currentNode])
 
   // Pending per-node selections. Reset whenever the set of current ids changes
   // (i.e. after an advance moves the run forward) so stale selections don't
@@ -153,8 +148,8 @@ export function useDaySimulator({ runId, workflowId, graph, currentNodeId, histo
   }, [history.length])
 
   const advanceMut = useMutation({
-    mutationFn: (outcome: string | undefined) =>
-      advancePatientRun(runId, outcome ? { outcome } : {}),
+    mutationFn: ({ nodeId, outcome }: { nodeId: string; outcome?: string }) =>
+      advancePatientRun(runId, { nodeId, ...(outcome ? { outcome } : {}) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.patientRuns.detail(runId) })
       qc.invalidateQueries({ queryKey: queryKeys.patientRuns.listForWorkflow(workflowId) })
@@ -215,7 +210,7 @@ export function useDaySimulator({ runId, workflowId, graph, currentNodeId, histo
     }
     for (const id of currentNodeIds) {
       const status = needsStatus(id) ? pendingByNode[id] : undefined
-      await advanceMut.mutateAsync(status)
+      await advanceMut.mutateAsync({ nodeId: id, outcome: status })
     }
     setPendingByNode({})
     return true

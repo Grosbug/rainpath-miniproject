@@ -33,6 +33,9 @@ const FULL_RUN = {
     email: 'a@b.co', phone: null, whatsapp: null, address: null, deletedAt: null
   },
   currentNodeId: 's',
+  focusedNodeId: 's',
+  activeFrontiers: ['e'],
+  actionableNodeIds: ['s', 'e'],
   history: [{ nodeId: 's', enteredAt: '2026-05-28T10:00:00.000Z' }],
   startDate: '2026-05-28T10:00:00.000Z',
   createdAt: '2026-05-28T10:00:00.000Z',

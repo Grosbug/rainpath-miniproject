@@ -63,6 +63,9 @@ const FullRunEnvelope = z.object({
     deletedAt: z.string().nullable()
   }),
   currentNodeId: z.string().nullable(),
+  focusedNodeId: z.string().nullable(),
+  activeFrontiers: z.array(z.string()),
+  actionableNodeIds: z.array(z.string()),
   history: z.array(HistoryEntry),
   startDate: z.string(),
   createdAt: z.string(),
@@ -126,6 +129,11 @@ export async function createPatientRun(workflowId: string, body: CreatePatientRu
 
 export async function advancePatientRun(id: string, body: AdvancePatientRunDto): Promise<PatientRunFull> {
   const raw = await apiFetch<unknown>(`/patient-runs/${id}/advance`, { method: 'POST', body })
+  return parseRun(raw)
+}
+
+export async function focusPatientRun(id: string, body: { nodeId: string }): Promise<PatientRunFull> {
+  const raw = await apiFetch<unknown>(`/patient-runs/${id}/focus`, { method: 'POST', body })
   return parseRun(raw)
 }
 

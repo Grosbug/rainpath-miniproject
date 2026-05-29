@@ -1,8 +1,10 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { Icon } from '@/components/Icon'
 import { queryKeys } from '@/api/query-keys'
-import { getPatientRun } from '@/api/patient-runs'
+import { focusPatientRun, getPatientRun } from '@/api/patient-runs'
+import { describeError } from '@/api/error-messages'
+import { toast } from 'sonner'
 import { PatientCanvas } from './PatientCanvas'
 import { PatientProfilePanel } from './PatientProfilePanel'
 // PatientAdvanceControls is intentionally no longer mounted — status resolution
@@ -47,13 +49,27 @@ export default function PatientRunView() {
 }
 
 function LoadedView({ run, workflowId }: { run: import('@/api/patient-runs').PatientRunFull; workflowId: string | undefined }) {
+  const qc = useQueryClient()
+  const focusMut = useMutation({
+    mutationFn: (nodeId: string) => focusPatientRun(run.id, { nodeId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.patientRuns.detail(run.id) })
+    },
+    onError: e => toast.error(describeError(e, 'Impossible de changer de branche.'))
+  })
+
   const sim = useDaySimulator({
     runId: run.id,
     workflowId: run.workflowId,
     graph: run.workflow.graph,
-    currentNodeId: run.currentNodeId,
+    focusedNodeId: run.focusedNodeId ?? run.currentNodeId,
     history: run.history,
-    profile: run.patient
+    profile: {
+      email: run.patient.email,
+      phone: run.patient.phone,
+      whatsapp: run.patient.whatsapp,
+      address: run.patient.address
+    }
   })
 
   return (
@@ -99,11 +115,14 @@ function LoadedView({ run, workflowId }: { run: import('@/api/patient-runs').Pat
             <PatientCanvas
               graph={run.workflow.graph}
               profile={run.patient}
-              currentNodeId={run.currentNodeId}
+              focusedNodeId={run.focusedNodeId ?? run.currentNodeId}
+              activeFrontiers={run.activeFrontiers}
+              actionableNodeIds={run.actionableNodeIds}
               history={run.history}
               dayCursor={sim.day}
               pendingByNode={sim.pendingByNode}
               onPendingChange={sim.setPending}
+              onFocusNode={nodeId => focusMut.mutate(nodeId)}
             />
           </div>
         </div>

@@ -27,6 +27,8 @@ export type PatientNodeData = NodeData & {
   _pendingStatus?: string
   /** Setter wired by PatientCanvas; absent on non-current nodes. */
   _onPickStatus?: (status: string | undefined) => void
+  /** Switch focus to this branch (parallel lanes) — click the card. */
+  _onFocus?: () => void
 }
 
 type SendNodeData = Extract<NodeData, { kind: 'send_email' | 'send_sms' | 'send_whatsapp' | 'send_postal' }>
@@ -123,11 +125,25 @@ export function PatientNode({ data }: NodeProps) {
     : 'shadow-elev-1'
   const paddingRight = d._dayX !== undefined ? 'pr-12' : 'pr-3'
 
+  const focusable = !!d._onFocus
+
   return (
     <div className={REACH_OUTER[d.reachability]}>
       <div
-        className={`relative w-[176px] ${ring} rounded-md py-3 pl-[15px] ${paddingRight}`}
+        role={focusable ? 'button' : undefined}
+        tabIndex={focusable ? 0 : undefined}
+        onClick={focusable ? d._onFocus : undefined}
+        onKeyDown={focusable ? (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            d._onFocus?.()
+          }
+        } : undefined}
+        className={`relative w-[176px] ${ring} rounded-md py-3 pl-[15px] ${paddingRight} ${
+          focusable ? 'cursor-pointer hover:shadow-elev-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2' : ''
+        }`}
         style={cardStyle}
+        data-rp-tooltip={focusable ? 'Cliquer pour traiter cette branche' : undefined}
       >
         <div className="absolute left-0 top-0 h-full w-[3px] rounded-l-md" style={stripStyle} aria-hidden="true" />
 
@@ -242,8 +258,8 @@ function ReachabilityBadge({ state, blockedReason }: { state: ReachabilityState;
   }
   if (state === 'reachable') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5 text-[10px] font-semibold text-fg-muted">
-        À venir
+      <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary-soft px-2 py-0.5 text-[10px] font-semibold text-primary">
+        À traiter
       </span>
     )
   }
