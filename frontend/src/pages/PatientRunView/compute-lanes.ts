@@ -13,13 +13,25 @@ function handleRank(h: string | undefined): number {
 }
 
 /**
+ * How many day-columns a single node card visually spans on the canvas. Used to
+ * reserve enough horizontal room when assigning lanes so two cards on the same
+ * lane never overlap, even if their X positions are within node-width of each
+ * other. Bumped +1 over the bare width-in-days for a small visual gap.
+ *
+ * Stays in sync with PatientNode `w-[176px]` and PatientCanvas `PX_PER_DAY = 28`.
+ */
+const NODE_WIDTH_DAYS = Math.ceil(176 / 28) + 1 // 7 day-columns
+
+/**
  * Assign each node to a horizontal lane (0 = top rail) so the patient canvas
  * reads as a linear timeline of branches rather than a free-form editor scatter.
  *
  * Strategy: BFS from start. A node's first outgoing edge keeps the parent's
- * lane; siblings move to the next free lane at the target's X (day) column.
- * Cells along the edge span are reserved too, so a sibling branch never
- * crosses an edge belonging to another lane.
+ * lane; siblings drop to the next free lane at the target's X column. A node
+ * reserves NODE_WIDTH_DAYS columns of its lane (not just its own cell), and
+ * edge spans reserve every column between source and target — so siblings
+ * cannot overlap each other horizontally nor be drawn under another branch's
+ * edge.
  */
 export function computeLanes(graph: Graph): Map<string, number> {
   const lanes = new Map<string, number>()
@@ -47,15 +59,26 @@ export function computeLanes(graph: Graph): Map<string, number> {
     const hi = Math.max(fromX, toX)
     for (let x = lo; x <= hi; x++) reserveCell(x, lane)
   }
+  /** Reserve the full visual width of a node placed at column X on the given lane. */
+  function reserveNode(x: number, lane: number) {
+    reserveSpan(x, x + NODE_WIDTH_DAYS - 1, lane)
+  }
+  /** Is the lane clear for a node-sized footprint placed at column X? */
+  function isLaneClearForNode(x: number, lane: number): boolean {
+    for (let col = x; col < x + NODE_WIDTH_DAYS; col++) {
+      if (!isFree(col, lane)) return false
+    }
+    return true
+  }
   function nextFreeLane(x: number, preferred: number): number {
-    if (isFree(x, preferred)) return preferred
+    if (isLaneClearForNode(x, preferred)) return preferred
     let l = 0
-    while (!isFree(x, l)) l++
+    while (!isLaneClearForNode(x, l)) l++
     return l
   }
 
   lanes.set(start.id, 0)
-  reserveCell(xOf.get(start.id) ?? 0, 0)
+  reserveNode(xOf.get(start.id) ?? 0, 0)
 
   const queue: { id: string; lane: number }[] = [{ id: start.id, lane: 0 }]
   while (queue.length > 0) {
@@ -71,7 +94,11 @@ export function computeLanes(graph: Graph): Map<string, number> {
       const preferred = i === 0 ? lane : lane + 1
       const chosen = nextFreeLane(targetX, preferred)
       lanes.set(e.target, chosen)
+      // Reserve the edge body between source and target on the target's lane …
       reserveSpan(sourceX, targetX, chosen)
+      // … plus the target node's full visual footprint so the next sibling can't
+      // be packed within node-width of it.
+      reserveNode(targetX, chosen)
       queue.push({ id: e.target, lane: chosen })
     })
   }

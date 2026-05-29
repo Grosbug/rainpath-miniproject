@@ -13,7 +13,10 @@ import { PatientNode, type PatientNodeData, type ReachabilityState } from './Pat
 import { computeLanes } from './compute-lanes'
 
 const PX_PER_DAY = 28
-const LANE_HEIGHT = 96
+// LANE_HEIGHT must be >= the actual rendered card height (~110–130 px with the
+// "J+N" badge + reachability pill), plus a visual gap, otherwise cards on adjacent
+// lanes touch / overlap vertically even though compute-lanes correctly assigned them.
+const LANE_HEIGHT = 140
 const LANE_TOP_OFFSET = 40
 
 const nodeTypes: NodeTypes = {
