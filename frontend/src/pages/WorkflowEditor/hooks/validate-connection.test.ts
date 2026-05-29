@@ -14,7 +14,9 @@ const edge = (id: string, source: string, target: string, daysAfter = 1): GraphE
 describe('validateConnection', () => {
   it('returns ok for a clean source→target hop', () => {
     const graph = { nodes: [s('S'), a('A', 1), e('E', 2)], edges: [edge('e1', 'S', 'A')] }
-    expect(validateConnection({ sourceNodeId: 'A', targetNodeId: 'E', sourceType: 'source', targetType: 'target' }, graph)).toBe('ok')
+    expect(validateConnection({
+      sourceNodeId: 'A', targetNodeId: 'E', sourceHandleId: 'success', sourceType: 'source', targetType: 'target'
+    }, graph)).toBe('ok')
   })
 
   it('rejects self_loop', () => {
@@ -45,7 +47,7 @@ describe('validateConnection', () => {
       nodes: [s('S'), a('A', 1), a('B', 2), e('E', 3)],
       edges: [edge('e1', 'S', 'A'), edge('e2', 'A', 'B'), edge('e3', 'B', 'E')]
     }
-    expect(validateConnection({ sourceNodeId: 'B', targetNodeId: 'A' }, graph)).toBe('cycle')
+    expect(validateConnection({ sourceNodeId: 'B', targetNodeId: 'A', sourceHandleId: 'failure' }, graph)).toBe('cycle')
   })
 
   it('rejects an orphan source feeding into a reachable target (unreachable_source)', () => {
@@ -53,7 +55,7 @@ describe('validateConnection', () => {
       nodes: [s('S'), a('A', 1), a('ORPHAN', 0), e('E', 2)],
       edges: [edge('e1', 'S', 'A'), edge('e2', 'A', 'E')]
     }
-    expect(validateConnection({ sourceNodeId: 'ORPHAN', targetNodeId: 'E' }, graph)).toBe('unreachable_source')
+    expect(validateConnection({ sourceNodeId: 'ORPHAN', targetNodeId: 'E', sourceHandleId: 'success' }, graph)).toBe('unreachable_source')
   })
 
   it('allows fan-in on a node with existing incoming (multi-incoming is by design)', () => {
@@ -62,7 +64,17 @@ describe('validateConnection', () => {
       edges: [edge('e1', 'S', 'A'), edge('e2', 'S', 'B'), edge('e3', 'A', 'E')]
     }
     // B→E joins a fan-in onto E (which already has A→E). Per the project model this is allowed.
-    expect(validateConnection({ sourceNodeId: 'B', targetNodeId: 'E' }, graph)).toBe('ok')
+    expect(validateConnection({ sourceNodeId: 'B', targetNodeId: 'E', sourceHandleId: 'success' }, graph)).toBe('ok')
+  })
+
+  it('rejects send_* connection without a discrete source handle', () => {
+    const graph = { nodes: [s('S'), a('A', 1), e('E', 2)], edges: [edge('e1', 'S', 'A')] }
+    expect(validateConnection({ sourceNodeId: 'A', targetNodeId: 'E' }, graph)).toBe('incompatible_handles')
+  })
+
+  it('rejects simple-mode handle other than success or failure', () => {
+    const graph = { nodes: [s('S'), a('A', 1), e('E', 2)], edges: [edge('e1', 'S', 'A')] }
+    expect(validateConnection({ sourceNodeId: 'A', targetNodeId: 'E', sourceHandleId: 'wrong' }, graph)).toBe('incompatible_handles')
   })
 
   it('excludeEdgeId lets a reconnect ignore the original edge (no spurious cycle)', () => {

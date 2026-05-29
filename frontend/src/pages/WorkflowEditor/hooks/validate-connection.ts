@@ -1,4 +1,5 @@
 import type { GraphNode, GraphEdge } from '../snapshot'
+import { isValidDiscreteSourceHandle } from '../source-handle'
 
 /**
  * Outcome of a connection-validity check. Same code vocabulary as the store's `addEdge`
@@ -56,6 +57,10 @@ export function validateConnection(
   if (!sourceNode || !targetNode) return 'dangling'
   if (targetNode.data.kind === 'start') return 'edge_into_start'
   if (sourceNode.data.kind === 'end') return 'edge_from_end'
+
+  if (!isValidDiscreteSourceHandle(sourceNode, p.sourceHandleId)) {
+    return 'incompatible_handles'
+  }
 
   const edges = opts.excludeEdgeId
     ? graph.edges.filter(e => e.id !== opts.excludeEdgeId)

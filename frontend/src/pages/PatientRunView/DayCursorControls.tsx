@@ -8,6 +8,7 @@ import type { DaySimulator } from './use-day-simulator'
 interface Props {
   sim: DaySimulator
   graph: Graph
+  activeFrontiers: readonly string[]
 }
 
 /** Short, in-sentence label for a node id ("Email « Relance 1 »"). */
@@ -34,7 +35,7 @@ type BannerTone = 'info' | 'danger' | 'success'
 interface BannerSpec { tone: BannerTone; icon: IconName; text: string }
 
 /** Decide which actionable hint to surface to the right of the controls. */
-function bannerFor(sim: DaySimulator, graph: Graph): BannerSpec | null {
+function bannerFor(sim: DaySimulator, graph: Graph, activeFrontiers: readonly string[]): BannerSpec | null {
   if (sim.pauseReason === 'end') {
     return { tone: 'success', icon: 'CircleCheck', text: 'Parcours terminé.' }
   }
@@ -55,6 +56,13 @@ function bannerFor(sim: DaySimulator, graph: Graph): BannerSpec | null {
   if (sim.currentNodeIds.length > 0 && sim.allCurrentsHaveStatus) {
     return { tone: 'info', icon: 'Info', text: 'Prêt à passer à l\'étape suivante.' }
   }
+  if (sim.currentNodeIds.length === 0 && activeFrontiers.length > 0) {
+    return {
+      tone: 'info',
+      icon: 'Info',
+      text: 'Cliquez sur une carte « À traiter » sur le schéma pour continuer une autre branche.'
+    }
+  }
   return null
 }
 
@@ -64,7 +72,7 @@ const TONE_CLASS: Record<BannerTone, string> = {
   success: 'border-success/40 bg-[#DCFCE7] text-success'
 }
 
-export function DayCursorControls({ sim, graph }: Props) {
+export function DayCursorControls({ sim, graph, activeFrontiers }: Props) {
   const {
     day, nextEventDay, autoAdvancing,
     allCurrentsHaveStatus, anyCurrentMissingStatus,
@@ -73,7 +81,7 @@ export function DayCursorControls({ sim, graph }: Props) {
   } = sim
   const daysUntilNext = nextEventDay !== null ? nextEventDay - day : null
 
-  const banner = bannerFor(sim, graph)
+  const banner = bannerFor(sim, graph, activeFrontiers)
   const [advancing, setAdvancing] = useState(false)
   const inFlight = advancing || autoAdvancing
 
@@ -98,7 +106,12 @@ export function DayCursorControls({ sim, graph }: Props) {
 
   const onClickPrecedent = async () => {
     if (!canStepBack || inFlight) return
-    await stepBack()
+    setAdvancing(true)
+    try {
+      await stepBack()
+    } finally {
+      setAdvancing(false)
+    }
   }
   const onClickReset = async () => {
     if (inFlight) return

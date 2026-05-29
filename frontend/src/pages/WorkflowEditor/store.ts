@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { computeXPositions, validateGraph } from '@rainpath/shared'
 import { createId } from '@paralleldrive/cuid2'
 import type { GraphNode, GraphEdge, EditorSnapshot } from './snapshot'
+import { isValidDiscreteSourceHandle } from './source-handle'
 import { hashSnapshot } from './snapshot'
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'saved_invalid' | 'invalid' | 'error' | 'offline'
@@ -50,7 +51,7 @@ type EditorActions = {
   markSaved(hash: string, savedAt: Date): void
   setPendingSave(pending: boolean): void
   addNode(p: { kind: GraphNode['data']['kind']; data: GraphNode['data']; atX?: number; atY?: number }): string
-  addEdge(p: { source: string; target: string; sourceHandle?: string; daysAfter: number }): { ok: true; edgeId: string } | { ok: false; reason: 'self_loop' | 'cycle' | 'dangling' | 'edge_into_start' | 'edge_from_end' | 'unreachable_source' }
+  addEdge(p: { source: string; target: string; sourceHandle?: string; daysAfter: number }): { ok: true; edgeId: string } | { ok: false; reason: 'self_loop' | 'cycle' | 'dangling' | 'edge_into_start' | 'edge_from_end' | 'unreachable_source' | 'invalid_source_handle' }
   updateNodeData(id: string, data: GraphNode['data']): void
   undo(): void
   redo(): void
@@ -236,6 +237,10 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
     if (!sourceNode || !targetNode) return { ok: false, reason: 'dangling' }
     if (targetNode.data.kind === 'start') return { ok: false, reason: 'edge_into_start' }
     if (sourceNode.data.kind === 'end') return { ok: false, reason: 'edge_from_end' }
+
+    if (!isValidDiscreteSourceHandle(sourceNode, sourceHandle)) {
+      return { ok: false, reason: 'invalid_source_handle' }
+    }
 
     // Handle conflict only applies to nodes with discrete output slots (send_*).
     // Other nodes (start, end…) share a single implicit output and may fan out to N targets.

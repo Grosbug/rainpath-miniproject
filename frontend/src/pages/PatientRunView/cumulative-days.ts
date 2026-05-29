@@ -1,5 +1,6 @@
 import type { Graph } from '@rainpath/shared'
 import { CHANNEL_FAILURE_STATUSES } from '@rainpath/shared'
+import { findOutgoingEdge, resolveOutcomeHandle } from './outcome-routing'
 
 type HistoryEntry = { nodeId: string; outcome?: string }
 
@@ -76,8 +77,56 @@ export function dayOfHistory(graph: Graph, history: HistoryEntry[]): number {
   for (let i = 1; i < history.length; i++) {
     const prev = history[i - 1]!
     const curr = history[i]!
-    const edge = pickEdge(graph, prev.nodeId, curr.nodeId)
+    const edge = pickEdge(graph, prev.nodeId, curr.nodeId, prev.outcome)
     day += edge?.daysAfter ?? 0
+  }
+  return day
+}
+
+/** Layout J+N for a node (matches the badge on the canvas card). */
+export function scheduledDayOfNode(graph: Graph, nodeId: string): number {
+  const n = graph.nodes.find(x => x.id === nodeId)
+  if (!n || n.data.kind === 'start') return 0
+  return Math.max(0, Math.round(n.position.x))
+}
+
+function lastHistoryEntry(history: HistoryEntry[], nodeId: string): HistoryEntry | undefined {
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i]!.nodeId === nodeId) return history[i]
+  }
+  return undefined
+}
+
+/**
+ * Cumulative day when the patient reaches `nodeId` along the simulated path (history +
+ * edge delays). Does not use the editor layout X — that would push the J+N cursor past
+ * the real next step. Card badges still use `scheduledDayOfNode` separately.
+ */
+export function dayAtNode(graph: Graph, history: HistoryEntry[], nodeId: string): number {
+  let lastIdx = -1
+  for (let i = 0; i < history.length; i++) {
+    if (history[i]!.nodeId === nodeId) lastIdx = i
+  }
+  if (lastIdx >= 0) {
+    return dayOfHistory(graph, history.slice(0, lastIdx + 1))
+  }
+
+  const visited = new Set(history.map(h => h.nodeId))
+  const incoming = graph.edges.filter(e => e.target === nodeId && visited.has(e.source))
+  if (incoming.length === 0) return 0
+
+  let day = 0
+  for (const e of incoming) {
+    const source = graph.nodes.find(n => n.id === e.source)
+    const srcHist = lastHistoryEntry(history, e.source)
+    let step = dayAtNode(graph, history, e.source) + e.daysAfter
+    if (source && srcHist?.outcome !== undefined) {
+      const via = findOutgoingEdge(graph, e.source, resolveOutcomeHandle(source, srcHist.outcome))
+      if (via?.target === nodeId) {
+        step = dayAtNode(graph, history, e.source) + via.daysAfter
+      }
+    }
+    day = Math.max(day, step)
   }
   return day
 }
@@ -88,7 +137,7 @@ export function dayOfHistory(graph: Graph, history: HistoryEntry[]): number {
  * the node has no outgoing edges (end) or no default is meaningful (multi).
  *
  * Used by the day simulator to know when the next event is due:
- *   nextEventDay = dayOfCurrent + (nextDefaultEdge?.daysAfter ?? Infinity)
+ *   nextEventDay = dayAtNode(focused) + (nextDefaultEdge?.daysAfter ?? Infinity)
  */
 export function nextDefaultEdge(graph: Graph, currentNodeId: string): Graph['edges'][number] | undefined {
   const node = graph.nodes.find(n => n.id === currentNodeId)
@@ -131,14 +180,57 @@ export function defaultOutcomeFor(
   return failures[0]
 }
 
+function isSendKind(kind: string): boolean {
+  return kind.startsWith('send_')
+}
+
+/** Outcome that routed from `prev` to `curr` (backend may attach it on the target row). */
+function transitionOutcome(
+  graph: Graph,
+  prev: HistoryEntry,
+  curr: HistoryEntry
+): string | undefined {
+  if (prev.outcome !== undefined) return prev.outcome
+  const source = graph.nodes.find(n => n.id === prev.nodeId)
+  if (source && isSendKind(source.data.kind) && curr.outcome !== undefined) {
+    return curr.outcome
+  }
+  return undefined
+}
+
+/** Edge ids the patient has already followed, in history order. */
+export function traversedEdgeIds(graph: Graph, history: HistoryEntry[]): Set<string> {
+  const ids = new Set<string>()
+  for (let i = 1; i < history.length; i++) {
+    const prev = history[i - 1]!
+    const curr = history[i]!
+    const edge = pickEdge(
+      graph,
+      prev.nodeId,
+      curr.nodeId,
+      transitionOutcome(graph, prev, curr)
+    )
+    if (edge) ids.add(edge.id)
+  }
+  return ids
+}
+
 function pickEdge(
   graph: Graph,
   sourceId: string,
-  targetId: string
+  targetId: string,
+  outcome?: string
 ): Graph['edges'][number] | undefined {
   const candidates = graph.edges.filter(e => e.source === sourceId && e.target === targetId)
   if (candidates.length === 0) return undefined
   if (candidates.length === 1) return candidates[0]
-  // Best effort: prefer 'success' for any positive outcome, else first.
+
+  const source = graph.nodes.find(n => n.id === sourceId)
+  if (source && outcome !== undefined) {
+    const resolved = resolveOutcomeHandle(source, outcome)
+    const viaHandle = findOutgoingEdge(graph, sourceId, resolved)
+    if (viaHandle?.target === targetId) return viaHandle
+  }
+
   return candidates.find(e => e.sourceHandle === 'success') ?? candidates[0]
 }

@@ -56,14 +56,14 @@ export function WorkflowsTable({ rows, onDuplicate, onDelete }: Props) {
         the previous w-32 / 8rem `Modifié` cell). Fixed widths on État, Modifié and Actions;
         Nom takes a hard 28% and Description absorbs the remainder.
       */}
-      <colgroup>
-        <col style={{ width: '28%' }} />
-        <col />
-        <col style={{ width: '7rem' }} />
-        <col style={{ width: '11rem' }} />
-        <col style={{ width: '6rem' }} />
-      </colgroup>
       <table className='w-full table-fixed text-sm'>
+        <colgroup>
+          <col style={{ width: '28%' }} />
+          <col />
+          <col style={{ width: '7rem' }} />
+          <col style={{ width: '11rem' }} />
+          <col style={{ width: '6rem' }} />
+        </colgroup>
         <thead className='bg-surface-muted text-xs font-medium uppercase tracking-wide text-fg-muted'>
           <tr>
             <th className='whitespace-nowrap px-4 py-3 text-left'>Nom</th>

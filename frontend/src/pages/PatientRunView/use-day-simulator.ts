@@ -2,13 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { Graph } from '@rainpath/shared'
+import {
+  coerceOutcomeForAdvance,
+  hasContactForSendNode,
+  observableStatusesForSendNode,
+  preferredSuccessOutcome
+} from './outcome-routing'
 import { advancePatientRun, resetPatientRun, stepBackPatientRun } from '@/api/patient-runs'
 import { queryKeys } from '@/api/query-keys'
 import { describeError } from '@/api/error-messages'
-import {
-  dayOfHistory, nextDefaultEdge,
-  type PatientContactData
-} from './cumulative-days'
+import { dayAtNode, type PatientContactData } from './cumulative-days'
 
 type HistoryEntry = { nodeId: string; outcome?: string }
 
@@ -17,6 +20,8 @@ interface Args {
   workflowId: string
   graph: Graph
   focusedNodeId: string | null
+  activeFrontiers: readonly string[]
+  actionableNodeIds: readonly string[]
   history: HistoryEntry[]
   profile: PatientContactData
 }
@@ -32,10 +37,6 @@ export interface DaySimulator {
   autoAdvancing: boolean
   /** Hint about why the run can't move on its own. null = ready to advance. */
   pauseReason: 'multi_output' | 'awaiting_status' | 'end' | null
-  /** Jump straight to the day the next event fires. No-op if none is pending. */
-  jumpToNextEvent: () => void
-  /** Reset cursor back to currentNodeDay (used when the user wants to "back to now"). */
-  syncToCurrentNode: () => void
   /** IDs of nodes currently awaiting an observed status from the user. */
   currentNodeIds: readonly string[]
   /** Pending status selections keyed by node id (cleared on advance / node-change). */
@@ -66,24 +67,22 @@ export interface DaySimulator {
  * status on each current send_* card and clicks the top-bar "Prochain", which
  * fires `advanceAllPending`.
  *
- * Cursor lives on the frontend (per the spec — progression is "simulée"):
- *   - `day = max(userCursor, currentNodeDay)` — auto-snaps forward when an
- *     advance moves the patient past the user's cursor.
- *   - Detects a reset (history shrinks back to [start]) and rewinds the cursor.
+ * The J+N cursor follows the focused node (`dayAtNode`), not the end of history,
+ * so parallel branches and status picking stay aligned with the canvas card.
  *
  * Multi-current readiness: the backend still tracks a single currentNodeId, so
  * `currentNodeIds` is a one-element array in practice. The pending-status map
  * is keyed by nodeId so that the day a multi-incoming fan-out lands, no plumbing
  * change is needed here.
  */
-export function useDaySimulator({ runId, workflowId, graph, focusedNodeId, history, profile }: Args): DaySimulator {
+export function useDaySimulator({
+  runId, workflowId, graph, focusedNodeId, activeFrontiers, actionableNodeIds, history, profile
+}: Args): DaySimulator {
   const qc = useQueryClient()
 
-  const currentNodeDay = useMemo(() => dayOfHistory(graph, history), [graph, history])
-
-  const pendingEdge = useMemo(
-    () => focusedNodeId ? nextDefaultEdge(graph, focusedNodeId) : undefined,
-    [graph, focusedNodeId]
+  const currentNodeDay = useMemo(
+    () => (focusedNodeId ? dayAtNode(graph, history, focusedNodeId) : 0),
+    [graph, history, focusedNodeId]
   )
 
   const currentNode = useMemo(
@@ -94,8 +93,11 @@ export function useDaySimulator({ runId, workflowId, graph, focusedNodeId, histo
   const currentNodeIds = useMemo<readonly string[]>(() => {
     if (!focusedNodeId || !currentNode) return []
     if (currentNode.data.kind === 'end') return []
-    return [focusedNodeId]
-  }, [focusedNodeId, currentNode])
+    if (currentNode.data.kind === 'start') return [focusedNodeId]
+    if (activeFrontiers.includes(focusedNodeId)) return [focusedNodeId]
+    if (actionableNodeIds.includes(focusedNodeId)) return [focusedNodeId]
+    return []
+  }, [focusedNodeId, currentNode, activeFrontiers, actionableNodeIds])
 
   // Pending per-node selections. Reset whenever the set of current ids changes
   // (i.e. after an advance moves the run forward) so stale selections don't
@@ -110,9 +112,59 @@ export function useDaySimulator({ runId, workflowId, graph, focusedNodeId, histo
     }
   }, [currentNodeIds])
 
+  const nodesById = useMemo(() => new Map(graph.nodes.map(n => [n.id, n])), [graph.nodes])
+
+  const profileKey = useMemo(
+    () =>
+      [
+        profile.email ?? '',
+        profile.phone ?? '',
+        profile.whatsapp ?? '',
+        profile.address?.street ?? '',
+        profile.address?.postalCode ?? '',
+        profile.address?.city ?? ''
+      ].join('\0'),
+    [profile.email, profile.phone, profile.whatsapp, profile.address]
+  )
+
+  // When contact data is newly available, suggest a success status; never overwrite an explicit user pick.
+  const prevProfileKey = useRef<string | null>(null)
+  const hadContactByNode = useRef<Record<string, boolean>>({})
+  useEffect(() => {
+    const profileChanged = prevProfileKey.current !== null && prevProfileKey.current !== profileKey
+    prevProfileKey.current = profileKey
+    if (currentNodeIds.length === 0) return
+
+    setPendingByNode(prev => {
+      let changed = false
+      const next = { ...prev }
+      for (const id of currentNodeIds) {
+        const node = nodesById.get(id)
+        if (!node || node.data.kind === 'start') continue
+        const hasContact = hasContactForSendNode(node, profile)
+        const hadContact = hadContactByNode.current[id] ?? false
+        hadContactByNode.current[id] = hasContact
+
+        const allowed = observableStatusesForSendNode(graph, id, node, profile)
+        const cur = prev[id]
+        if (cur && !allowed.includes(cur)) {
+          next[id] = undefined
+          changed = true
+        }
+        if (profileChanged && !hadContact && hasContact) {
+          const success = preferredSuccessOutcome(graph, id, profile)
+          if (success && !cur) {
+            next[id] = success
+            changed = true
+          }
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [profileKey, currentNodeIds, graph, nodesById, profile])
+
   // `start` needs no status — it counts as "satisfied". For send_* the user
   // must have staged something in pendingByNode.
-  const nodesById = useMemo(() => new Map(graph.nodes.map(n => [n.id, n])), [graph.nodes])
   const needsStatus = useCallback(
     (id: string) => nodesById.get(id)?.data.kind !== 'start',
     [nodesById]
@@ -126,26 +178,25 @@ export function useDaySimulator({ runId, workflowId, graph, focusedNodeId, histo
 
   const pauseReason = useMemo<DaySimulator['pauseReason']>(() => {
     if (!currentNode) return null
-    if (currentNode.data.kind === 'end') return 'end'
-    if (currentNode.data.kind === 'start') return null
+    const kind = currentNode.data.kind
+    if (kind === 'end') return activeFrontiers.length === 0 ? 'end' : null
+    if (kind === 'start') return null
     if (currentNode.data.params.output.mode === 'multi') return 'multi_output'
     return 'awaiting_status'
-  }, [currentNode])
+  }, [currentNode, activeFrontiers.length])
 
-  const [userCursor, setUserCursor] = useState(0)
-  const day = Math.max(userCursor, currentNodeDay)
-  const nextEventDay = pendingEdge ? currentNodeDay + pendingEdge.daysAfter : null
-
-  // Reset detection: history shrinking back to a single start entry means the
-  // patient run was reset — rewind the user cursor to 0 so the simulator starts
-  // fresh instead of auto-advancing through the whole workflow again.
-  const lastHistoryLen = useRef(history.length)
-  useEffect(() => {
-    if (history.length === 1 && lastHistoryLen.current > 1) {
-      setUserCursor(0)
+  const day = currentNodeDay
+  const nextEventDay = useMemo(() => {
+    if (!focusedNodeId || !currentNode) return null
+    const outs = graph.edges.filter(e => e.source === focusedNodeId)
+    if (outs.length === 0) return null
+    let best: number | null = null
+    for (const e of outs) {
+      const t = currentNodeDay + e.daysAfter
+      if (best === null || t < best) best = t
     }
-    lastHistoryLen.current = history.length
-  }, [history.length])
+    return best
+  }, [graph.edges, focusedNodeId, currentNode, currentNodeDay])
 
   const advanceMut = useMutation({
     mutationFn: ({ nodeId, outcome }: { nodeId: string; outcome?: string }) =>
@@ -156,7 +207,6 @@ export function useDaySimulator({ runId, workflowId, graph, focusedNodeId, histo
     },
     onError: e => {
       toast.error(describeError(e, 'Échec de l\'avancement.'))
-      setUserCursor(currentNodeDay)
     }
   })
 
@@ -176,23 +226,10 @@ export function useDaySimulator({ runId, workflowId, graph, focusedNodeId, histo
       qc.invalidateQueries({ queryKey: queryKeys.patientRuns.detail(runId) })
       qc.invalidateQueries({ queryKey: queryKeys.patientRuns.listForWorkflow(workflowId) })
       setPendingByNode({})
-      setUserCursor(0)
       toast.success('Parcours réinitialisé')
     },
     onError: e => toast.error(describeError(e, 'Échec de la réinitialisation.'))
   })
-
-  // Auto-advance is gone: every node now waits on the user's "Prochain" button
-  // in the top bar (start needs no status; send_* needs a pending pick). The
-  // day cursor still advances visually when currentNodeDay jumps forward after
-  // a successful /advance, so the J+N line on the canvas stays in sync.
-
-  const jumpToNextEvent = useCallback(() => {
-    if (nextEventDay === null) return
-    setUserCursor(prev => Math.max(prev, nextEventDay))
-  }, [nextEventDay])
-
-  const syncToCurrentNode = useCallback(() => setUserCursor(currentNodeDay), [currentNodeDay])
 
   const setPending = useCallback((nodeId: string, status: string | undefined) => {
     setPendingByNode(prev => ({ ...prev, [nodeId]: status }))
@@ -209,20 +246,29 @@ export function useDaySimulator({ runId, workflowId, graph, focusedNodeId, histo
       if (needsStatus(id) && !pendingByNode[id]) return false
     }
     for (const id of currentNodeIds) {
-      const status = needsStatus(id) ? pendingByNode[id] : undefined
+      const raw = needsStatus(id) ? pendingByNode[id] : undefined
+      const status = needsStatus(id)
+        ? coerceOutcomeForAdvance(graph, id, raw, profile)
+        : undefined
       await advanceMut.mutateAsync({ nodeId: id, outcome: status })
     }
     setPendingByNode({})
     return true
     // mutateAsync is a stable reference from react-query
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentNodeIds, pendingByNode, needsStatus])
+  }, [currentNodeIds, pendingByNode, needsStatus, graph, profile])
 
   const canStepBack = history.length > 1
+  const stepBackBusy = useRef(false)
   const stepBack = useCallback(async (): Promise<boolean> => {
-    if (!canStepBack) return false
-    await stepBackMut.mutateAsync()
-    return true
+    if (!canStepBack || stepBackBusy.current || stepBackMut.isPending) return false
+    stepBackBusy.current = true
+    try {
+      await stepBackMut.mutateAsync()
+      return true
+    } finally {
+      stepBackBusy.current = false
+    }
     // mutateAsync is stable from react-query
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canStepBack])
@@ -240,8 +286,6 @@ export function useDaySimulator({ runId, workflowId, graph, focusedNodeId, histo
     nextEventDay,
     autoAdvancing: advanceMut.isPending || stepBackMut.isPending || resetMut.isPending,
     pauseReason,
-    jumpToNextEvent,
-    syncToCurrentNode,
     currentNodeIds,
     pendingByNode,
     setPending,

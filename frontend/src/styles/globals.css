@@ -72,6 +72,39 @@
   border-radius: 0.375rem; /* rounded-md */
 }
 
+/* Edge route tones — saturated strokes + halo so succès/échec/multi are easy to tell apart. */
+.react-flow__edge-path.rp-edge--success {
+  stroke: #10b981 !important;
+}
+.react-flow__edge-path.rp-edge--failure {
+  stroke: #ef4444 !important;
+}
+.react-flow__edge-path.rp-edge--multi {
+  stroke: #6366f1 !important;
+}
+.react-flow__edge-path.rp-edge--plain {
+  stroke: var(--fg-subtle) !important;
+}
+.react-flow__edge-path.rp-edge--neutral {
+  stroke: #cbd5e1 !important;
+  opacity: 0.7;
+}
+.react-flow__edge-path.rp-edge__halo.rp-edge--success {
+  stroke: #6ee7b7 !important;
+  opacity: 0.55;
+}
+.react-flow__edge-path.rp-edge__halo.rp-edge--failure {
+  stroke: #fca5a5 !important;
+  opacity: 0.55;
+}
+.react-flow__edge-path.rp-edge__halo.rp-edge--multi {
+  stroke: #a5b4fc !important;
+  opacity: 0.5;
+}
+.react-flow__edge.selected .react-flow__edge-path:not(.rp-edge__halo) {
+  stroke: var(--primary) !important;
+}
+
 /* Proactive connection-validity feedback — set by useClickConnection on hover and by
    React Flow's `valid` / drag classes during drag-to-connect. The combined selectors
    cover both interaction paths (custom click + native drag).

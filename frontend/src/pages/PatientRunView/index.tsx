@@ -63,6 +63,8 @@ function LoadedView({ run, workflowId }: { run: import('@/api/patient-runs').Pat
     workflowId: run.workflowId,
     graph: run.workflow.graph,
     focusedNodeId: run.focusedNodeId ?? run.currentNodeId,
+    activeFrontiers: run.activeFrontiers,
+    actionableNodeIds: run.actionableNodeIds,
     history: run.history,
     profile: {
       email: run.patient.email,
@@ -109,7 +111,7 @@ function LoadedView({ run, workflowId }: { run: import('@/api/patient-runs').Pat
       <div className="grid flex-1 grid-cols-[1fr_360px] overflow-hidden">
         <div className="relative flex flex-col">
           <div className="border-b border-border bg-surface px-4 py-2">
-            <DayCursorControls sim={sim} graph={run.workflow.graph} />
+            <DayCursorControls sim={sim} graph={run.workflow.graph} activeFrontiers={run.activeFrontiers} />
           </div>
           <div className="relative flex-1">
             <PatientCanvas

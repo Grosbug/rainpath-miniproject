@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import { Handle, NodeProps, Position } from '@xyflow/react'
 import * as Popover from '@radix-ui/react-popover'
-import { CHANNEL_STATUSES } from '@rainpath/shared'
-import type { Graph, OutputConfig } from '@rainpath/shared'
+import {
+  describeAdvanceRoute,
+  hasContactForSendNode,
+  isChannelFailureStatus
+} from './outcome-routing'
+import type { Graph, GraphNode, OutputConfig } from '@rainpath/shared'
 import { Icon, IconName } from '@/components/Icon'
 import { frStatus } from '@/pages/WorkflowEditor/modal/status-labels'
-import {
-  hasChannelData, failureStatusesForNode, missingChannelLabel,
-  type PatientContactData
-} from './cumulative-days'
+import type { PatientContactData } from './cumulative-days'
 
 /** Read-only mirror of the editor's handle styling — smaller, no hover/interaction. */
 const readOnlyHandleClass = '!h-2 !w-2 !border-2 !bg-surface pointer-events-none'
@@ -29,35 +30,14 @@ export type PatientNodeData = NodeData & {
   _onPickStatus?: (status: string | undefined) => void
   /** Switch focus to this branch (parallel lanes) — click the card. */
   _onFocus?: () => void
+  /** Statuses with a routable edge for this node (send_* only). */
+  _observableStatuses?: readonly string[]
+  _graphNode?: GraphNode
+  _graph?: Graph
+  _nodeId?: string
 }
 
 type SendNodeData = Extract<NodeData, { kind: 'send_email' | 'send_sms' | 'send_whatsapp' | 'send_postal' }>
-
-/**
- * Statuses the simulator can actually route from this node — mirrors the editor
- * coverage rules so the inline picker doesn't offer a status that would crash
- * with `unhandled_outcome` on the backend. Patients missing the channel's
- * contact data only see the failure subset (a "delivered" status with no email
- * makes no sense).
- */
-function routableStatusesFor(data: SendNodeData, profile: PatientContactData | undefined): string[] {
-  const channel: readonly string[] =
-    data.kind === 'send_email'    ? CHANNEL_STATUSES.email :
-    data.kind === 'send_sms'      ? CHANNEL_STATUSES.sms :
-    data.kind === 'send_whatsapp' ? CHANNEL_STATUSES.whatsapp :
-    data.params.tracked ? CHANNEL_STATUSES.postal_tracked : CHANNEL_STATUSES.postal_untracked
-  let candidates: string[] = [...channel]
-  const out = data.params.output
-  if (out.mode === 'multi') {
-    const routed = new Set(out.outputs.flatMap(o => o.condition.statuses))
-    candidates = candidates.filter(s => routed.has(s))
-  }
-  if (profile && !hasChannelData(data, profile)) {
-    const failures = new Set<string>(failureStatusesForNode(data))
-    candidates = candidates.filter(s => failures.has(s))
-  }
-  return candidates
-}
 
 const KIND_META: Record<NodeData['kind'], {
   family: string
@@ -171,7 +151,11 @@ export function PatientNode({ data }: NodeProps) {
         {d.reachability === 'current' && d._onPickStatus && isSendData(d) ? (
           <InlineStatusPicker
             data={d}
+            graph={d._graph}
+            nodeId={d._nodeId}
+            graphNode={d._graphNode}
             profile={d._profile}
+            statuses={d._observableStatuses ?? []}
             value={d._pendingStatus}
             onChange={d._onPickStatus}
           />
@@ -301,33 +285,82 @@ function isSendData(data: PatientNodeData): data is PatientNodeData & SendNodeDa
  * lacks the channel's contact data, only failure statuses are offered (with
  * a small warning line above the select).
  */
+function stepTitle(graph: Graph, nodeId: string): string {
+  const n = graph.nodes.find(x => x.id === nodeId)
+  if (!n) return nodeId
+  const d = n.data
+  if (d.kind === 'start') return 'Départ'
+  if (d.kind === 'end') return 'Fin'
+  if (d.kind === 'send_email') return `Email « ${d.params.subject || '(sans sujet)'} »`
+  if (d.kind === 'send_sms') return `SMS « ${d.params.body.slice(0, 24) || '(vide)'} »`
+  if (d.kind === 'send_whatsapp') return `WhatsApp « ${d.params.body.slice(0, 24) || '(vide)'} »`
+  if (d.kind === 'send_postal') return `Courrier « ${d.params.body.slice(0, 24) || '(vide)'} »`
+  return nodeId
+}
+
 function InlineStatusPicker({
-  data, profile, value, onChange
+  data, graph, nodeId, graphNode, profile, statuses, value, onChange
 }: {
   data: SendNodeData
-  profile: PatientContactData | undefined
+  graph?: Graph
+  nodeId?: string
+  graphNode?: GraphNode
+  profile?: PatientContactData
+  statuses: readonly string[]
   value: string | undefined
   onChange: (status: string | undefined) => void
 }) {
-  const statuses = routableStatusesFor(data, profile)
-  const lacksData = profile ? !hasChannelData(data, profile) : false
-  const missingLabel = lacksData ? missingChannelLabel(data) : null
+  const optionStatuses = (() => {
+    if (!value || statuses.includes(value)) return statuses
+    return [...statuses, value]
+  })()
+  const successStatuses = graphNode
+    ? optionStatuses.filter(s => !isChannelFailureStatus(graphNode, s))
+    : optionStatuses
+  const failureStatuses = graphNode
+    ? optionStatuses.filter(s => isChannelFailureStatus(graphNode, s))
+    : []
   const [open, setOpen] = useState(false)
+
+  const lacksContact = graphNode && profile ? !hasContactForSendNode(graphNode, profile) : false
+  const pickedFailureWhileContactOk =
+    graphNode &&
+    profile &&
+    hasContactForSendNode(graphNode, profile) &&
+    value !== undefined &&
+    isChannelFailureStatus(graphNode, value)
+
+  const routePreview = (() => {
+    if (!graph || !nodeId || !value) return null
+    const route = describeAdvanceRoute(graph, nodeId, value)
+    if (!route.targetNodeId) {
+      return 'Aucune arête pour ce statut — reliez la sortie correspondante dans l’éditeur (handle Succès ou Échec).'
+    }
+    const handleLabel =
+      route.handle === 'success' ? 'sortie succès' :
+      route.handle === 'failure' ? 'sortie échec' :
+      'sortie'
+    return `Prochaine étape via ${handleLabel} : ${stepTitle(graph, route.targetNodeId)}`
+  })()
 
   return (
     <div className="nodrag nowheel nopan mt-2 space-y-1">
-      {lacksData && missingLabel ? (
-        <p className="rounded border border-warning/60 bg-[#FFFBEB] px-1.5 py-1 text-[10px] leading-tight text-warning">
-          <Icon name="TriangleAlert" size={16} className="-mt-0.5 mr-0.5 inline" />
-          Pas de {missingLabel} — statuts d'échec seulement.
-        </p>
-      ) : null}
       {statuses.length === 0 ? (
         <p className="rounded border border-warning/60 bg-[#FFFBEB] px-1.5 py-1 text-[10px] leading-tight text-warning">
-          Aucun statut routable depuis ce nœud.
+          Aucun statut routable — vérifiez dans l&apos;éditeur que les sorties succès et/ou échec sont reliées.
         </p>
       ) : (
         <div>
+          {lacksContact ? (
+            <p className="mb-1 rounded border border-warning/60 bg-[#FFFBEB] px-1.5 py-1 text-[10px] leading-tight text-warning">
+              Coordonnées {data.kind === 'send_email' ? 'email' : data.kind === 'send_sms' ? 'SMS' : data.kind === 'send_whatsapp' ? 'WhatsApp' : 'postales'} absentes du profil — seule la sortie échec est possible. Complétez le profil pour emprunter la sortie succès.
+            </p>
+          ) : null}
+          {pickedFailureWhileContactOk ? (
+            <p className="mb-1 rounded border border-info/40 bg-[#EFF6FF] px-1.5 py-1 text-[10px] leading-tight text-info">
+              Le contact est renseigné : choisissez un statut sous « Sortie succès » pour suivre la branche succès (sinon vous restez sur la sortie échec).
+            </p>
+          ) : null}
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
             Statut observé
           </p>
@@ -361,27 +394,50 @@ function InlineStatusPicker({
                 style={{ width: 'var(--radix-popover-trigger-width)' }}
                 className="z-[1000] max-h-48 overflow-auto rounded-md border border-border bg-surface py-1 shadow-elev-2"
               >
-                <ul role="listbox">
-                  {statuses.map(s => (
-                    <li
-                      key={s}
-                      role="option"
-                      aria-selected={value === s}
-                      onClick={() => { onChange(s); setOpen(false) }}
-                      className={`flex cursor-pointer items-center justify-center gap-1.5 px-2 py-1.5 text-center text-[11px] hover:bg-surface-muted ${
-                        value === s ? 'font-medium text-primary' : 'text-fg'
-                      }`}
-                    >
-                      {value === s ? <Icon name="Check" size={16} /> : null}
-                      <span>{frStatus(s)}</span>
+                <ul role="listbox" className="space-y-1">
+                  {successStatuses.length > 0 ? (
+                    <li className="px-2 pt-1 text-[9px] font-semibold uppercase tracking-wide text-success">
+                      Sortie succès
                     </li>
+                  ) : null}
+                  {successStatuses.map(s => (
+                    <StatusOption key={s} status={s} selected={value === s} onPick={() => { onChange(s); setOpen(false) }} />
+                  ))}
+                  {failureStatuses.length > 0 ? (
+                    <li className="px-2 pt-1 text-[9px] font-semibold uppercase tracking-wide text-danger">
+                      Sortie échec
+                    </li>
+                  ) : null}
+                  {failureStatuses.map(s => (
+                    <StatusOption key={s} status={s} selected={value === s} onPick={() => { onChange(s); setOpen(false) }} />
                   ))}
                 </ul>
               </Popover.Content>
             </Popover.Portal>
           </Popover.Root>
+          {routePreview ? (
+            <p className="mt-1 text-[10px] leading-tight text-fg-muted">{routePreview}</p>
+          ) : null}
         </div>
       )}
     </div>
+  )
+}
+
+function StatusOption({
+  status, selected, onPick
+}: { status: string; selected: boolean; onPick: () => void }) {
+  return (
+    <li
+      role="option"
+      aria-selected={selected}
+      onClick={onPick}
+      className={`flex cursor-pointer items-center justify-center gap-1.5 px-2 py-1.5 text-center text-[11px] hover:bg-surface-muted ${
+        selected ? 'font-medium text-primary' : 'text-fg'
+      }`}
+    >
+      {selected ? <Icon name="Check" size={16} /> : null}
+      <span>{frStatus(status)}</span>
+    </li>
   )
 }

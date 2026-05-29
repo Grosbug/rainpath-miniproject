@@ -70,6 +70,9 @@ export function PatientProfilePanel({ patient, runId }: Props) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.patientRuns.detail(runId) })
       qc.invalidateQueries({ queryKey: queryKeys.patientProfiles.list() })
+      toast.info(
+        'Profil mis à jour. Sur une étape d\'envoi en cours, le statut de succès est proposé automatiquement — vérifiez puis cliquez Prochain.'
+      )
     },
     onError: e => toast.error(describeError(e, 'Échec de la sauvegarde du profil patient.'))
   })

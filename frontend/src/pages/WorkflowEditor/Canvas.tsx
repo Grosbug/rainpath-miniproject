@@ -9,6 +9,7 @@ import { showAnchoredToast } from '@/components/AnchoredToasts'
 import { useEditorStore } from './store'
 import { nodeTypes } from './nodes/node-types'
 import { edgeTypes } from './edges/edge-types'
+import { resolveEdgeDisplayHandle, routeLabelForHandle } from './edges/edge-visual'
 import { TimelineBackground } from './TimelineBackground'
 import { DaysAfterPopover } from './edges/DaysAfterPopover'
 import { useModalState, type NodeKind } from './modal-state'
@@ -51,14 +52,22 @@ function toRFNodes(
 }
 
 function toRFEdges(edges: ReturnType<typeof useEditorStore.getState>['edges']): RFEdge[] {
-  return edges.map(e => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    sourceHandle: e.sourceHandle ?? null,
-    type: 'default',
-    data: { daysAfter: e.daysAfter }
-  }))
+  return edges.map(e => {
+    const routeHandle = resolveEdgeDisplayHandle(e)
+    return {
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      sourceHandleId: routeHandle ?? e.sourceHandle ?? null,
+      type: 'default',
+      data: {
+        daysAfter: e.daysAfter,
+        routeHandle,
+        routeLabel: routeLabelForHandle(routeHandle),
+        routeRevealed: true
+      }
+    }
+  })
 }
 
 const REJECTION_MSG: Record<string, string> = {
@@ -67,7 +76,8 @@ const REJECTION_MSG: Record<string, string> = {
   dangling: 'Nœud cible inexistant',
   edge_into_start: 'Impossible d\'entrer dans le nœud Départ',
   edge_from_end: 'Impossible de partir d\'un nœud Fin',
-  unreachable_source: 'Connectez d\'abord ce nœud au flux principal avant d\'en partir'
+  unreachable_source: 'Connectez d\'abord ce nœud au flux principal avant d\'en partir',
+  invalid_source_handle: 'Reliez depuis la poignée Succès ou Échec du nœud (pas depuis le corps de la carte).'
 }
 
 function CanvasInner() {

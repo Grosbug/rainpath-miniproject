@@ -23,8 +23,8 @@ function emailNode(id: string): GraphNode {
     }
   }
 }
-function edge(id: string, source: string, target: string, daysAfter: number): GraphEdge {
-  return { id, source, target, daysAfter }
+function edge(id: string, source: string, target: string, daysAfter: number, sourceHandle?: string): GraphEdge {
+  return { id, source, target, daysAfter, sourceHandle }
 }
 
 function reset() {
@@ -225,9 +225,9 @@ describe('useEditorStore', () => {
     useEditorStore.getState().load({
       id: 'w1', name: '', description: '',
       nodes: [startNode(), emailNode('a'), endNode()],
-      edges: [edge('e1', 's', 'a', 5), edge('e2', 'a', 'e', 10)]
+      edges: [edge('e1', 's', 'a', 5), edge('e2', 'a', 'e', 10, 'success')]
     })
-    const r = useEditorStore.getState().addEdge({ source: 'a', target: 'a', daysAfter: 0 })
+    const r = useEditorStore.getState().addEdge({ source: 'a', target: 'a', daysAfter: 0, sourceHandle: 'failure' })
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.reason).toBe('self_loop')
   })
@@ -238,11 +238,11 @@ describe('useEditorStore', () => {
       nodes: [startNode(), emailNode('a'), emailNode('b'), endNode()],
       edges: [
         edge('e1', 's', 'a', 1),
-        edge('e2', 'a', 'b', 1),
-        edge('e3', 'b', 'e', 1)
+        edge('e2', 'a', 'b', 1, 'success'),
+        edge('e3', 'b', 'e', 1, 'success')
       ]
     })
-    const r = useEditorStore.getState().addEdge({ source: 'b', target: 'a', daysAfter: 1 })
+    const r = useEditorStore.getState().addEdge({ source: 'b', target: 'a', daysAfter: 1, sourceHandle: 'failure' })
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.reason).toBe('cycle')
   })
@@ -253,7 +253,7 @@ describe('useEditorStore', () => {
       nodes: [startNode(), emailNode('a'), endNode()],
       edges: [edge('e1', 's', 'a', 5)]
     })
-    const r = useEditorStore.getState().addEdge({ source: 'a', target: 'e', daysAfter: 10 })
+    const r = useEditorStore.getState().addEdge({ source: 'a', target: 'e', daysAfter: 10, sourceHandle: 'success' })
     expect(r.ok).toBe(true)
     const s = useEditorStore.getState()
     expect(s.nodes.find(n => n.id === 'e')?.position.x).toBe(15)
@@ -265,11 +265,22 @@ describe('useEditorStore', () => {
     useEditorStore.getState().load({
       id: 'w1', name: '', description: '',
       nodes: [startNode(), emailNode('a'), emailNode('b'), endNode()],
-      edges: [edge('e1', 's', 'a', 5), edge('e2', 'a', 'e', 10)]
+      edges: [edge('e1', 's', 'a', 5), edge('e2', 'a', 'e', 10, 'success')]
     })
-    const r = useEditorStore.getState().addEdge({ source: 'b', target: 'a', daysAfter: 1 })
+    const r = useEditorStore.getState().addEdge({ source: 'b', target: 'a', daysAfter: 1, sourceHandle: 'success' })
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.reason).toBe('unreachable_source')
+  })
+
+  it('addEdge rejects send_* edge without success/failure source handle', () => {
+    useEditorStore.getState().load({
+      id: 'w1', name: '', description: '',
+      nodes: [startNode(), emailNode('a'), endNode()],
+      edges: [edge('e1', 's', 'a', 5)]
+    })
+    const r = useEditorStore.getState().addEdge({ source: 'a', target: 'e', daysAfter: 2 })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toBe('invalid_source_handle')
   })
 
   it('addEdge allows two orphans to link together (island under construction)', () => {
@@ -280,7 +291,7 @@ describe('useEditorStore', () => {
       nodes: [startNode(), emailNode('a'), emailNode('b'), endNode()],
       edges: [edge('e1', 's', 'e', 30)]
     })
-    const r = useEditorStore.getState().addEdge({ source: 'a', target: 'b', daysAfter: 2 })
+    const r = useEditorStore.getState().addEdge({ source: 'a', target: 'b', daysAfter: 2, sourceHandle: 'success' })
     expect(r.ok).toBe(true)
   })
 
@@ -288,7 +299,7 @@ describe('useEditorStore', () => {
     useEditorStore.getState().load({
       id: 'w1', name: '', description: '',
       nodes: [startNode(), emailNode('a'), endNode()],
-      edges: [edge('e1', 's', 'a', 5), edge('e2', 'a', 'e', 10)]
+      edges: [edge('e1', 's', 'a', 5), edge('e2', 'a', 'e', 10, 'success')]
     })
     useEditorStore.getState().updateNodeData('a', {
       kind: 'send_email',

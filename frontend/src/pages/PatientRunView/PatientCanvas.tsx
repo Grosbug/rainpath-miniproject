@@ -5,13 +5,20 @@ import {
   type Node as RFNode, type Edge as RFEdge, type NodeTypes
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import type { Graph } from '@rainpath/shared'
+import type { Graph, RunHistoryEntry } from '@rainpath/shared'
+import {
+  hasExitedNode,
+  isUpcomingFromOpenBranch,
+  stuckReasonForNode
+} from './run-frontiers-ui'
+import { observableStatusesForSendNode } from './outcome-routing'
 import { TimelineBackground } from '@/pages/WorkflowEditor/TimelineBackground'
 import { edgeTypes } from '@/pages/WorkflowEditor/edges/edge-types'
+import { resolveEdgeDisplayHandle, routeLabelForHandle } from '@/pages/WorkflowEditor/edges/edge-visual'
 import { useLeftAnchoredZoom } from '@/pages/WorkflowEditor/hooks/useLeftAnchoredZoom'
 import { PatientNode, type PatientNodeData, type ReachabilityState } from './PatientNode'
 import { computeLanes } from './compute-lanes'
-import type { PatientContactData } from './cumulative-days'
+import { traversedEdgeIds, type PatientContactData } from './cumulative-days'
 
 const PX_PER_DAY = 28
 // LANE_HEIGHT must be >= the actual rendered card height (~110–130 px with the
@@ -43,7 +50,7 @@ interface Props {
   focusedNodeId: string | null
   activeFrontiers: readonly string[]
   actionableNodeIds: readonly string[]
-  history: { nodeId: string; outcome?: string }[]
+  history: RunHistoryEntry[]
   dayCursor: number
   pendingByNode: Readonly<Record<string, string | undefined>>
   onPendingChange: (nodeId: string, status: string | undefined) => void
@@ -52,16 +59,22 @@ interface Props {
 }
 
 function displayReachability(
+  graph: Graph,
   nodeId: string,
   focusedNodeId: string | null,
-  history: { nodeId: string }[],
+  history: RunHistoryEntry[],
   activeFrontiers: readonly string[]
-): ReachabilityState {
+): { state: ReachabilityState; blockedReason?: string } {
   const visited = new Set(history.map(h => h.nodeId))
-  if (focusedNodeId === nodeId) return 'current'
-  if (visited.has(nodeId)) return 'visited'
-  if (activeFrontiers.includes(nodeId)) return 'reachable'
-  return 'unreachable'
+  if (focusedNodeId === nodeId) return { state: 'current' }
+  if (visited.has(nodeId) && !hasExitedNode(graph, history, nodeId)) {
+    const reason = stuckReasonForNode(graph, history, nodeId)
+    if (reason) return { state: 'blocked', blockedReason: reason }
+  }
+  if (visited.has(nodeId)) return { state: 'visited' }
+  if (activeFrontiers.includes(nodeId)) return { state: 'reachable' }
+  if (isUpcomingFromOpenBranch(graph, history, nodeId)) return { state: 'reachable' }
+  return { state: 'unreachable' }
 }
 
 function CanvasInner({
@@ -82,11 +95,25 @@ function CanvasInner({
     address: profile.address
   }), [profile.email, profile.phone, profile.whatsapp, profile.address])
 
+  const historyOutcomeByNode = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const h of history) {
+      if (h.outcome !== undefined) m.set(h.nodeId, h.outcome)
+    }
+    return m
+  }, [history])
+
   const rfNodes: RFNode<PatientNodeData>[] = useMemo(() => {
     return graph.nodes.map(n => {
-      const reachability = displayReachability(n.id, focusedNodeId, history, activeFrontiers)
-      const isCurrent = reachability === 'current'
+      const { state: reachability, blockedReason } = displayReachability(
+        graph, n.id, focusedNodeId, history, activeFrontiers
+      )
+      const lastHistId = history.length > 0 ? history[history.length - 1]!.nodeId : null
+      const isCurrent =
+        reachability === 'current' ||
+        (n.id === focusedNodeId && n.id === lastHistId && n.data.kind === 'end')
       const canFocus = actionableNodeIds.includes(n.id) && !isCurrent
+      const isSend = n.data.kind.startsWith('send_')
       return {
         id: n.id,
         type: n.data.kind,
@@ -97,31 +124,50 @@ function CanvasInner({
         data: {
           ...n.data,
           reachability,
+          blockedReason,
           _dayX: n.data.kind === 'start' ? undefined : Math.max(0, Math.round(n.position.x)),
           _profile: contactProfile,
-          _pendingStatus: isCurrent ? pendingByNode[n.id] : undefined,
+          _pendingStatus: isCurrent
+            ? (pendingByNode[n.id] ?? historyOutcomeByNode.get(n.id))
+            : undefined,
           _onPickStatus: isCurrent ? (s: string | undefined) => onPendingChange(n.id, s) : undefined,
-          _onFocus: canFocus ? () => onFocusNode(n.id) : undefined
+          _onFocus: canFocus ? () => onFocusNode(n.id) : undefined,
+          _graphNode: isSend ? n : undefined,
+          _graph: isSend ? graph : undefined,
+          _nodeId: isSend ? n.id : undefined,
+          _observableStatuses: isSend
+            ? observableStatusesForSendNode(graph, n.id, n, contactProfile)
+            : undefined
         } as PatientNodeData,
         draggable: false,
         selectable: false,
         focusable: canFocus
       }
     })
-  }, [graph.nodes, focusedNodeId, activeFrontiers, actionableNodeIds, history, lanes, contactProfile, pendingByNode, onPendingChange, onFocusNode])
+  }, [graph, graph.nodes, focusedNodeId, activeFrontiers, actionableNodeIds, history, historyOutcomeByNode, lanes, contactProfile, pendingByNode, onPendingChange, onFocusNode])
+
+  const traversedEdges = useMemo(() => traversedEdgeIds(graph, history), [graph, history])
 
   const rfEdges: RFEdge[] = useMemo(() =>
-    graph.edges.map(e => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      sourceHandle: e.sourceHandle ?? null,
-      type: 'default',
-      data: { daysAfter: e.daysAfter },
-      selectable: false,
-      focusable: false
-    })),
-    [graph.edges]
+    graph.edges.map(e => {
+      const routeHandle = resolveEdgeDisplayHandle(e)
+      return {
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandleId: routeHandle ?? e.sourceHandle ?? null,
+        type: 'default',
+        data: {
+          daysAfter: e.daysAfter,
+          routeHandle,
+          routeLabel: routeLabelForHandle(routeHandle),
+          routeRevealed: traversedEdges.has(e.id)
+        },
+        selectable: false,
+        focusable: false
+      }
+    }),
+    [graph, traversedEdges]
   )
 
   return (
