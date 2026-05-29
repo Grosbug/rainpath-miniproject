@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { Icon } from '@/components/Icon'
 import { queryKeys } from '@/api/query-keys'
+import { ApiError } from '@/api/client'
 import { focusPatientRun, getPatientRun } from '@/api/patient-runs'
 import { describeError } from '@/api/error-messages'
 import { formatPatientFullName } from '@/lib/format-person-name'
@@ -35,12 +36,32 @@ export default function PatientRunView() {
   }
 
   if (error || !run) {
+    const notFound = error instanceof ApiError && error.status === 404
+    const backTo = workflowId ? `/workflows/${workflowId}/patient-runs` : '/workflows'
+    const backLabel = workflowId ? 'Retour aux parcours' : 'Retour aux workflows'
     return (
       <div className="flex min-h-[calc(100dvh-48px)] items-center justify-center p-8">
         <div className="max-w-md text-center">
-          <Icon name="CircleAlert" size={24} className="mx-auto text-danger" />
-          <h1 className="mt-4 text-xl font-semibold text-fg">Parcours introuvable</h1>
-          <p className="mt-2 text-sm text-fg-muted">Ce parcours n'existe pas ou a été supprimé.</p>
+          <Icon
+            name={notFound ? 'MapPinOff' : 'CircleAlert'}
+            size={24}
+            className={`mx-auto ${notFound ? 'text-fg-muted' : 'text-danger'}`}
+          />
+          <h1 className="mt-4 text-xl font-semibold text-fg">
+            {notFound ? 'Parcours introuvable' : 'Erreur de chargement'}
+          </h1>
+          <p className="mt-2 text-sm text-fg-muted">
+            {notFound
+              ? "Ce parcours n'existe pas ou son workflow a été supprimé."
+              : describeError(error, 'Impossible de charger ce parcours.')}
+          </p>
+          <Link
+            to={backTo}
+            className="mt-6 inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-on-primary hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <Icon name="ArrowLeft" size={16} />
+            {backLabel}
+          </Link>
         </div>
       </div>
     )
