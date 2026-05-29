@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { queryKeys } from '@/api/query-keys'
-import { createNodeTemplate, updateNodeTemplate } from '@/api/node-templates'
+import { createNodeTemplate, updateNodeTemplate, deleteNodeTemplate } from '@/api/node-templates'
 import { describeError } from '@/api/error-messages'
 import { useEditorStore } from '../store'
 import { useModalState, type NodeKind, type ModalContent } from '../modal-state'
@@ -106,6 +106,16 @@ function ModalBody({ content, onClose }: BodyProps) {
     onError: e => setError(describeError(e, 'Impossible de mettre à jour le modèle.'))
   })
 
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteNodeTemplate(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.nodeTemplates.list() })
+      toast.success('Modèle supprimé')
+      onClose()
+    },
+    onError: e => setError(describeError(e, 'Impossible de supprimer le modèle.'))
+  })
+
   const handleSave = () => {
     setError(null)
     if (content.mode === 'node-edit') {
@@ -174,7 +184,6 @@ function ModalBody({ content, onClose }: BodyProps) {
         {error ? <p role='alert' className='text-sm text-danger'>{error}</p> : null}
 
         <div className='flex items-center justify-between gap-2 pt-2'>
-          {/* Delete only makes sense for placed nodes; templates have their own delete in the palette. */}
           {content.mode === 'node-edit' ? (
             <Button
               type='button'
@@ -183,13 +192,26 @@ function ModalBody({ content, onClose }: BodyProps) {
             >
               Supprimer
             </Button>
-          ) : <span />}
+          ) : content.mode === 'template-edit' ? (
+            <Button
+              type='button'
+              variant='danger'
+              loading={deleteMut.isPending}
+              disabled={createMut.isPending || updateMut.isPending}
+              onClick={() => deleteMut.mutate((content.template as unknown as { id: string }).id)}
+            >
+              Supprimer
+            </Button>
+          ) : (
+            <span />
+          )}
           <div className='flex gap-2'>
             <Button type='button' variant='secondary' onClick={onClose}>Annuler</Button>
             <Button
               type='button'
               variant='primary'
               loading={createMut.isPending || updateMut.isPending}
+              disabled={deleteMut.isPending}
               onClick={handleSave}
             >
               Enregistrer

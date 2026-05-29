@@ -86,10 +86,7 @@ export function TopBar({ saveNow }: Props) {
   }
 
   return (
-    <div className='sticky top-12 z-10 flex h-12 items-center gap-4 border-b border-border bg-surface px-6'>
-      {/* LEFT zone — back button + editable title/description. Equal-flex with the other
-          two zones so the CENTER zone sits at the geometric middle of the bar regardless
-          of the title length or the actions width. */}
+    <div className='relative flex h-12 items-center gap-4 border-b border-border bg-surface px-6'>
       <div className='flex min-w-0 flex-1 items-center gap-4'>
         <button
           type='button'
@@ -139,21 +136,24 @@ export function TopBar({ saveNow }: Props) {
         </div>
       </div>
 
-      {/* CENTER zone — validation badge + Parcours patients shortcut, geometrically centered. */}
-      <div className='flex flex-1 items-center justify-center gap-3'>
-        <ValidationStatusBadge />
+      {/* Validation badge — geometric center of the full bar width. */}
+      <div className='pointer-events-none absolute inset-0 flex items-center justify-center'>
+        <div className='pointer-events-auto'>
+          <ValidationStatusBadge />
+        </div>
+      </div>
+
+      <div className='relative z-[1] flex flex-1 items-center justify-end gap-2'>
         <Button
           variant='secondary'
           size='sm'
+          className='mr-2'
           onClick={() => navigate(`/workflows/${id}/patient-runs`)}
         >
           <Icon name='Play' size={16} />
           Parcours patients
         </Button>
-      </div>
-
-      {/* RIGHT zone — editor actions, right-aligned. */}
-      <div className='flex flex-1 items-center justify-end gap-1'>
+        <div className='flex items-center gap-1'>
         <IconButton
           icon='Undo2'
           aria-label='Annuler'
@@ -187,6 +187,7 @@ export function TopBar({ saveNow }: Props) {
             <DropdownItem icon='Trash2' danger onSelect={() => delMut.mutate()}>Supprimer</DropdownItem>
           </DropdownContent>
         </DropdownMenu>
+        </div>
       </div>
     </div>
   )
