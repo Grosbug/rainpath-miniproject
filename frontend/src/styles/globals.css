@@ -67,6 +67,7 @@
 .react-flow__controls {
   border-radius: 0.5rem; /* rounded-lg */
   overflow: hidden;
+  bottom: 2rem !important; /* lift zoom bar slightly above default pane inset */
 }
 .react-flow__controls-button {
   border-radius: 0.375rem; /* rounded-md */
