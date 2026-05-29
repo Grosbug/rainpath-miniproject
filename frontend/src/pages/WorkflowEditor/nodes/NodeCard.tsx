@@ -30,6 +30,10 @@ interface NodeCardProps {
   /** Same idea for warnings (orange triangle). Errors take precedence over warnings
    *  when both are present — a single most-severe pip is rendered. */
   warningCount?: number
+  /** Optional overlay (e.g. kebab actions) positioned absolutely by the slot itself.
+   *  Rendered inside the card's relative box but the card has no overflow clipping, so
+   *  half-outside elements work. */
+  actions?: ReactNode
 }
 
 /**
@@ -42,7 +46,7 @@ interface NodeCardProps {
  */
 export function NodeCard({
   family, icon, title, familyLabel, details, handles, selected, thickBorder, dayX,
-  errorCount = 0, warningCount = 0
+  errorCount = 0, warningCount = 0, actions
 }: NodeCardProps) {
   const ring = selected ? 'ring-2 ring-primary ring-offset-2 ring-offset-bg shadow-elev-2' : 'shadow-elev-1'
   const borderWidth = thickBorder ? 'border-2' : 'border'
@@ -65,8 +69,9 @@ export function NodeCard({
 
   return (
     <div
-      className={`relative w-[176px] ${borderWidth} ${ring} select-none rounded-md py-3 pl-[15px] ${paddingRight} transition-shadow`}
+      className={`group/nodecard relative w-[176px] ${borderWidth} ${ring} select-none rounded-md py-3 pl-[15px] ${paddingRight} transition-shadow`}
       style={{ ...cardStyle, WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+      data-selected={selected ? 'true' : 'false'}
       tabIndex={0}
     >
       {/* 3-px family strip on the left */}
@@ -115,6 +120,7 @@ export function NodeCard({
       </h3>
       {details ? <div className="mt-2 space-y-1 text-xs text-fg-muted">{details}</div> : null}
       {handles}
+      {actions}
     </div>
   )
 }

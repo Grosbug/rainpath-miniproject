@@ -45,6 +45,7 @@ interface BodyProps {
 function ModalBody({ content, onClose }: BodyProps) {
   const editorNodes = useEditorStore(s => s.nodes)
   const updateNodeData = useEditorStore(s => s.updateNodeData)
+  const removeNode = useEditorStore(s => s.removeNode)
   const qc = useQueryClient()
 
   const initialParams: AnyParams =
@@ -172,16 +173,28 @@ function ModalBody({ content, onClose }: BodyProps) {
 
         {error ? <p role='alert' className='text-sm text-danger'>{error}</p> : null}
 
-        <div className='flex justify-end gap-2 pt-2'>
-          <Button type='button' variant='secondary' onClick={onClose}>Annuler</Button>
-          <Button
-            type='button'
-            variant='primary'
-            loading={createMut.isPending || updateMut.isPending}
-            onClick={handleSave}
-          >
-            Enregistrer
-          </Button>
+        <div className='flex items-center justify-between gap-2 pt-2'>
+          {/* Delete only makes sense for placed nodes; templates have their own delete in the palette. */}
+          {content.mode === 'node-edit' ? (
+            <Button
+              type='button'
+              variant='danger'
+              onClick={() => { removeNode(content.nodeId); onClose() }}
+            >
+              Supprimer
+            </Button>
+          ) : <span />}
+          <div className='flex gap-2'>
+            <Button type='button' variant='secondary' onClick={onClose}>Annuler</Button>
+            <Button
+              type='button'
+              variant='primary'
+              loading={createMut.isPending || updateMut.isPending}
+              onClick={handleSave}
+            >
+              Enregistrer
+            </Button>
+          </div>
         </div>
       </div>
     </Dialog>

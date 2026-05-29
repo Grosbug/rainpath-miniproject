@@ -1,5 +1,6 @@
 import { Handle, NodeProps, Position } from '@xyflow/react'
 import { NodeCard } from './NodeCard'
+import { NodeKebab } from './NodeKebab'
 import { handleClass } from './handle-styles'
 import { SendNodeSourceHandles } from './SendNodeSourceHandles'
 import type { Graph } from '@rainpath/shared'
@@ -7,7 +8,7 @@ import { CHANNEL_FORMAT_RULES } from '@rainpath/shared'
 
 type SmsNodeData = Extract<Graph['nodes'][number]['data'], { kind: 'send_sms' }>
 
-export function SendSmsNode({ data, selected }: NodeProps) {
+export function SendSmsNode({ id, data, selected }: NodeProps) {
   const d = data as SmsNodeData & { _dayX?: number; _errorCount?: number; _warningCount?: number }
   const len = d.params.body.length
   const rec = CHANNEL_FORMAT_RULES.sms.body.recommendedMax
@@ -37,6 +38,7 @@ export function SendSmsNode({ data, selected }: NodeProps) {
           <SendNodeSourceHandles output={d.params.output} />
         </>
       }
+      actions={<NodeKebab nodeId={id} kind="send_sms" />}
     />
   )
 }
