@@ -151,8 +151,8 @@ export function DayCursorControls({ sim, graph, activeFrontiers }: Props) {
                 : pauseReason === 'end' ? 'Parcours terminé' : 'Avancer le parcours'
             }
           >
-            <Icon name="ArrowRight" size={16} />
             Prochain
+            <Icon name="ArrowRight" size={16} />
           </Button>
           <div className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
           <Button
