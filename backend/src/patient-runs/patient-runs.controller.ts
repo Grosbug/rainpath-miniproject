@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, UsePipes } from '@nestjs/common'
-import { AdvancePatientRunDto, CreatePatientRunDto, FocusPatientRunDto } from '@rainpath/shared'
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, UsePipes } from '@nestjs/common'
+import { AdvancePatientRunDto, CreatePatientRunDto, FocusPatientRunDto, UpdatePatientRunDto } from '@rainpath/shared'
 import { ZodValidationPipe } from '../validation/zod-validation.pipe'
 import { PatientRunsService } from './patient-runs.service'
 
@@ -26,6 +26,12 @@ export class PatientRunsController {
   @Get('patient-runs/:id')
   get(@Param('id') id: string) {
     return this.service.get(id)
+  }
+
+  @Patch('patient-runs/:id')
+  @UsePipes(new ZodValidationPipe(UpdatePatientRunDto))
+  update(@Param('id') id: string, @Body() body: UpdatePatientRunDto) {
+    return this.service.update(id, body)
   }
 
   @Post('patient-runs/:id/advance')

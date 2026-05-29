@@ -93,9 +93,16 @@ export type UpdatePatientProfileDto = z.infer<typeof UpdatePatientProfileDto>
 // Patient run
 export const CreatePatientRunDto = z.object({
   patientId: z.string().min(1),
+  title: z.string().trim().min(1).max(200),
   startDate: z.string().datetime().optional()
 })
 export type CreatePatientRunDto = z.infer<typeof CreatePatientRunDto>
+
+export const UpdatePatientRunDto = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  startDate: z.string().datetime().optional()
+})
+export type UpdatePatientRunDto = z.infer<typeof UpdatePatientRunDto>
 
 export const AdvancePatientRunDto = z.object({
   outcome: z.string().optional(),

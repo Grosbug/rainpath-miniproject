@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { AdvancePatientRunDto, CreatePatientRunDto, Graph } from '@rainpath/shared'
+import type { AdvancePatientRunDto, CreatePatientRunDto, Graph, UpdatePatientRunDto } from '@rainpath/shared'
 import { Graph as GraphSchema } from '@rainpath/shared'
 import { ApiError, apiFetch } from './client'
 
@@ -14,6 +14,7 @@ const PatientGender = z.enum(['male', 'female'])
 
 const PatientRunSummary = z.object({
   id: z.string(),
+  title: z.string(),
   patient: z.object({
     id: z.string(),
     name: z.string(),
@@ -27,6 +28,7 @@ export type PatientRunSummary = z.infer<typeof PatientRunSummary>
 
 const PatientRunForPatient = z.object({
   id: z.string(),
+  title: z.string(),
   workflow: z.object({
     id: z.string(),
     name: z.string()
@@ -39,6 +41,7 @@ export type PatientRunForPatient = z.infer<typeof PatientRunForPatient>
 
 const FullRunEnvelope = z.object({
   id: z.string(),
+  title: z.string(),
   workflowId: z.string(),
   workflow: z.object({
     id: z.string(),
@@ -120,6 +123,13 @@ export async function listPatientRunsForPatient(patientId: string): Promise<Pati
 export async function getPatientRun(id: string): Promise<PatientRunFull> {
   const raw = await apiFetch<unknown>(`/patient-runs/${id}`)
   return parseRun(raw)
+}
+
+export async function updatePatientRun(id: string, body: UpdatePatientRunDto): Promise<PatientRunForPatient> {
+  const raw = await apiFetch<unknown>(`/patient-runs/${id}`, { method: 'PATCH', body })
+  const r = PatientRunForPatient.safeParse(raw)
+  if (!r.success) throwDrift(r.error.issues)
+  return r.data
 }
 
 export async function createPatientRun(workflowId: string, body: CreatePatientRunDto): Promise<PatientRunFull> {

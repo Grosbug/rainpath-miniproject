@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -10,11 +10,15 @@ import {
   DropdownMenu, DropdownTrigger, DropdownContent, DropdownItem, DropdownSeparator
 } from '@/components/ui/DropdownMenu'
 import { relativeFromNow } from '@/lib/format-date'
+import { displayRunTitle } from '@/lib/display-run-title'
 import { formatFirstName, formatLastName, formatPatientFullName } from '@/lib/format-person-name'
 import { formatPhone } from '@/lib/phone'
 import { queryKeys } from '@/api/query-keys'
 import { listPatientProfiles, deletePatientProfile, type PatientProfile } from '@/api/patient-profiles'
-import { listPatientRunsForPatient, deletePatientRun } from '@/api/patient-runs'
+import {
+  listPatientRunsForPatient, deletePatientRun, updatePatientRun, type PatientRunForPatient
+} from '@/api/patient-runs'
+import { describeError } from '@/api/error-messages'
 import { ProfileFormDialog } from './ProfileFormDialog'
 import { DeleteProfileConfirm } from './DeleteProfileConfirm'
 import { CreateRunDialog } from '../PatientRunsList/CreateRunDialog'
@@ -34,6 +38,14 @@ function formatAddress(addr: PatientProfile['address']): string | null {
 function formatFrDate(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+function isoToDateInput(iso: string): string {
+  const d = new Date(iso)
+  const yyyy = d.getUTCFullYear()
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(d.getUTCDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
 }
 
 type SortBy =
@@ -410,6 +422,7 @@ interface DetailProps {
 function ProfileDetailDialog({ open, profile, onOpenChange, onEdit, onCreateRun }: DetailProps) {
   const qc = useQueryClient()
   const [confirmRunId, setConfirmRunId] = useState<string | null>(null)
+  const [editingRunId, setEditingRunId] = useState<string | null>(null)
   const runsQuery = useQuery({
     queryKey: profile ? [...queryKeys.patientRuns.all, 'patient', profile.id] : ['patient-runs', 'patient', 'none'],
     queryFn: () => listPatientRunsForPatient(profile!.id),
@@ -429,6 +442,15 @@ function ProfileDetailDialog({ open, profile, onOpenChange, onEdit, onCreateRun 
     },
     onError: () => toast.error('Échec de la suppression du parcours')
   })
+
+  const invalidateRunLists = (workflowId: string, runId: string) => {
+    if (profile) {
+      qc.invalidateQueries({ queryKey: [...queryKeys.patientRuns.all, 'patient', profile.id] })
+    }
+    qc.invalidateQueries({ queryKey: queryKeys.patientRuns.all })
+    qc.invalidateQueries({ queryKey: queryKeys.patientRuns.listForWorkflow(workflowId) })
+    qc.invalidateQueries({ queryKey: queryKeys.patientRuns.detail(runId) })
+  }
 
   if (!profile) return null
 
@@ -476,16 +498,30 @@ function ProfileDetailDialog({ open, profile, onOpenChange, onEdit, onCreateRun 
             <ul className="divide-y divide-border rounded-md border border-border">
               {runsQuery.data.map(r => {
                 const confirming = confirmRunId === r.id
+                const editing = editingRunId === r.id
                 const deleting = delRunMut.isPending && delRunMut.variables === r.id
                 return (
-                  <li key={r.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                    {confirming ? (
+                  <li
+                    key={r.id}
+                    className={editing ? 'px-3 py-3' : 'flex items-center justify-between gap-3 px-3 py-2'}
+                  >
+                    {editing ? (
+                      <ProfileRunEditRow
+                        run={r}
+                        onCancel={() => setEditingRunId(null)}
+                        onSaved={() => {
+                          invalidateRunLists(r.workflow.id, r.id)
+                          toast.success('Parcours mis à jour')
+                          setEditingRunId(null)
+                        }}
+                      />
+                    ) : confirming ? (
                       // Inline 2-step confirm — avoids nesting a second Radix Dialog inside the
                       // detail dialog (which causes focus-trap conflicts). The row morphs into
                       // a confirm prompt; cancel reverts.
                       <>
                         <span className="min-w-0 flex-1 text-sm text-fg">
-                          Supprimer le parcours sur <strong>{r.workflow.name}</strong> ?
+                          Supprimer le parcours <strong>{displayRunTitle(r.title)}</strong> ?
                           <span className="ml-1 text-xs text-fg-muted">(suppression douce, archivage)</span>
                         </span>
                         <div className="flex shrink-0 gap-2">
@@ -514,15 +550,34 @@ function ProfileDetailDialog({ open, profile, onOpenChange, onEdit, onCreateRun 
                           className="min-w-0 flex-1 text-sm text-fg hover:text-primary"
                           onClick={() => onOpenChange(false)}
                         >
-                          <span className="truncate font-medium">{r.workflow.name}</span>
-                          <span className="ml-2 text-xs text-fg-muted">Début {formatFrDate(r.startDate)}</span>
+                          <span className="block truncate font-medium" data-rp-tooltip={displayRunTitle(r.title)}>
+                            {displayRunTitle(r.title)}
+                          </span>
+                          <span className="block truncate text-xs text-fg-muted">
+                            {r.workflow.name}
+                            <span className="mx-1.5 text-fg-subtle">·</span>
+                            Début {formatFrDate(r.startDate)}
+                          </span>
                         </Link>
                         <span className="shrink-0 text-xs text-fg-muted tabular-nums">{relativeFromNow(r.updatedAt)}</span>
                         <IconButton
+                          icon="Pencil"
+                          size="sm"
+                          aria-label={`Éditer le parcours ${displayRunTitle(r.title)}`}
+                          onClick={() => {
+                            setConfirmRunId(null)
+                            setEditingRunId(r.id)
+                          }}
+                          className="text-fg-muted hover:text-fg"
+                        />
+                        <IconButton
                           icon="Trash2"
                           size="sm"
-                          aria-label={`Supprimer le parcours sur ${r.workflow.name}`}
-                          onClick={() => setConfirmRunId(r.id)}
+                          aria-label={`Supprimer le parcours ${displayRunTitle(r.title)}`}
+                          onClick={() => {
+                            setEditingRunId(null)
+                            setConfirmRunId(r.id)
+                          }}
                           className="text-fg-muted hover:text-danger"
                         />
                       </>
@@ -535,6 +590,73 @@ function ProfileDetailDialog({ open, profile, onOpenChange, onEdit, onCreateRun 
         </section>
       </div>
     </Dialog>
+  )
+}
+
+function ProfileRunEditRow({
+  run,
+  onCancel,
+  onSaved
+}: {
+  run: PatientRunForPatient
+  onCancel: () => void
+  onSaved: () => void
+}) {
+  const [title, setTitle] = useState(run.title)
+  const [startDate, setStartDate] = useState(isoToDateInput(run.startDate))
+  const [error, setError] = useState<string | null>(null)
+
+  const saveMut = useMutation({
+    mutationFn: () => updatePatientRun(run.id, {
+      title: title.trim(),
+      startDate: new Date(startDate + 'T00:00:00.000Z').toISOString()
+    }),
+    onSuccess: onSaved,
+    onError: e => setError(describeError(e, 'Impossible de mettre à jour le parcours.'))
+  })
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!title.trim()) { setError('Saisissez un intitulé pour le parcours'); return }
+    if (!startDate) { setError('Choisissez une date de début'); return }
+    saveMut.mutate()
+  }
+
+  return (
+    <form onSubmit={submit} className="flex min-w-0 flex-1 flex-col gap-2">
+      <p className="text-xs text-fg-muted">{run.workflow.name}</p>
+      <div>
+        <label htmlFor={`run-title-${run.id}`} className="sr-only">Intitulé du parcours</label>
+        <input
+          id={`run-title-${run.id}`}
+          type="text"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          maxLength={200}
+          className="h-8 w-full rounded-md border border-border bg-surface px-2 text-sm focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+      </div>
+      <div>
+        <label htmlFor={`run-start-${run.id}`} className="sr-only">Date de début (J+0)</label>
+        <input
+          id={`run-start-${run.id}`}
+          type="date"
+          value={startDate}
+          onChange={e => setStartDate(e.target.value)}
+          className="h-8 w-full rounded-md border border-border bg-surface px-2 text-sm focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+      </div>
+      {error ? <p role="alert" className="text-xs text-danger">{error}</p> : null}
+      <div className="flex shrink-0 justify-end gap-2">
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={saveMut.isPending}>
+          Annuler
+        </Button>
+        <Button type="submit" variant="primary" loading={saveMut.isPending}>
+          Enregistrer
+        </Button>
+      </div>
+    </form>
   )
 }
 

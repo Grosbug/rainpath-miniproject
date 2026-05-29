@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { START_Y } from '@rainpath/shared'
 import {
-  listPatientRunsForWorkflow, getPatientRun, createPatientRun, advancePatientRun, resetPatientRun
+  listPatientRunsForWorkflow, getPatientRun, createPatientRun, updatePatientRun,
+  advancePatientRun, resetPatientRun
 } from './patient-runs'
 
 const originalFetch = globalThis.fetch
@@ -17,6 +18,7 @@ function mockFetchOnce(response: { status: number; body: unknown }) {
 
 const FULL_RUN = {
   id: 'r1',
+  title: 'Suivi post-op',
   workflowId: 'w1',
   workflow: {
     id: 'w1', name: 'WF',
@@ -50,6 +52,7 @@ describe('patient-runs api client', () => {
       status: 200,
       body: [{
         id: 'r1',
+        title: 'Suivi post-op',
         patient: { id: 'p1', name: 'Alice Durand', deletedAt: null },
         currentNodeId: 's',
         startDate: '2026-05-28T10:00:00.000Z',
@@ -70,8 +73,24 @@ describe('patient-runs api client', () => {
 
   it('createPatientRun POSTs to workflow path', async () => {
     mockFetchOnce({ status: 201, body: FULL_RUN })
-    const run = await createPatientRun('w1', { patientId: 'p1' })
+    const run = await createPatientRun('w1', { patientId: 'p1', title: 'Suivi post-op' })
     expect(run.id).toBe('r1')
+  })
+
+  it('updatePatientRun PATCHes title and startDate', async () => {
+    mockFetchOnce({
+      status: 200,
+      body: {
+        id: 'r1',
+        title: 'Nouveau',
+        workflow: { id: 'w1', name: 'WF' },
+        currentNodeId: 's',
+        startDate: '2026-03-01T00:00:00.000Z',
+        updatedAt: '2026-05-28T12:00:00.000Z'
+      }
+    })
+    const run = await updatePatientRun('r1', { title: 'Nouveau', startDate: '2026-03-01T00:00:00.000Z' })
+    expect(run.title).toBe('Nouveau')
   })
 
   it('advancePatientRun POSTs to /advance', async () => {

@@ -144,6 +144,7 @@ describe('WorkflowsService', () => {
       data: {
         workflowId: wf.id,
         patientId: patient.id,
+        title: '',
         currentNodeId: null,
         history: '[]'
       }

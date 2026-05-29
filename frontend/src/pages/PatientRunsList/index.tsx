@@ -7,6 +7,7 @@ import { Icon, IconName } from '@/components/Icon'
 import { Button } from '@/components/ui/Button'
 import { relativeFromNow } from '@/lib/format-date'
 import { formatPatientDisplayName } from '@/lib/format-person-name'
+import { displayRunTitle } from '@/lib/display-run-title'
 import { queryKeys } from '@/api/query-keys'
 import { listPatientRunsForWorkflow } from '@/api/patient-runs'
 import { getWorkflow } from '@/api/workflows'
@@ -111,6 +112,7 @@ export default function PatientRunsList() {
             <table className="w-full text-sm">
               <thead className="bg-surface-muted text-xs font-medium uppercase tracking-wide text-fg-muted">
                 <tr>
+                  <th className="whitespace-nowrap px-4 py-3 text-left">Intitulé</th>
                   <th className="whitespace-nowrap px-4 py-3 text-left">Patient</th>
                   <th className="whitespace-nowrap px-4 py-3 text-left">Nœud courant</th>
                   <th className="w-28 whitespace-nowrap px-4 py-3 text-left">Début</th>
@@ -127,6 +129,16 @@ export default function PatientRunsList() {
                       className="cursor-pointer hover:bg-surface-muted"
                       onClick={() => navigate(to)}
                     >
+                      <td className="max-w-[14rem] px-4 py-3">
+                        <Link
+                          to={to}
+                          onClick={e => e.stopPropagation()}
+                          className="block truncate font-medium text-fg hover:text-primary focus-visible:outline-none focus-visible:underline"
+                          data-rp-tooltip={displayRunTitle(r.title)}
+                        >
+                          {displayRunTitle(r.title)}
+                        </Link>
+                      </td>
                       <td className="px-4 py-3">
                         <Link
                           to={to}

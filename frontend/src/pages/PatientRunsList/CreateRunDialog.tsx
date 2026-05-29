@@ -31,6 +31,7 @@ function todayIso(): string {
 export function CreateRunDialog({ open, onOpenChange, workflowId, patientId }: Props) {
   const [selectedPatient, setSelectedPatient] = useState<string>('')
   const [selectedWorkflow, setSelectedWorkflow] = useState<string>('')
+  const [title, setTitle] = useState<string>('')
   const [startDate, setStartDate] = useState<string>(todayIso())
   const [error, setError] = useState<string | null>(null)
   const qc = useQueryClient()
@@ -43,6 +44,7 @@ export function CreateRunDialog({ open, onOpenChange, workflowId, patientId }: P
     if (open) {
       setSelectedPatient(patientId ?? '')
       setSelectedWorkflow(workflowId ?? '')
+      setTitle('')
       setStartDate(todayIso())
       setError(null)
     }
@@ -75,6 +77,7 @@ export function CreateRunDialog({ open, onOpenChange, workflowId, patientId }: P
   const createMut = useMutation({
     mutationFn: () => createPatientRun(selectedWorkflow, {
       patientId: selectedPatient,
+      title: title.trim(),
       startDate: new Date(startDate + 'T00:00:00.000Z').toISOString()
     }),
     onSuccess: run => {
@@ -92,6 +95,7 @@ export function CreateRunDialog({ open, onOpenChange, workflowId, patientId }: P
     setError(null)
     if (!selectedPatient) { setError('Choisissez un profil patient'); return }
     if (!selectedWorkflow) { setError('Choisissez un workflow'); return }
+    if (!title.trim()) { setError('Saisissez un intitulé pour le parcours'); return }
     if (!startDate) { setError('Choisissez une date de début'); return }
     createMut.mutate()
   }
@@ -147,6 +151,20 @@ export function CreateRunDialog({ open, onOpenChange, workflowId, patientId }: P
           </div>
         ) : null}
         <div>
+          <label htmlFor="run-title" className="mb-1 block text-sm font-medium text-fg">
+            Intitulé du parcours <span className="text-danger">*</span>
+          </label>
+          <input
+            id="run-title"
+            type="text"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            maxLength={200}
+            placeholder="Ex. Suivi post-opératoire — mars 2026"
+            className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
+        <div>
           <label htmlFor="run-start" className="mb-1 block text-sm font-medium text-fg">
             Date de début (J+0) <span className="text-danger">*</span>
           </label>
@@ -177,7 +195,7 @@ export function CreateRunDialog({ open, onOpenChange, workflowId, patientId }: P
             type="submit"
             variant="primary"
             loading={createMut.isPending || detailLoading}
-            disabled={!selectedPatient || !selectedWorkflow || !startDate || workflowInvalid}
+            disabled={!selectedPatient || !selectedWorkflow || !title.trim() || !startDate || workflowInvalid}
           >
             Démarrer
           </Button>

@@ -1,6 +1,7 @@
 import { BadRequestException, HttpException, Injectable, NotFoundException } from '@nestjs/common'
 import type {
-  AdvancePatientRunDto, CreatePatientRunDto, FocusPatientRunDto, Graph, PatientGender, PostalAddress
+  AdvancePatientRunDto, CreatePatientRunDto, FocusPatientRunDto, Graph, PatientGender, PostalAddress,
+  UpdatePatientRunDto
 } from '@rainpath/shared'
 import { AdvanceRunError, applyRunAdvance, validateGraph } from '@rainpath/shared'
 import { PrismaService, buildSoftDeleteClient } from '../prisma/prisma.service'
@@ -12,6 +13,7 @@ type RunHistoryEntry = { nodeId: string; enteredAt: string; outcome?: string }
 
 type PatientRunSummary = {
   id: string
+  title: string
   patient: { id: string; name: string; deletedAt: string | null }
   currentNodeId: string | null
   startDate: string
@@ -20,6 +22,7 @@ type PatientRunSummary = {
 
 type PatientRunForPatient = {
   id: string
+  title: string
   workflow: { id: string; name: string }
   currentNodeId: string | null
   startDate: string
@@ -28,6 +31,7 @@ type PatientRunForPatient = {
 
 type PatientRunFull = {
   id: string
+  title: string
   workflowId: string
   workflow: { id: string; name: string; graph: Graph }
   patient: {
@@ -101,6 +105,7 @@ export class PatientRunsService {
       const p = byId.get(r.patientId)
       return {
         id: r.id,
+        title: r.title,
         patient: {
           id: r.patientId,
           name: p ? fullName(p) : 'Patient inconnu',
@@ -134,6 +139,7 @@ export class PatientRunsService {
       const wf = byId.get(r.workflowId)
       return {
         id: r.id,
+        title: r.title,
         workflow: {
           id: r.workflowId,
           name: wf?.name ?? 'Workflow inconnu'
@@ -160,6 +166,7 @@ export class PatientRunsService {
 
     return {
       id: row.id,
+      title: row.title,
       workflowId: row.workflowId,
       workflow: { id: wf.id, name: wf.name, graph },
       patient: {
@@ -208,6 +215,7 @@ export class PatientRunsService {
       data: {
         workflowId,
         patientId: dto.patientId,
+        title: dto.title,
         currentNodeId: startNode.id,
         focusedNodeId: startNode.id,
         history: JSON.stringify(history),
@@ -216,6 +224,34 @@ export class PatientRunsService {
     })
 
     return this.get(row.id)
+  }
+
+  async update(id: string, dto: UpdatePatientRunDto): Promise<PatientRunForPatient> {
+    const row = await this.db.patientRun.findUnique({ where: { id } })
+    if (!row) throw new NotFoundException(`PatientRun ${id} not found`)
+
+    if (dto.title === undefined && dto.startDate === undefined) {
+      throw new BadRequestException('Aucun champ à mettre à jour')
+    }
+
+    const data: { title?: string; startDate?: Date } = {}
+    if (dto.title !== undefined) data.title = dto.title
+    if (dto.startDate !== undefined) data.startDate = new Date(dto.startDate)
+
+    const updated = await this.prisma.patientRun.update({ where: { id }, data })
+    const wf = await this.prisma.workflow.findUnique({ where: { id: updated.workflowId } })
+
+    return {
+      id: updated.id,
+      title: updated.title,
+      workflow: {
+        id: updated.workflowId,
+        name: wf?.name ?? 'Workflow inconnu'
+      },
+      currentNodeId: updated.currentNodeId,
+      startDate: updated.startDate.toISOString(),
+      updatedAt: updated.updatedAt.toISOString()
+    }
   }
 
   async advance(id: string, dto: AdvancePatientRunDto): Promise<PatientRunFull> {

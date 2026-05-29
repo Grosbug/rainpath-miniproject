@@ -6,6 +6,7 @@ import { ApiError } from '@/api/client'
 import { focusPatientRun, getPatientRun } from '@/api/patient-runs'
 import { describeError } from '@/api/error-messages'
 import { formatPatientFullName } from '@/lib/format-person-name'
+import { displayRunTitle } from '@/lib/display-run-title'
 import { toast } from 'sonner'
 import { PatientCanvas } from './PatientCanvas'
 import { PatientProfilePanel } from './PatientProfilePanel'
@@ -107,18 +108,21 @@ function LoadedView({ run, workflowId }: { run: import('@/api/patient-runs').Pat
           Parcours
         </Link>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-sm font-semibold text-fg">
+          <h1 className="truncate text-sm font-semibold text-fg" data-rp-tooltip={displayRunTitle(run.title)}>
+            {displayRunTitle(run.title)}
+          </h1>
+          <p className="truncate text-xs text-fg-muted">
             {formatPatientFullName(run.patient)}
-            <span className="ml-2 text-xs font-normal text-fg-muted">
-              · J+0 le {new Date(run.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-            </span>
+            <span className="mx-1.5 text-fg-subtle">·</span>
+            {run.workflow.name}
+            <span className="mx-1.5 text-fg-subtle">·</span>
+            J+0 le {new Date(run.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             {run.patient.deletedAt ? (
               <span className="ml-2 inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 text-xs text-fg-muted">
                 Patient supprimé
               </span>
             ) : null}
-          </h1>
-          <p className="truncate text-xs text-fg-muted">{run.workflow.name}</p>
+          </p>
         </div>
         <Link
           to={`/workflows/${run.workflowId}`}

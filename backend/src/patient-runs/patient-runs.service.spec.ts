@@ -62,7 +62,8 @@ describe('PatientRunsService', () => {
 
   it('create() seeds currentNodeId to start and history with one entry', async () => {
     const { wf, patient } = await seedWorkflowAndPatient()
-    const run = await service.create(wf.id, { patientId: patient.id })
+    const run = await service.create(wf.id, { patientId: patient.id, title: 'Parcours test' })
+    expect(run.title).toBe('Parcours test')
     expect(run.currentNodeId).toBe('s')
     expect(run.history).toHaveLength(1)
     expect(run.history[0]?.nodeId).toBe('s')
@@ -70,7 +71,7 @@ describe('PatientRunsService', () => {
 
   it('listForWorkflow() returns runs (incl. soft-deleted patients in the join)', async () => {
     const { wf, patient } = await seedWorkflowAndPatient()
-    await service.create(wf.id, { patientId: patient.id })
+    await service.create(wf.id, { patientId: patient.id, title: 'Liste WF' })
     await prisma.patientProfile.update({ where: { id: patient.id }, data: { deletedAt: new Date() } })
     const list = await service.listForWorkflow(wf.id)
     expect(list).toHaveLength(1)
@@ -80,8 +81,9 @@ describe('PatientRunsService', () => {
 
   it('get() returns the full run with parsed graph and patient', async () => {
     const { wf, patient } = await seedWorkflowAndPatient()
-    const created = await service.create(wf.id, { patientId: patient.id })
+    const created = await service.create(wf.id, { patientId: patient.id, title: 'Détail' })
     const full = await service.get(created.id)
+    expect(full.title).toBe('Détail')
     expect(full.workflow.id).toBe(wf.id)
     expect(full.workflow.graph.nodes.length).toBe(3)
     expect(full.patient.name).toBe('Alice Durand')
@@ -89,7 +91,7 @@ describe('PatientRunsService', () => {
 
   it('advance() with simple-mode email routes via success on a matching outcome', async () => {
     const { wf, patient } = await seedWorkflowAndPatient()
-    const created = await service.create(wf.id, { patientId: patient.id })
+    const created = await service.create(wf.id, { patientId: patient.id, title: 'Avance' })
     await service.advance(created.id, {})
     const afterEmail = await service.advance(created.id, { outcome: 'delivered' })
     expect(afterEmail.currentNodeId).toBe('e')
@@ -98,7 +100,7 @@ describe('PatientRunsService', () => {
 
   it('advance() on an end node throws 400', async () => {
     const { wf, patient } = await seedWorkflowAndPatient()
-    const created = await service.create(wf.id, { patientId: patient.id })
+    const created = await service.create(wf.id, { patientId: patient.id, title: 'Fin' })
     await service.advance(created.id, {})
     await service.advance(created.id, { outcome: 'delivered' })
     await expect(service.advance(created.id, {})).rejects.toMatchObject({ status: 400 })
@@ -125,7 +127,7 @@ describe('PatientRunsService', () => {
     }
     const wf = await prisma.workflow.create({ data: { name: 'Parallel', graph: JSON.stringify(parallelGraph) } })
     const patient = await prisma.patientProfile.create({ data: { firstName: 'A', lastName: 'B', gender: 'female' } })
-    const run = await service.create(wf.id, { patientId: patient.id })
+    const run = await service.create(wf.id, { patientId: patient.id, title: 'Parallèle' })
     expect(run.activeFrontiers).toEqual(expect.arrayContaining(['a', 'b']))
 
     let state = await service.focus(run.id, { nodeId: 'a' })
@@ -143,9 +145,22 @@ describe('PatientRunsService', () => {
     expect(state.activeFrontiers).toContain('e')
   })
 
+  it('update() changes title and startDate', async () => {
+    const { wf, patient } = await seedWorkflowAndPatient()
+    const created = await service.create(wf.id, { patientId: patient.id, title: 'Avant' })
+    const updated = await service.update(created.id, {
+      title: 'Après',
+      startDate: '2026-01-15T00:00:00.000Z'
+    })
+    expect(updated.title).toBe('Après')
+    expect(updated.startDate).toBe('2026-01-15T00:00:00.000Z')
+    const full = await service.get(created.id)
+    expect(full.title).toBe('Après')
+  })
+
   it('reset() rewinds currentNodeId to start and seeds history with one entry', async () => {
     const { wf, patient } = await seedWorkflowAndPatient()
-    const created = await service.create(wf.id, { patientId: patient.id })
+    const created = await service.create(wf.id, { patientId: patient.id, title: 'Reset' })
     await service.advance(created.id, {})
     await service.advance(created.id, { outcome: 'delivered' })
     const reset = await service.reset(created.id)

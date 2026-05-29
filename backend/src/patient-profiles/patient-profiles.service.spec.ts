@@ -70,7 +70,7 @@ describe('PatientProfilesService', () => {
       data: { name: 'WF', graph: JSON.stringify({ nodes: [], edges: [] }) }
     })
     const run = await prisma.patientRun.create({
-      data: { workflowId: wf.id, patientId: p.id, currentNodeId: null, history: '[]' }
+      data: { workflowId: wf.id, patientId: p.id, title: '', currentNodeId: null, history: '[]' }
     })
     await service.softDelete(p.id)
     const reloaded = await prisma.patientRun.findUnique({ where: { id: run.id } })
