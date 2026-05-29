@@ -2,7 +2,7 @@ import { useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import { Icon, IconName } from '@/components/Icon'
 import { Button } from '@/components/ui/Button'
-import { useModalState, type NodeKind } from '../modal-state'
+import { useModalState, useTrackOverlayOpen, type NodeKind } from '../modal-state'
 import { nodeFamilyAccentColor, nodeFamilyChrome, SEND_KIND_FAMILY } from '../node-family'
 
 const OPTIONS: Array<{ kind: NodeKind; label: string; icon: IconName }> = [
@@ -14,6 +14,7 @@ const OPTIONS: Array<{ kind: NodeKind; label: string; icon: IconName }> = [
 
 export function NewTemplateButton() {
   const [open, setOpen] = useState(false)
+  useTrackOverlayOpen(open)
   const openModal = useModalState(s => s.open)
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>

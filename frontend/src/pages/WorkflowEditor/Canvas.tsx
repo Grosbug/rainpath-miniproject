@@ -97,7 +97,7 @@ function CanvasInner() {
   const addNode = useEditorStore(s => s.addNode)
   const addEdge = useEditorStore(s => s.addEdge)
   const openModal = useModalState(s => s.open)
-  const modalOpen = useModalState(s => s.content !== null)
+  const modalOpen = useModalState(s => s.content !== null || s.overlayCount > 0)
   const { screenToFlowPosition } = useReactFlow()
   // 56 px of breathing room left of J+0 so the Start node and the timeline labels stay clear
 // of the canvas left edge at any zoom level — without it, deep-zoomed views clip the origin.
@@ -354,8 +354,8 @@ useLeftAnchoredZoom(56)
         connectOnClick={false}
         isValidConnection={isValidConnection}
         zoomOnDoubleClick={false}
-        zoomOnScroll={!modalOpen}
-        zoomOnPinch={!modalOpen}
+        zoomOnScroll={!modalOpen && !popover}
+        zoomOnPinch={!modalOpen && !popover}
         panOnDrag={[1, 2]}
         selectionOnDrag={false}
         deleteKeyCode={null}

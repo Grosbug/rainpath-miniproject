@@ -1,10 +1,10 @@
-import { MouseEvent } from 'react'
+import { MouseEvent, useState } from 'react'
 import { Icon } from '@/components/Icon'
 import {
   DropdownMenu, DropdownTrigger, DropdownContent, DropdownItem, DropdownSeparator
 } from '@/components/ui/DropdownMenu'
 import { useEditorStore } from '../store'
-import { useModalState, type NodeKind } from '../modal-state'
+import { useModalState, useTrackOverlayOpen, type NodeKind } from '../modal-state'
 
 interface NodeKebabProps {
   nodeId: string
@@ -20,6 +20,8 @@ interface NodeKebabProps {
 export function NodeKebab({ nodeId, kind }: NodeKebabProps) {
   const removeNode = useEditorStore(s => s.removeNode)
   const openModal = useModalState(s => s.open)
+  const [open, setOpen] = useState(false)
+  useTrackOverlayOpen(open)
 
   // Stop React Flow from interpreting the click as a node-drag / selection-toggle.
   const stop = (e: MouseEvent) => e.stopPropagation()
@@ -35,7 +37,7 @@ export function NodeKebab({ nodeId, kind }: NodeKebabProps) {
       onMouseDown={stop}
       onClick={stop}
     >
-      <DropdownMenu>
+      <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownTrigger asChild>
           <button
             type='button'

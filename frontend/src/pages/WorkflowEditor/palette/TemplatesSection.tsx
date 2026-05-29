@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/DropdownMenu'
 import { queryKeys } from '@/api/query-keys'
 import { listNodeTemplates, deleteNodeTemplate } from '@/api/node-templates'
-import { useModalState, type NodeKind } from '../modal-state'
+import { useModalState, useTrackOverlayOpen, type NodeKind } from '../modal-state'
 import { NewTemplateButton } from './NewTemplateButton'
 import { nodeFamilyAccentColor, nodeFamilyChrome, SEND_KIND_FAMILY } from '../node-family'
 
@@ -112,44 +112,16 @@ export function TemplatesSection() {
                 </Accordion.Header>
                 <Accordion.Content className="space-y-1 pb-2">
                   {items.map(t => (
-                    <div
+                    <TemplateRow
                       key={t.id}
-                      draggable
+                      template={t}
+                      kindIcon={KIND_ICON[kind]}
+                      chrome={chrome}
+                      accentColor={nodeFamilyAccentColor(family)}
+                      onOpenEdit={() => open({ mode: 'template-edit', template: t })}
+                      onDelete={() => delMut.mutate(t.id)}
                       onDragStart={e => onDragStart(e, t)}
-                      onClick={() => open({ mode: 'template-edit', template: t })}
-                      className="group relative flex h-10 cursor-pointer items-center gap-2 overflow-hidden rounded-md border py-0 pl-3 pr-1 text-sm shadow-elev-1 transition-shadow hover:shadow-elev-2 active:cursor-grabbing"
-                      style={chrome.card}
-                    >
-                      <div
-                        className="absolute left-0 top-0 h-full w-[3px] rounded-l-md"
-                        style={chrome.accent}
-                        aria-hidden="true"
-                      />
-                      <Icon name="GripVertical" size={16} className="text-fg-subtle" />
-                      <Icon name={KIND_ICON[kind]} size={16} style={{ color: nodeFamilyAccentColor(family) }} />
-                      <span className="min-w-0 flex-1 truncate font-medium text-fg">
-                        {t.name}
-                      </span>
-                      <DropdownMenu>
-                        <DropdownTrigger asChild>
-                          <IconButton
-                            icon="EllipsisVertical"
-                            aria-label={`Actions sur ${t.name}`}
-                            size="sm"
-                            onClick={e => e.stopPropagation()}
-                          />
-                        </DropdownTrigger>
-                        <DropdownContent>
-                          <DropdownItem icon="Pencil" onSelect={() => open({ mode: 'template-edit', template: t })}>
-                            Éditer
-                          </DropdownItem>
-                          <DropdownSeparator />
-                          <DropdownItem icon="Trash2" danger onSelect={() => delMut.mutate(t.id)}>
-                            Supprimer
-                          </DropdownItem>
-                        </DropdownContent>
-                      </DropdownMenu>
-                    </div>
+                    />
                   ))}
                 </Accordion.Content>
               </Accordion.Item>
@@ -157,6 +129,66 @@ export function TemplatesSection() {
           })}
         </Accordion.Root>
       )}
+    </div>
+  )
+}
+
+function TemplateRow({
+  template,
+  kindIcon,
+  chrome,
+  accentColor,
+  onOpenEdit,
+  onDelete,
+  onDragStart
+}: {
+  template: NodeTemplate
+  kindIcon: IconName
+  chrome: ReturnType<typeof nodeFamilyChrome>
+  accentColor: string
+  onOpenEdit: () => void
+  onDelete: () => void
+  onDragStart: (e: DragEvent<HTMLDivElement>) => void
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  useTrackOverlayOpen(menuOpen)
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onClick={onOpenEdit}
+      className="group relative flex h-10 cursor-pointer items-center gap-2 overflow-hidden rounded-md border py-0 pl-3 pr-1 text-sm shadow-elev-1 transition-shadow hover:shadow-elev-2 active:cursor-grabbing"
+      style={chrome.card}
+    >
+      <div
+        className="absolute left-0 top-0 h-full w-[3px] rounded-l-md"
+        style={chrome.accent}
+        aria-hidden="true"
+      />
+      <Icon name="GripVertical" size={16} className="text-fg-subtle" />
+      <Icon name={kindIcon} size={16} style={{ color: accentColor }} />
+      <span className="min-w-0 flex-1 truncate font-medium text-fg">
+        {template.name}
+      </span>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownTrigger asChild>
+          <IconButton
+            icon="EllipsisVertical"
+            aria-label={`Actions sur ${template.name}`}
+            size="sm"
+            onClick={e => e.stopPropagation()}
+          />
+        </DropdownTrigger>
+        <DropdownContent>
+          <DropdownItem icon="Pencil" onSelect={onOpenEdit}>
+            Éditer
+          </DropdownItem>
+          <DropdownSeparator />
+          <DropdownItem icon="Trash2" danger onSelect={onDelete}>
+            Supprimer
+          </DropdownItem>
+        </DropdownContent>
+      </DropdownMenu>
     </div>
   )
 }
