@@ -7,7 +7,7 @@ import type { Graph } from '@rainpath/shared'
 type WhatsAppNodeData = Extract<Graph['nodes'][number]['data'], { kind: 'send_whatsapp' }>
 
 export function SendWhatsAppNode({ data, selected }: NodeProps) {
-  const d = data as WhatsAppNodeData & { _dayX?: number }
+  const d = data as WhatsAppNodeData & { _dayX?: number; _errorCount?: number; _warningCount?: number }
   return (
     <NodeCard
       family="whatsapp"
@@ -19,6 +19,8 @@ export function SendWhatsAppNode({ data, selected }: NodeProps) {
       }
       selected={!!selected}
       dayX={d._dayX}
+      errorCount={d._errorCount}
+      warningCount={d._warningCount}
       handles={
         <>
           <Handle

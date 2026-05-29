@@ -18,14 +18,34 @@ import { ConnectionPreview } from './ConnectionPreview'
 
 const PX_PER_DAY = 28
 
-function toRFNodes(nodes: ReturnType<typeof useEditorStore.getState>['nodes']): RFNode[] {
+function toRFNodes(
+  nodes: ReturnType<typeof useEditorStore.getState>['nodes'],
+  errors: ReturnType<typeof useEditorStore.getState>['validationErrors'],
+  warnings: ReturnType<typeof useEditorStore.getState>['validationWarnings']
+): RFNode[] {
+  // Index validation issues by nodeId so the node renderer can show a small alert badge
+  // on the affected card. Counts (not just booleans) so the tooltip can say "3 erreurs".
+  const errorByNode = new Map<string, number>()
+  const warningByNode = new Map<string, number>()
+  for (const e of errors) {
+    if (e.nodeId) errorByNode.set(e.nodeId, (errorByNode.get(e.nodeId) ?? 0) + 1)
+  }
+  for (const w of warnings) {
+    if (w.nodeId) warningByNode.set(w.nodeId, (warningByNode.get(w.nodeId) ?? 0) + 1)
+  }
   return nodes.map(n => ({
     id: n.id,
     type: n.data.kind,
     position: { x: n.position.x * PX_PER_DAY, y: n.position.y },
-    // Inject _dayX (cumulative delay from start, in days) so node renderers can show
-    // a "J+N" badge. Non-store field — not persisted (toRFNodes is read-only mapping).
-    data: { ...n.data, _dayX: Math.max(0, Math.round(n.position.x)) },
+    // Inject _dayX (cumulative delay from start, in days) + _errorCount / _warningCount
+    // so node renderers can show a "J+N" badge and an alert pip. Non-store fields — not
+    // persisted (toRFNodes is read-only mapping).
+    data: {
+      ...n.data,
+      _dayX: Math.max(0, Math.round(n.position.x)),
+      _errorCount: errorByNode.get(n.id) ?? 0,
+      _warningCount: warningByNode.get(n.id) ?? 0
+    },
     draggable: n.data.kind !== 'start'
   }))
 }
@@ -53,6 +73,8 @@ const REJECTION_MSG: Record<string, string> = {
 function CanvasInner() {
   const nodes = useEditorStore(s => s.nodes)
   const edges = useEditorStore(s => s.edges)
+  const validationErrors = useEditorStore(s => s.validationErrors)
+  const validationWarnings = useEditorStore(s => s.validationWarnings)
   const setSelectedNode = useEditorStore(s => s.setSelectedNode)
   const setSelectedEdge = useEditorStore(s => s.setSelectedEdge)
   const updateNodePositionDrag = useEditorStore(s => s.updateNodePositionDrag)
@@ -79,7 +101,10 @@ useLeftAnchoredZoom(56)
     return () => document.removeEventListener('mousemove', onMove)
   }, [])
 
-  const rfNodes = useMemo(() => toRFNodes(nodes), [nodes])
+  const rfNodes = useMemo(
+    () => toRFNodes(nodes, validationErrors, validationWarnings),
+    [nodes, validationErrors, validationWarnings]
+  )
   const rfEdges = useMemo(() => toRFEdges(edges), [edges])
 
   const [popover, setPopover] = useState<{ edgeId: string; anchor: { x: number; y: number } } | null>(null)

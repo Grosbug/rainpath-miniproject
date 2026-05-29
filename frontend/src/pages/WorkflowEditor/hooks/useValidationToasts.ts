@@ -1,7 +1,10 @@
 import { useEffect, useRef } from 'react'
-import { showAnchoredToast } from '@/components/AnchoredToasts'
+import { showAnchoredToast, type AnchoredToastType } from '@/components/AnchoredToasts'
 import { useEditorStore } from '../store'
 import { friendlyValidationMessage } from '../validation-messages'
+import { formatNodeLabel } from '../format-node-label'
+import type { ValidationError } from '../store'
+import type { GraphNode } from '../snapshot'
 
 /** Stable identity for a validation entry — same code + same target = same problem. */
 function key(e: { code: string; nodeId?: string; edgeId?: string }): string {
@@ -39,9 +42,22 @@ function anchorForError(e: { nodeId?: string; edgeId?: string }): { x: number; y
  * Initial load is silent: only NEW errors trigger toasts. Loading an already-broken workflow
  * doesn't spam the user — the persistent ValidationStatusBadge in the top bar covers that.
  */
+/** Resolve the user-facing text for an entry: optional node label prefix + friendly body.
+ *  `incomplete_status_coverage` / `status_not_in_channel` carry detail in their raw message
+ *  (the actual statuses) — preserve it; everything else uses the friendly translation. */
+function formatBody(e: ValidationError, nodes: ReadonlyArray<GraphNode>): string {
+  const label = formatNodeLabel(e.nodeId, nodes)
+  const useRaw = e.code === 'incomplete_status_coverage' || e.code === 'status_not_in_channel'
+  const body = useRaw ? e.message : friendlyValidationMessage(e.code, e.message)
+  return label ? `${label} — ${body}` : body
+}
+
 export function useValidationToasts() {
   const errors = useEditorStore(s => s.validationErrors)
-  const seen = useRef<Set<string> | null>(null)
+  const warnings = useEditorStore(s => s.validationWarnings)
+  const nodes = useEditorStore(s => s.nodes)
+  const seenErrors = useRef<Set<string> | null>(null)
+  const seenWarnings = useRef<Set<string> | null>(null)
   const mouse = useRef({ x: window.innerWidth / 2, y: 120 })
 
   useEffect(() => {
@@ -50,27 +66,30 @@ export function useValidationToasts() {
     return () => document.removeEventListener('mousemove', onMove)
   }, [])
 
+  // Fire toasts for both new errors AND new warnings. Warnings get the orange "warning"
+  // tone so they're visually distinct from blocking errors. The popover in the top bar
+  // still carries the persistent list — the toast is the in-the-moment nudge.
   useEffect(() => {
-    if (seen.current === null) {
-      seen.current = new Set(errors.map(key))
-      return
+    function surface(entries: ValidationError[], seen: { current: Set<string> | null }, type: AnchoredToastType) {
+      if (seen.current === null) {
+        seen.current = new Set(entries.map(key))
+        return
+      }
+      const currentKeys = new Set(entries.map(key))
+      for (const e of entries) {
+        if (seen.current.has(key(e))) continue
+        const anchor = anchorForError(e) ?? { x: mouse.current.x, y: mouse.current.y + 24 }
+        showAnchoredToast({
+          message: formatBody(e, nodes),
+          type,
+          x: anchor.x,
+          y: anchor.y,
+          durationMs: 4500
+        })
+      }
+      seen.current = currentKeys
     }
-    const currentKeys = new Set(errors.map(key))
-    for (const e of errors) {
-      const k = key(e)
-      if (seen.current.has(k)) continue
-      // Prefer the affected element; otherwise drop the toast right below the cursor's
-      // current position so it visibly relates to the user's latest action.
-      const fallback = { x: mouse.current.x, y: mouse.current.y + 24 }
-      const anchor = anchorForError(e) ?? fallback
-      showAnchoredToast({
-        message: friendlyValidationMessage(e.code, e.message),
-        type: 'error',
-        x: anchor.x,
-        y: anchor.y,
-        durationMs: 4500
-      })
-    }
-    seen.current = currentKeys
-  }, [errors])
+    surface(errors, seenErrors, 'error')
+    surface(warnings, seenWarnings, 'warning')
+  }, [errors, warnings, nodes])
 }

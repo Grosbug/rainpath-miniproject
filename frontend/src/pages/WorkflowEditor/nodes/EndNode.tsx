@@ -3,7 +3,7 @@ import { NodeCard } from './NodeCard'
 import { handleClass } from './handle-styles'
 
 export function EndNode({ data, selected }: NodeProps) {
-  const dayX = (data as { _dayX?: number })._dayX
+  const d = data as { _dayX?: number; _errorCount?: number; _warningCount?: number }
   return (
     <NodeCard
       family="end"
@@ -12,7 +12,9 @@ export function EndNode({ data, selected }: NodeProps) {
       title="Patient relancé"
       thickBorder
       selected={!!selected}
-      dayX={dayX}
+      dayX={d._dayX}
+      errorCount={d._errorCount}
+      warningCount={d._warningCount}
       handles={
         <Handle
           type="target"

@@ -24,6 +24,12 @@ interface NodeCardProps {
   thickBorder?: boolean
   /** Cumulative delay from start in days. When defined, a "J+N" badge appears top-right. */
   dayX?: number
+  /** Number of blocking validation errors targeting this node — drawn as a small red
+   *  alert pip top-left so the user can spot the culprit at a glance. */
+  errorCount?: number
+  /** Same idea for warnings (orange triangle). Errors take precedence over warnings
+   *  when both are present — a single most-severe pip is rendered. */
+  warningCount?: number
 }
 
 /**
@@ -35,7 +41,8 @@ interface NodeCardProps {
  * arbitrary class names like `bg-[var(--node-${family}-bg)]`).
  */
 export function NodeCard({
-  family, icon, title, familyLabel, details, handles, selected, thickBorder, dayX
+  family, icon, title, familyLabel, details, handles, selected, thickBorder, dayX,
+  errorCount = 0, warningCount = 0
 }: NodeCardProps) {
   const ring = selected ? 'ring-2 ring-primary ring-offset-2 ring-offset-bg shadow-elev-2' : 'shadow-elev-1'
   const borderWidth = thickBorder ? 'border-2' : 'border'
@@ -68,12 +75,33 @@ export function NodeCard({
         style={accentStyle}
         aria-hidden="true"
       />
+
+      {/* Validation pip — top-left, most-severe-wins. Errors stack visually with the strip
+          but stay on top thanks to z-index; pip size matches the J+N badge for symmetry. */}
+      {errorCount > 0 ? (
+        <span
+          className="absolute -left-1.5 -top-1.5 z-10 inline-flex h-5 min-w-[1.25rem] items-center justify-center gap-0.5 rounded-full bg-danger px-1 text-[10px] font-semibold text-white shadow-elev-1 ring-2 ring-bg"
+          data-rp-tooltip={`${errorCount} erreur${errorCount > 1 ? 's' : ''} sur ce nœud — cliquer sur le badge en haut pour le détail`}
+          aria-label={`${errorCount} erreur${errorCount > 1 ? 's' : ''} de validation sur ce nœud`}
+        >
+          <Icon name="CircleAlert" size={16} />
+          {errorCount > 1 ? <span className="tabular-nums">{errorCount}</span> : null}
+        </span>
+      ) : warningCount > 0 ? (
+        <span
+          className="absolute -left-1.5 -top-1.5 z-10 inline-flex h-5 min-w-[1.25rem] items-center justify-center gap-0.5 rounded-full bg-warning px-1 text-[10px] font-semibold text-white shadow-elev-1 ring-2 ring-bg"
+          data-rp-tooltip={`${warningCount} avertissement${warningCount > 1 ? 's' : ''} sur ce nœud`}
+          aria-label={`${warningCount} avertissement${warningCount > 1 ? 's' : ''} de validation sur ce nœud`}
+        >
+          <Icon name="TriangleAlert" size={16} />
+          {warningCount > 1 ? <span className="tabular-nums">{warningCount}</span> : null}
+        </span>
+      ) : null}
       {dayX !== undefined && (
         <span
           className="absolute right-2 top-2 rounded-full border bg-surface px-2 py-0.5 text-[10px] font-semibold tabular-nums leading-none shadow-elev-1"
           style={badgeStyle}
           aria-label={`Délai cumulé depuis le départ : ${dayX} jour${dayX > 1 ? 's' : ''}`}
-          data-rp-tooltip="Délai cumulé depuis le départ"
         >
           J+{dayX}
         </span>
@@ -82,7 +110,7 @@ export function NodeCard({
         <Icon name={icon} size={16} className="shrink-0" />
         <span className="truncate">{familyLabel}</span>
       </div>
-      <h3 className="mt-1 text-sm font-semibold text-fg" data-rp-tooltip={title}>
+      <h3 className="mt-1 text-sm font-semibold text-fg">
         <span className="line-clamp-1">{title}</span>
       </h3>
       {details ? <div className="mt-2 space-y-1 text-xs text-fg-muted">{details}</div> : null}

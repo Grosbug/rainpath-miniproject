@@ -2,6 +2,19 @@ import { useState, useRef, useEffect } from 'react'
 import { Icon } from '@/components/Icon'
 import { useEditorStore } from './store'
 import { friendlyValidationMessage } from './validation-messages'
+import { formatNodeLabel } from './format-node-label'
+import type { ValidationError } from './store'
+import type { GraphNode } from './snapshot'
+
+/** Build the final user-facing string for a validation entry: optional node label prefix +
+ *  friendly translation. `incomplete_status_coverage` uses the raw message instead of the
+ *  generic friendly one because the raw already enumerates the missing statuses. */
+function formatEntry(e: ValidationError, nodes: ReadonlyArray<GraphNode>): string {
+  const label = formatNodeLabel(e.nodeId, nodes)
+  const useRaw = e.code === 'incomplete_status_coverage' || e.code === 'status_not_in_channel'
+  const body = useRaw ? e.message : friendlyValidationMessage(e.code, e.message)
+  return label ? `${label} — ${body}` : body
+}
 
 /**
  * Live validity indicator for the editor's top bar — sits next to the SaveStatusBadge.
@@ -18,6 +31,7 @@ import { friendlyValidationMessage } from './validation-messages'
 export function ValidationStatusBadge() {
   const errors = useEditorStore(s => s.validationErrors)
   const warnings = useEditorStore(s => s.validationWarnings)
+  const nodes = useEditorStore(s => s.nodes)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement | null>(null)
 
@@ -107,7 +121,7 @@ export function ValidationStatusBadge() {
                         <Icon name='CircleAlert' size={16} className='mt-0.5 shrink-0 text-danger' />
                         <span className='text-fg'>
                           <span className='font-mono text-[10px] text-fg-muted'>[{e.code}]</span>{' '}
-                          {friendlyValidationMessage(e.code, e.message)}
+                          {formatEntry(e, nodes)}
                         </span>
                       </li>
                     ))}
@@ -130,7 +144,7 @@ export function ValidationStatusBadge() {
                         <Icon name='TriangleAlert' size={16} className='mt-0.5 shrink-0 text-warning' />
                         <span className='text-fg'>
                           <span className='font-mono text-[10px] text-fg-muted'>[{w.code}]</span>{' '}
-                          {friendlyValidationMessage(w.code, w.message)}
+                          {formatEntry(w, nodes)}
                         </span>
                       </li>
                     ))}

@@ -7,7 +7,7 @@ import type { Graph } from '@rainpath/shared'
 type PostalNodeData = Extract<Graph['nodes'][number]['data'], { kind: 'send_postal' }>
 
 export function SendPostalNode({ data, selected }: NodeProps) {
-  const d = data as PostalNodeData & { _dayX?: number }
+  const d = data as PostalNodeData & { _dayX?: number; _errorCount?: number; _warningCount?: number }
   return (
     <NodeCard
       family="postal"
@@ -22,6 +22,8 @@ export function SendPostalNode({ data, selected }: NodeProps) {
       }
       selected={!!selected}
       dayX={d._dayX}
+      errorCount={d._errorCount}
+      warningCount={d._warningCount}
       handles={
         <>
           <Handle
