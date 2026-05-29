@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import type { Graph } from '@rainpath/shared'
+import { nodeDisplayTitle } from '@rainpath/shared'
 import { Button } from '@/components/ui/Button'
 import { Icon, type IconName } from '@/components/Icon'
 import type { DaySimulator } from './use-day-simulator'
@@ -18,10 +19,10 @@ function shortNodeLabel(graph: Graph, nodeId: string): string {
   const d = n.data
   if (d.kind === 'start') return 'Départ'
   if (d.kind === 'end') return 'Fin'
-  if (d.kind === 'send_email')    return `Email « ${d.params.subject || '(sans sujet)'} »`
-  if (d.kind === 'send_sms')      return `SMS « ${d.params.body.slice(0, 24) || '(vide)'} »`
-  if (d.kind === 'send_whatsapp') return `WhatsApp « ${d.params.body.slice(0, 24) || '(vide)'} »`
-  if (d.kind === 'send_postal')   return `Courrier « ${d.params.body.slice(0, 24) || '(vide)'} »`
+  if (d.kind === 'send_email')    return `Email « ${nodeDisplayTitle(d)} »`
+  if (d.kind === 'send_sms')      return `SMS « ${nodeDisplayTitle(d)} »`
+  if (d.kind === 'send_whatsapp') return `WhatsApp « ${nodeDisplayTitle(d)} »`
+  if (d.kind === 'send_postal')   return `Courrier « ${nodeDisplayTitle(d)} »`
   return nodeId
 }
 

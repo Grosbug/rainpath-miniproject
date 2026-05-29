@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Graph } from '@rainpath/shared'
+import { nodeDisplayTitle } from '@rainpath/shared'
 import { Icon, IconName } from '@/components/Icon'
 import { Button } from '@/components/ui/Button'
 import { relativeFromNow } from '@/lib/format-date'
@@ -31,18 +32,10 @@ function describeCurrentNode(graph: Graph | undefined, nodeId: string | null): C
   const d = node.data
   if (d.kind === 'start') return { icon: 'Play', family: 'start', kindLabel: 'Départ', title: 'Examen effectué' }
   if (d.kind === 'end')   return { icon: 'Square', family: 'end', kindLabel: 'Fin', title: 'Patient relancé' }
-  if (d.kind === 'send_email') {
-    return { icon: 'Mail', family: 'email', kindLabel: 'Email', title: d.params.subject || '(sans sujet)' }
-  }
-  if (d.kind === 'send_sms') {
-    return { icon: 'MessageSquare', family: 'sms', kindLabel: 'SMS', title: d.params.body.slice(0, 48) || '(SMS vide)' }
-  }
-  if (d.kind === 'send_whatsapp') {
-    return { icon: 'MessageCircle', family: 'whatsapp', kindLabel: 'WhatsApp', title: d.params.body.slice(0, 48) || '(message vide)' }
-  }
-  if (d.kind === 'send_postal') {
-    return { icon: 'Inbox', family: 'postal', kindLabel: 'Courrier', title: d.params.body.slice(0, 48) || '(courrier vide)' }
-  }
+  if (d.kind === 'send_email')    return { icon: 'Mail', family: 'email', kindLabel: 'Email', title: nodeDisplayTitle(d) }
+  if (d.kind === 'send_sms')      return { icon: 'MessageSquare', family: 'sms', kindLabel: 'SMS', title: nodeDisplayTitle(d) }
+  if (d.kind === 'send_whatsapp') return { icon: 'MessageCircle', family: 'whatsapp', kindLabel: 'WhatsApp', title: nodeDisplayTitle(d) }
+  if (d.kind === 'send_postal')   return { icon: 'Inbox', family: 'postal', kindLabel: 'Courrier', title: nodeDisplayTitle(d) }
   return null
 }
 
@@ -120,8 +113,8 @@ export default function PatientRunsList() {
                 <tr>
                   <th className="whitespace-nowrap px-4 py-3 text-left">Patient</th>
                   <th className="whitespace-nowrap px-4 py-3 text-left">Nœud courant</th>
-                  <th className="w-28 whitespace-nowrap px-4 py-3 text-right tabular-nums">Début</th>
-                  <th className="w-32 whitespace-nowrap px-4 py-3 text-right tabular-nums">Modifié</th>
+                  <th className="w-28 whitespace-nowrap px-4 py-3 text-left">Début</th>
+                  <th className="w-32 whitespace-nowrap px-4 py-3 text-left">Modifié</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -177,12 +170,12 @@ export default function PatientRunsList() {
                         )}
                       </td>
                       <td
-                        className="px-4 py-3 text-right text-fg-muted tabular-nums"
+                        className="px-4 py-3 text-left text-fg-muted tabular-nums"
                         data-rp-tooltip={new Date(r.startDate).toLocaleString('fr-FR')}
                       >
                         {new Date(r.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                       </td>
-                      <td className="px-4 py-3 text-right text-fg-muted tabular-nums">{relativeFromNow(r.updatedAt)}</td>
+                      <td className="px-4 py-3 text-left text-fg-muted tabular-nums">{relativeFromNow(r.updatedAt)}</td>
                     </tr>
                   )
                 })}

@@ -70,6 +70,10 @@ export function TemplatesSection() {
       'application/x-rainpath-template',
       JSON.stringify({
         kind: (template as unknown as { kind: NodeKind }).kind,
+        // Carry the template name alongside the params so the drop handler can stamp it
+        // into the node's `displayName` — the dropped node will then carry the template
+        // identity on its card even after the user edits subject/body.
+        name: template.name,
         params: (template as unknown as { params: unknown }).params
       })
     )
@@ -81,6 +85,21 @@ export function TemplatesSection() {
       <div className="mb-2 flex items-center justify-between">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Modèles</h3>
         <NewTemplateButton />
+      </div>
+
+      {/* Persistent affordance hint — the rows have two distinct interactions (drag to add,
+          click to edit) and the cursor swap + grip icon weren't obvious enough on their own.
+          Inline so it's always visible without taking much room, and the arrow icon mirrors
+          the drag gesture's "move toward canvas" direction. */}
+      <div
+        className="mb-2 flex items-center gap-2 rounded-md border border-dashed border-border bg-surface-muted/40 px-2 py-1.5 text-[11px] text-fg-muted"
+        role="note"
+      >
+        <Icon name="MousePointerClick" size={16} className="shrink-0" />
+        <span className="leading-tight">
+          <span className="font-medium text-fg">Glissez</span> un modèle sur le canvas pour l'ajouter,
+          ou <span className="font-medium text-fg">cliquez</span> pour l'éditer.
+        </span>
       </div>
 
       {isLoading ? (
@@ -157,7 +176,12 @@ function TemplateRow({
       draggable
       onDragStart={onDragStart}
       onClick={onOpenEdit}
-      className="group relative flex h-10 cursor-pointer items-center gap-2 overflow-hidden rounded-md border py-0 pl-3 pr-1 text-sm shadow-elev-1 transition-shadow hover:shadow-elev-2 active:cursor-grabbing"
+      data-rp-tooltip="Glisser vers le canvas pour créer le nœud · Clic pour éditer le modèle"
+      aria-label={`${template.name} — glisser vers le canvas pour créer un nœud, cliquer pour éditer`}
+      // `cursor-grab` at rest (canonical web idiom for "this is draggable") with a swap to
+      // `cursor-grabbing` when the user actually presses + drags. The grip + hover lift
+      // re-enforce the same signal redundantly.
+      className="group relative flex h-10 cursor-grab items-center gap-2 overflow-hidden rounded-md border py-0 pl-3 pr-1 text-sm shadow-elev-1 transition-all hover:-translate-y-[1px] hover:shadow-elev-2 active:cursor-grabbing"
       style={chrome.card}
     >
       <div
@@ -165,7 +189,8 @@ function TemplateRow({
         style={chrome.accent}
         aria-hidden="true"
       />
-      <Icon name="GripVertical" size={16} className="text-fg-subtle" />
+      {/* Grip darkens on hover so the "you can grab here" signal is unmissable. */}
+      <Icon name="GripVertical" size={16} className="text-fg-subtle transition-colors group-hover:text-fg-muted" />
       <Icon name={kindIcon} size={16} style={{ color: accentColor }} />
       <span className="min-w-0 flex-1 truncate font-medium text-fg">
         {template.name}

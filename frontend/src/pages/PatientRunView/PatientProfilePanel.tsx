@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Icon } from '@/components/Icon'
+import { Icon, type IconName } from '@/components/Icon'
 import { updatePatientProfile } from '@/api/patient-profiles'
 import { describeError } from '@/api/error-messages'
 import { queryKeys } from '@/api/query-keys'
 import { useSidebarCollapsed } from './use-sidebar-collapsed'
+import { isValidPhone, stripPhone, formatPhone, PHONE_MAX_INPUT } from '@/lib/phone'
 
 interface PatientShape {
   id: string
@@ -38,8 +39,9 @@ export function PatientProfilePanel({ patient, runId }: Props) {
   useEffect(() => {
     setDraft({
       email: patient.email ?? '',
-      phone: patient.phone ?? '',
-      whatsapp: patient.whatsapp ?? '',
+      // Pretty-print phones for display; the saver re-canonicalizes via stripPhone.
+      phone: formatPhone(patient.phone),
+      whatsapp: formatPhone(patient.whatsapp),
       street: patient.address?.street ?? '',
       postalCode: patient.address?.postalCode ?? '',
       city: patient.address?.city ?? ''
@@ -60,10 +62,15 @@ export function PatientProfilePanel({ patient, runId }: Props) {
       if (anyAddr && s && /^\d{5}$/.test(p) && c) {
         address = { street: s, postalCode: p, city: c, country: patient.address?.country ?? 'France' }
       }
+      // Phone fields validated client-side; only push to the API once they're empty
+      // OR they match a recognized format. A half-typed number stays local until valid
+      // (same all-or-nothing strategy as the address fields).
+      const phoneOk = isValidPhone(next.phone)
+      const whatsappOk = isValidPhone(next.whatsapp)
       return updatePatientProfile(patient.id, {
         email: next.email.trim() ? next.email.trim() : null,
-        phone: next.phone.trim() ? next.phone.trim() : null,
-        whatsapp: next.whatsapp.trim() ? next.whatsapp.trim() : null,
+        ...(phoneOk ? { phone: next.phone.trim() ? stripPhone(next.phone) : null } : {}),
+        ...(whatsappOk ? { whatsapp: next.whatsapp.trim() ? stripPhone(next.whatsapp) : null } : {}),
         ...(address !== null || !anyAddr ? { address } : {})
       })
     },
@@ -120,15 +127,40 @@ export function PatientProfilePanel({ patient, runId }: Props) {
             Modifier ces données change immédiatement les chemins disponibles dans le workflow.
           </p>
 
-          <PanelField label="Email"    value={draft.email}    onChange={v => setField('email', v)}    placeholder="alice@example.com" />
-          <PanelField label="Téléphone" value={draft.phone}   onChange={v => setField('phone', v)}    placeholder="+33 …" />
-          <PanelField label="WhatsApp" value={draft.whatsapp} onChange={v => setField('whatsapp', v)} placeholder="+33 …" />
+          <PanelField icon="Mail" label="Email"    value={draft.email}    onChange={v => setField('email', v)}    placeholder="alice@example.com" type="email" autoComplete="email" />
+          <PanelField
+            icon="Phone"
+            label="Téléphone"
+            value={draft.phone}
+            onChange={v => setField('phone', v)}
+            onBlur={() => setField('phone', formatPhone(draft.phone))}
+            placeholder="06 12 34 56 78"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel-national"
+            maxLength={PHONE_MAX_INPUT}
+            invalid={!isValidPhone(draft.phone)}
+          />
+          <PanelField
+            icon="MessageCircle"
+            label="WhatsApp"
+            value={draft.whatsapp}
+            onChange={v => setField('whatsapp', v)}
+            onBlur={() => setField('whatsapp', formatPhone(draft.whatsapp))}
+            placeholder="+33 6 12 34 56 78"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            maxLength={PHONE_MAX_INPUT}
+            invalid={!isValidPhone(draft.whatsapp)}
+          />
 
           {/* Adresse postale — bloc commun pour que les 3 champs (rue, CP, ville) se lisent
               comme une unité. Une bordure légère + un label de section les distingue des
               contacts au-dessus, et un message d'aide explicite la règle "tout-ou-rien". */}
           <fieldset className='space-y-2 rounded-md border border-border bg-surface-muted/40 p-3'>
-            <legend className='px-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted'>
+            <legend className='flex items-center gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted'>
+              <Icon name='MapPin' size={16} />
               Adresse postale
             </legend>
             <PanelField label="Rue"      value={draft.street}   onChange={v => setField('street', v)}   placeholder="123 rue …" />
@@ -147,19 +179,48 @@ export function PatientProfilePanel({ patient, runId }: Props) {
   )
 }
 
-function PanelField({ label, value, onChange, placeholder }: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string
+function PanelField({
+  icon, label, value, onChange, onBlur, placeholder,
+  type = 'text', inputMode, pattern, maxLength, autoComplete, invalid
+}: {
+  icon?: IconName
+  label: string
+  value: string
+  onChange: (v: string) => void
+  onBlur?: () => void
+  placeholder?: string
+  type?: string
+  inputMode?: 'text' | 'numeric' | 'tel' | 'email'
+  pattern?: string
+  maxLength?: number
+  autoComplete?: string
+  /** When true, paint the input in a danger tone — used by the parent to flag a
+   *  syntactically invalid in-progress phone number without blocking input. */
+  invalid?: boolean
 }) {
   const id = `pp-${label.toLowerCase()}`
+  const borderClass = invalid
+    ? 'border-danger focus-visible:border-danger focus-visible:ring-danger'
+    : 'border-border focus-visible:border-primary focus-visible:ring-ring'
   return (
     <div>
-      <label htmlFor={id} className="mb-1 block text-xs font-medium text-fg-muted">{label}</label>
+      <label htmlFor={id} className="mb-1 flex items-center gap-1.5 text-xs font-medium text-fg-muted">
+        {icon ? <Icon name={icon} size={16} /> : null}
+        {label}
+      </label>
       <input
         id={id}
+        type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
+        onBlur={onBlur}
         placeholder={placeholder}
-        className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        inputMode={inputMode}
+        pattern={pattern}
+        maxLength={maxLength}
+        autoComplete={autoComplete}
+        aria-invalid={invalid || undefined}
+        className={`h-9 w-full rounded-md border bg-surface px-3 text-sm focus-visible:outline-none focus-visible:ring-2 ${borderClass}`}
       />
     </div>
   )

@@ -346,4 +346,17 @@ export class PatientRunsService {
 
     return this.get(id)
   }
+
+  /**
+   * Soft delete: the run row stays in the DB but disappears from every list
+   * (the soft-delete client filters `deletedAt: null` on find*) and from the
+   * profile's `runsCount` aggregate. Detail / advance / reset endpoints become
+   * 404. Use this to let operators clean up obsolete or test runs from the
+   * patient profile detail dialog without losing audit history.
+   */
+  async softDelete(id: string): Promise<void> {
+    const existing = await this.db.patientRun.findUnique({ where: { id } })
+    if (!existing) throw new NotFoundException(`PatientRun ${id} not found`)
+    await this.prisma.patientRun.update({ where: { id }, data: { deletedAt: new Date() } })
+  }
 }

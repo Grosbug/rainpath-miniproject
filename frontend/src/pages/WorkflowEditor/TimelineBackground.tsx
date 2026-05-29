@@ -61,7 +61,6 @@ export function TimelineBackground() {
           // Strict clipping at the canvas edges — gridlines must never bleed left of x=0
           // (where the Palette sits) or right of widthPx.
           if (screenX < 0 || screenX > widthPx) return null
-          const isRail = d === 0
           return (
             <g key={d}>
               <line
@@ -69,16 +68,16 @@ export function TimelineBackground() {
                 y1={28}
                 x2={screenX}
                 y2={heightPx}
-                stroke={isRail ? 'var(--node-start-accent)' : 'var(--border)'}
-                strokeWidth={isRail ? 2 : 1}
+                stroke='var(--border)'
+                strokeWidth={1}
               />
               <text
-                x={isRail ? screenX + 4 : screenX}
+                x={screenX}
                 y={18}
                 fontSize={11}
                 fontFamily='var(--font-sans)'
                 style={{ fontVariantNumeric: 'tabular-nums' }}
-                textAnchor={isRail ? 'start' : 'middle'}
+                textAnchor='middle'
                 fill='var(--fg-muted)'
               >
                 J+{d}

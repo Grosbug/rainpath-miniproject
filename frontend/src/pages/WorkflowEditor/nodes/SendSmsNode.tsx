@@ -4,7 +4,7 @@ import { NodeKebab } from './NodeKebab'
 import { handleClass } from './handle-styles'
 import { SendNodeSourceHandles } from './SendNodeSourceHandles'
 import type { Graph } from '@rainpath/shared'
-import { CHANNEL_FORMAT_RULES } from '@rainpath/shared'
+import { CHANNEL_FORMAT_RULES, nodeDisplayTitle } from '@rainpath/shared'
 
 type SmsNodeData = Extract<Graph['nodes'][number]['data'], { kind: 'send_sms' }>
 
@@ -20,7 +20,7 @@ export function SendSmsNode({ id, data, selected }: NodeProps) {
       family="sms"
       icon="MessageSquare"
       familyLabel="SMS"
-      title={d.params.body.slice(0, 28) || '(SMS vide)'}
+      title={nodeDisplayTitle(d)}
       details={
         <p className={`tabular-nums ${counterClass}`}>{len} / {rec}</p>
       }

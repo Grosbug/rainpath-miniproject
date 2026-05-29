@@ -1,5 +1,6 @@
 import { CHANNEL_FORMAT_RULES } from '@rainpath/shared'
 import { CharCounter } from './CharCounter'
+import { DisplayNameField } from './DisplayNameField'
 import { OutputConfigField } from './OutputConfigField'
 import type { WhatsAppParams } from './form-types'
 
@@ -13,6 +14,7 @@ const WA = CHANNEL_FORMAT_RULES.whatsapp.body
 export function WhatsAppParamsForm({ value, onChange }: Props) {
   return (
     <div className="space-y-3">
+      <DisplayNameField value={value.displayName} onChange={n => onChange({ ...value, displayName: n })} />
       <div>
         <label htmlFor="wa-body" className="mb-1 block text-sm font-medium text-fg">
           Message

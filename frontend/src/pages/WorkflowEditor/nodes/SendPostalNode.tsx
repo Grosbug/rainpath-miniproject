@@ -4,6 +4,7 @@ import { NodeKebab } from './NodeKebab'
 import { handleClass } from './handle-styles'
 import { SendNodeSourceHandles } from './SendNodeSourceHandles'
 import type { Graph } from '@rainpath/shared'
+import { nodeDisplayTitle } from '@rainpath/shared'
 
 type PostalNodeData = Extract<Graph['nodes'][number]['data'], { kind: 'send_postal' }>
 
@@ -14,7 +15,7 @@ export function SendPostalNode({ id, data, selected }: NodeProps) {
       family="postal"
       icon="Inbox"
       familyLabel="Courrier postal"
-      title={d.params.body.slice(0, 32) || '(courrier vide)'}
+      title={nodeDisplayTitle(d)}
       details={
         <p className="line-clamp-1">
           {d.params.tracked ? 'Suivi · ' : 'Non suivi · '}

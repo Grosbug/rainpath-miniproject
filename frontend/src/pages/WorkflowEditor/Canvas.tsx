@@ -237,10 +237,17 @@ useLeftAnchoredZoom(56)
       const tmplRaw = e.dataTransfer.getData('application/x-rainpath-template')
       if (!tmplRaw) return
       try {
-        const tmpl = JSON.parse(tmplRaw) as { kind: NodeKind; params: unknown }
+        const tmpl = JSON.parse(tmplRaw) as { kind: NodeKind; name?: string; params: Record<string, unknown> }
+        // Stamp the template name onto the node's params as `displayName` so the card
+        // shows the template's identity ("Première relance"…) instead of the body excerpt.
+        // Only fills the field when not already set by the template itself.
+        const params = structuredClone(tmpl.params)
+        if (tmpl.name && typeof params === 'object' && params !== null && !('displayName' in params && (params as Record<string, unknown>).displayName)) {
+          (params as Record<string, unknown>).displayName = tmpl.name
+        }
         addNode({
           kind: tmpl.kind,
-          data: { kind: tmpl.kind, params: structuredClone(tmpl.params) } as any,
+          data: { kind: tmpl.kind, params } as any,
           atX,
           atY
         })

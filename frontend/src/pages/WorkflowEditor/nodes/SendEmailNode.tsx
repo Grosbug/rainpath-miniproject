@@ -4,6 +4,7 @@ import { NodeKebab } from './NodeKebab'
 import { handleClass } from './handle-styles'
 import { SendNodeSourceHandles } from './SendNodeSourceHandles'
 import type { Graph } from '@rainpath/shared'
+import { nodeDisplayTitle } from '@rainpath/shared'
 
 type EmailNodeData = Extract<Graph['nodes'][number]['data'], { kind: 'send_email' }>
 
@@ -14,7 +15,7 @@ export function SendEmailNode({ id, data, selected }: NodeProps) {
       family="email"
       icon="Mail"
       familyLabel="Email"
-      title={d.params.subject || '(sans sujet)'}
+      title={nodeDisplayTitle(d)}
       details={
         <p className="line-clamp-1">{d.params.body || '(corps vide)'}</p>
       }

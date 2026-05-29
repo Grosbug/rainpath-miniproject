@@ -1,5 +1,5 @@
 import type { Graph } from '@rainpath/shared'
-import { CHANNEL_FAILURE_STATUSES } from '@rainpath/shared'
+import { CHANNEL_FAILURE_STATUSES, nodeDisplayTitle } from '@rainpath/shared'
 import { Icon, IconName } from '@/components/Icon'
 import { relativeFromNow } from '@/lib/format-date'
 import { frStatus } from '@/pages/WorkflowEditor/modal/status-labels'
@@ -31,10 +31,10 @@ function nodeLabel(graph: Graph, nodeId: string): string {
   const d = n.data
   if (d.kind === 'start') return 'Départ'
   if (d.kind === 'end') return 'Fin'
-  if (d.kind === 'send_email') return `Email — ${d.params.subject || '(sans sujet)'}`
-  if (d.kind === 'send_sms') return `SMS — ${d.params.body.slice(0, 32) || '(vide)'}`
-  if (d.kind === 'send_whatsapp') return `WhatsApp — ${d.params.body.slice(0, 32) || '(vide)'}`
-  if (d.kind === 'send_postal') return `Courrier — ${d.params.body.slice(0, 32) || '(vide)'}`
+  if (d.kind === 'send_email')    return `Email — ${nodeDisplayTitle(d)}`
+  if (d.kind === 'send_sms')      return `SMS — ${nodeDisplayTitle(d)}`
+  if (d.kind === 'send_whatsapp') return `WhatsApp — ${nodeDisplayTitle(d)}`
+  if (d.kind === 'send_postal')   return `Courrier — ${nodeDisplayTitle(d)}`
   return nodeId
 }
 

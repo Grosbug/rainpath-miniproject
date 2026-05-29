@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { describeError } from '@/api/error-messages'
 import { createPatientProfile, updatePatientProfile, type PatientGender, type PatientProfile } from '@/api/patient-profiles'
 import { queryKeys } from '@/api/query-keys'
+import { isValidPhone, stripPhone, formatPhone, PHONE_MAX_INPUT } from '@/lib/phone'
 import { normalizePatientNameFields } from '@/lib/format-person-name'
 
 interface Props {
@@ -36,8 +37,9 @@ export function ProfileFormDialog({ open, onOpenChange, editing }: Props) {
       setLastName(editing?.lastName ?? '')
       setGender(editing?.gender ?? 'female')
       setEmail(editing?.email ?? '')
-      setPhone(editing?.phone ?? '')
-      setWhatsapp(editing?.whatsapp ?? '')
+      // Beautify on load so the input shows "06 12 34 56 78" instead of "0612345678".
+      setPhone(formatPhone(editing?.phone))
+      setWhatsapp(formatPhone(editing?.whatsapp))
       setStreet(editing?.address?.street ?? '')
       setPostalCode(editing?.address?.postalCode ?? '')
       setCity(editing?.address?.city ?? '')
@@ -65,8 +67,11 @@ export function ProfileFormDialog({ open, onOpenChange, editing }: Props) {
       lastName: names.lastName,
       gender,
       email: email.trim() || null,
-      phone: phone.trim() || null,
-      whatsapp: whatsapp.trim() || null,
+      // Phone fields stored in canonical form (digits + optional leading `+`) so
+      // the wire format is stable regardless of whether the user typed with spaces,
+      // dashes or parens. The pretty `formatPhone` is only applied at display time.
+      phone: phone.trim() ? stripPhone(phone) : null,
+      whatsapp: whatsapp.trim() ? stripPhone(whatsapp) : null,
       address: buildAddress()
     }
   }
@@ -97,6 +102,14 @@ export function ProfileFormDialog({ open, onOpenChange, editing }: Props) {
     if (!firstName.trim()) { setError('Le prénom est requis'); return }
     if (!lastName.trim()) { setError('Le nom est requis'); return }
     if (gender !== 'male' && gender !== 'female') { setError('Le genre est requis'); return }
+    if (!isValidPhone(phone)) {
+      setError('Téléphone invalide — utilisez 10 chiffres (06 12 34 56 78) ou un format international (+33 6 12 34 56 78)')
+      return
+    }
+    if (!isValidPhone(whatsapp)) {
+      setError('WhatsApp invalide — utilisez un format international (+33 6 12 34 56 78)')
+      return
+    }
     // Address fields are all-or-nothing. If any of street/postalCode/city is set, all three
     // must be valid, and the postal code must match the French 5-digit pattern.
     const anyAddrField = street.trim() || postalCode.trim() || city.trim()
@@ -138,16 +151,42 @@ export function ProfileFormDialog({ open, onOpenChange, editing }: Props) {
             <option value="male">Masculin</option>
           </select>
         </div>
-        <FormField label="Email" value={email} onChange={setEmail} type="email" />
-        <FormField label="Téléphone (SMS)" value={phone} onChange={setPhone} />
-        <FormField label="WhatsApp" value={whatsapp} onChange={setWhatsapp} />
+        <FormField
+          label="Email"
+          value={email}
+          onChange={setEmail}
+          type="email"
+          autoComplete="email"
+        />
+        <FormField
+          label="Téléphone (SMS)"
+          value={phone}
+          onChange={setPhone}
+          onBlur={() => setPhone(p => formatPhone(p))}
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel-national"
+          maxLength={PHONE_MAX_INPUT}
+          placeholder="06 12 34 56 78 ou +33 6 12 34 56 78"
+        />
+        <FormField
+          label="WhatsApp"
+          value={whatsapp}
+          onChange={setWhatsapp}
+          onBlur={() => setWhatsapp(w => formatPhone(w))}
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          maxLength={PHONE_MAX_INPUT}
+          placeholder="+33 6 12 34 56 78"
+        />
         <fieldset className='space-y-3 rounded-md border border-border bg-surface-muted/40 p-3'>
           <legend className='px-1 text-xs font-semibold uppercase tracking-wide text-fg-muted'>
             Adresse postale
           </legend>
           <FormField label="Rue" value={street} onChange={setStreet} />
           <div className='grid grid-cols-[7rem_1fr] gap-3'>
-            <FormField label="Code postal" value={postalCode} onChange={setPostalCode} inputMode='numeric' pattern='\d{5}' maxLength={5} />
+            <FormField label="Code postal" value={postalCode} onChange={setPostalCode} inputMode='numeric' maxLength={5} />
             <FormField label="Ville" value={city} onChange={setCity} />
           </div>
           <FormField label="Pays" value={country} onChange={setCountry} />
@@ -168,15 +207,21 @@ interface FieldProps {
   label: string
   value: string
   onChange: (v: string) => void
+  onBlur?: () => void
   required?: boolean
   type?: string
   autoFocus?: boolean
   inputMode?: 'text' | 'numeric' | 'tel' | 'email'
   pattern?: string
   maxLength?: number
+  placeholder?: string
+  autoComplete?: string
 }
 
-function FormField({ label, value, onChange, required, type = 'text', autoFocus, inputMode, pattern, maxLength }: FieldProps) {
+function FormField({
+  label, value, onChange, onBlur, required, type = 'text', autoFocus, inputMode, pattern, maxLength,
+  placeholder, autoComplete
+}: FieldProps) {
   const id = `pf-${label.replace(/\s+/g, '-').toLowerCase()}`
   return (
     <div>
@@ -189,10 +234,13 @@ function FormField({ label, value, onChange, required, type = 'text', autoFocus,
         type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
+        onBlur={onBlur}
         autoFocus={autoFocus}
         inputMode={inputMode}
         pattern={pattern}
         maxLength={maxLength}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
         className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
     </div>

@@ -126,3 +126,18 @@
   border-color: var(--danger) !important;
   cursor: not-allowed;
 }
+
+/* SaveStatusBadge — green "just saved" confirmation pulse.
+   Fires once for ~1.2 s on the transition into 'saved' / 'saved_invalid'. The badge
+   itself stays the same color tone afterwards; this is purely an attention-getter so
+   the user has a clear "yes, your change just landed" signal beyond the static icon.
+   Implemented as a ring (box-shadow) + soft bg tint that expand and fade — chosen
+   over a colour swap on the icon because the tone is already meaningful per status. */
+@keyframes rp-save-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.55); background-color: rgba(5, 150, 105, 0.18); }
+  60%  { box-shadow: 0 0 0 8px rgba(5, 150, 105, 0);    background-color: rgba(5, 150, 105, 0.06); }
+  100% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0);      background-color: transparent; }
+}
+.rp-save-pulse {
+  animation: rp-save-pulse 1.2s ease-out;
+}

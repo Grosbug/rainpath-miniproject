@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UsePipes } from '@nestjs/common'
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, UsePipes } from '@nestjs/common'
 import { AdvancePatientRunDto, CreatePatientRunDto, FocusPatientRunDto } from '@rainpath/shared'
 import { ZodValidationPipe } from '../validation/zod-validation.pipe'
 import { PatientRunsService } from './patient-runs.service'
@@ -48,5 +48,11 @@ export class PatientRunsController {
   @Post('patient-runs/:id/step-back')
   stepBack(@Param('id') id: string) {
     return this.service.stepBack(id)
+  }
+
+  @Delete('patient-runs/:id')
+  @HttpCode(204)
+  async remove(@Param('id') id: string) {
+    await this.service.softDelete(id)
   }
 }

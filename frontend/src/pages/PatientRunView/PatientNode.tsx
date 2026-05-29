@@ -7,6 +7,7 @@ import {
   isChannelFailureStatus
 } from './outcome-routing'
 import type { Graph, GraphNode, OutputConfig } from '@rainpath/shared'
+import { nodeDisplayTitle } from '@rainpath/shared'
 import { Icon, IconName } from '@/components/Icon'
 import { frStatus } from '@/pages/WorkflowEditor/modal/status-labels'
 import type { PatientContactData } from './cumulative-days'
@@ -52,16 +53,9 @@ const KIND_META: Record<NodeData['kind'], {
   send_postal:   { family: 'postal',      icon: 'Inbox',          label: 'Courrier' }
 }
 
-function titleFor(data: NodeData): string {
-  switch (data.kind) {
-    case 'start': return 'Examen effectué'
-    case 'end':   return 'Patient relancé'
-    case 'send_email':    return data.params.subject || '(sans sujet)'
-    case 'send_sms':      return data.params.body.slice(0, 28) || '(SMS vide)'
-    case 'send_whatsapp': return data.params.body.slice(0, 32) || '(message vide)'
-    case 'send_postal':   return data.params.body.slice(0, 32) || '(courrier vide)'
-  }
-}
+// Delegated to the shared `nodeDisplayTitle` (imported below) so the editor card and
+// the simulator card stay in lockstep — both prefer `params.displayName` (template
+// identity) and fall back to subject/body otherwise.
 
 /**
  * Outer wrapper class per reachability state. Tuned so non-active nodes stay
@@ -86,7 +80,7 @@ const REACH_OUTER: Record<ReachabilityState, string> = {
 export function PatientNode({ data }: NodeProps) {
   const d = data as PatientNodeData
   const meta = KIND_META[d.kind]
-  const title = titleFor(d)
+  const title = nodeDisplayTitle(d)
 
   const cardStyle = {
     backgroundColor: `var(--node-${meta.family}-bg)`,
@@ -291,10 +285,10 @@ function stepTitle(graph: Graph, nodeId: string): string {
   const d = n.data
   if (d.kind === 'start') return 'Départ'
   if (d.kind === 'end') return 'Fin'
-  if (d.kind === 'send_email') return `Email « ${d.params.subject || '(sans sujet)'} »`
-  if (d.kind === 'send_sms') return `SMS « ${d.params.body.slice(0, 24) || '(vide)'} »`
-  if (d.kind === 'send_whatsapp') return `WhatsApp « ${d.params.body.slice(0, 24) || '(vide)'} »`
-  if (d.kind === 'send_postal') return `Courrier « ${d.params.body.slice(0, 24) || '(vide)'} »`
+  if (d.kind === 'send_email') return `Email « ${nodeDisplayTitle(d)} »`
+  if (d.kind === 'send_sms') return `SMS « ${nodeDisplayTitle(d)} »`
+  if (d.kind === 'send_whatsapp') return `WhatsApp « ${nodeDisplayTitle(d)} »`
+  if (d.kind === 'send_postal') return `Courrier « ${nodeDisplayTitle(d)} »`
   return nodeId
 }
 

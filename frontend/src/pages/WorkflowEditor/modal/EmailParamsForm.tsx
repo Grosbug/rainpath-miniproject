@@ -1,5 +1,6 @@
 import { CHANNEL_FORMAT_RULES } from '@rainpath/shared'
 import { CharCounter } from './CharCounter'
+import { DisplayNameField } from './DisplayNameField'
 import { OutputConfigField } from './OutputConfigField'
 import type { EmailParams } from './form-types'
 
@@ -14,6 +15,7 @@ const BODY = CHANNEL_FORMAT_RULES.email.body
 export function EmailParamsForm({ value, onChange }: Props) {
   return (
     <div className="space-y-3">
+      <DisplayNameField value={value.displayName} onChange={n => onChange({ ...value, displayName: n })} />
       <div>
         <label htmlFor="email-subject" className="mb-1 block text-sm font-medium text-fg">
           Sujet

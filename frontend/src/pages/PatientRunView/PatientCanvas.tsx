@@ -155,7 +155,11 @@ function CanvasInner({
         id: e.id,
         source: e.source,
         target: e.target,
-        sourceHandleId: routeHandle ?? e.sourceHandle ?? null,
+        // React Flow v12's Edge object expects `sourceHandle` (not `sourceHandleId`,
+        // which is only the prop NAME on EdgeProps). Using the wrong key here makes
+        // RF silently ignore the handle binding and anchor every edge on the first
+        // source slot — visually merging échec branches into the succès handle.
+        sourceHandle: routeHandle ?? e.sourceHandle ?? null,
         type: 'default',
         data: {
           daysAfter: e.daysAfter,

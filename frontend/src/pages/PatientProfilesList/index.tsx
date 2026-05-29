@@ -11,9 +11,10 @@ import {
 } from '@/components/ui/DropdownMenu'
 import { relativeFromNow } from '@/lib/format-date'
 import { formatFirstName, formatLastName, formatPatientFullName } from '@/lib/format-person-name'
+import { formatPhone } from '@/lib/phone'
 import { queryKeys } from '@/api/query-keys'
 import { listPatientProfiles, deletePatientProfile, type PatientProfile } from '@/api/patient-profiles'
-import { listPatientRunsForPatient } from '@/api/patient-runs'
+import { listPatientRunsForPatient, deletePatientRun } from '@/api/patient-runs'
 import { ProfileFormDialog } from './ProfileFormDialog'
 import { DeleteProfileConfirm } from './DeleteProfileConfirm'
 import { CreateRunDialog } from '../PatientRunsList/CreateRunDialog'
@@ -296,8 +297,18 @@ export default function PatientProfilesList() {
                   <th className="w-20 whitespace-nowrap px-4 py-3 text-center">Civilité</th>
                   <th className="whitespace-nowrap px-4 py-3 text-left">Nom</th>
                   <th className="whitespace-nowrap px-4 py-3 text-left">Prénom</th>
-                  <th className="whitespace-nowrap px-4 py-3 text-left">Email</th>
-                  <th className="whitespace-nowrap px-4 py-3 text-left">Téléphone</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-left">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Icon name="Mail" size={16} />
+                      Email
+                    </span>
+                  </th>
+                  <th className="whitespace-nowrap px-4 py-3 text-left">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Icon name="Phone" size={16} />
+                      Téléphone
+                    </span>
+                  </th>
                   <th className="w-28 whitespace-nowrap px-4 py-3 text-center">Parcours</th>
                   <th className="w-10 px-2 py-3" aria-label="Actions" />
                 </tr>
@@ -313,7 +324,7 @@ export default function PatientProfilesList() {
                     <td className="px-4 py-3 font-medium text-fg">{formatLastName(p.lastName)}</td>
                     <td className="px-4 py-3 text-fg">{formatFirstName(p.firstName)}</td>
                     <td className="px-4 py-3 text-fg-muted">{p.email ?? '—'}</td>
-                    <td className="px-4 py-3 text-fg-muted tabular-nums">{p.phone ?? '—'}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-fg-muted tabular-nums">{p.phone ? formatPhone(p.phone) : '—'}</td>
                     <td className="px-4 py-3 text-center"><RunsBadge count={p.runsCount ?? 0} /></td>
                     <td className="px-2 py-2 text-right" onClick={e => e.stopPropagation()}>
                       <DropdownMenu>
@@ -397,10 +408,26 @@ interface DetailProps {
 }
 
 function ProfileDetailDialog({ open, profile, onOpenChange, onEdit, onCreateRun }: DetailProps) {
+  const qc = useQueryClient()
+  const [confirmRunId, setConfirmRunId] = useState<string | null>(null)
   const runsQuery = useQuery({
     queryKey: profile ? [...queryKeys.patientRuns.all, 'patient', profile.id] : ['patient-runs', 'patient', 'none'],
     queryFn: () => listPatientRunsForPatient(profile!.id),
     enabled: open && !!profile
+  })
+
+  const delRunMut = useMutation({
+    mutationFn: (id: string) => deletePatientRun(id),
+    onSuccess: () => {
+      // Invalidate both the per-patient list (this dialog) and the workflow-scoped
+      // lists + the profile list (whose runsCount aggregate changes). Cheap fan-out.
+      if (profile) qc.invalidateQueries({ queryKey: [...queryKeys.patientRuns.all, 'patient', profile.id] })
+      qc.invalidateQueries({ queryKey: queryKeys.patientRuns.all })
+      qc.invalidateQueries({ queryKey: queryKeys.patientProfiles.list() })
+      toast.success('Parcours supprimé')
+      setConfirmRunId(null)
+    },
+    onError: () => toast.error('Échec de la suppression du parcours')
   })
 
   if (!profile) return null
@@ -429,8 +456,8 @@ function ProfileDetailDialog({ open, profile, onOpenChange, onEdit, onCreateRun 
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
             <InfoRow label="Email" value={profile.email} />
-            <InfoRow label="Téléphone" value={profile.phone} />
-            <InfoRow label="WhatsApp" value={profile.whatsapp} />
+            <InfoRow label="Téléphone" value={profile.phone ? formatPhone(profile.phone) : null} />
+            <InfoRow label="WhatsApp" value={profile.whatsapp ? formatPhone(profile.whatsapp) : null} />
             <InfoRow label="Adresse" value={formatAddress(profile.address)} span2 />
           </dl>
         </section>
@@ -447,19 +474,62 @@ function ProfileDetailDialog({ open, profile, onOpenChange, onEdit, onCreateRun 
             <p className="text-sm text-fg-muted">Aucun parcours pour ce patient.</p>
           ) : (
             <ul className="divide-y divide-border rounded-md border border-border">
-              {runsQuery.data.map(r => (
-                <li key={r.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                  <Link
-                    to={`/workflows/${r.workflow.id}/patient-runs/${r.id}`}
-                    className="min-w-0 flex-1 text-sm text-fg hover:text-primary"
-                    onClick={() => onOpenChange(false)}
-                  >
-                    <span className="truncate font-medium">{r.workflow.name}</span>
-                    <span className="ml-2 text-xs text-fg-muted">Début {formatFrDate(r.startDate)}</span>
-                  </Link>
-                  <span className="text-xs text-fg-muted tabular-nums">{relativeFromNow(r.updatedAt)}</span>
-                </li>
-              ))}
+              {runsQuery.data.map(r => {
+                const confirming = confirmRunId === r.id
+                const deleting = delRunMut.isPending && delRunMut.variables === r.id
+                return (
+                  <li key={r.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                    {confirming ? (
+                      // Inline 2-step confirm — avoids nesting a second Radix Dialog inside the
+                      // detail dialog (which causes focus-trap conflicts). The row morphs into
+                      // a confirm prompt; cancel reverts.
+                      <>
+                        <span className="min-w-0 flex-1 text-sm text-fg">
+                          Supprimer le parcours sur <strong>{r.workflow.name}</strong> ?
+                          <span className="ml-1 text-xs text-fg-muted">(suppression douce, archivage)</span>
+                        </span>
+                        <div className="flex shrink-0 gap-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => setConfirmRunId(null)}
+                            disabled={deleting}
+                          >
+                            Annuler
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="danger"
+                            loading={deleting}
+                            onClick={() => delRunMut.mutate(r.id)}
+                          >
+                            Supprimer
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <Link
+                          to={`/workflows/${r.workflow.id}/patient-runs/${r.id}`}
+                          className="min-w-0 flex-1 text-sm text-fg hover:text-primary"
+                          onClick={() => onOpenChange(false)}
+                        >
+                          <span className="truncate font-medium">{r.workflow.name}</span>
+                          <span className="ml-2 text-xs text-fg-muted">Début {formatFrDate(r.startDate)}</span>
+                        </Link>
+                        <span className="shrink-0 text-xs text-fg-muted tabular-nums">{relativeFromNow(r.updatedAt)}</span>
+                        <IconButton
+                          icon="Trash2"
+                          size="sm"
+                          aria-label={`Supprimer le parcours sur ${r.workflow.name}`}
+                          onClick={() => setConfirmRunId(r.id)}
+                          className="text-fg-muted hover:text-danger"
+                        />
+                      </>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </section>
