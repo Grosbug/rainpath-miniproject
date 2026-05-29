@@ -52,7 +52,7 @@ export function NodeKebab({ nodeId, kind }: NodeKebabProps) {
             <Icon name='EllipsisVertical' size={16} />
           </button>
         </DropdownTrigger>
-        <DropdownContent>
+        <DropdownContent align='center' side='bottom' sideOffset={6}>
           <DropdownItem
             icon='Pencil'
             onSelect={() => openModal({ mode: 'node-edit', nodeId, kind })}
