@@ -11,6 +11,7 @@ import { listPatientProfiles } from '@/api/patient-profiles'
 import { createPatientRun } from '@/api/patient-runs'
 import { listWorkflows, getWorkflow } from '@/api/workflows'
 import { queryKeys } from '@/api/query-keys'
+import { formatPatientDisplayName } from '@/lib/format-person-name'
 
 interface Props {
   open: boolean
@@ -135,7 +136,7 @@ export function CreateRunDialog({ open, onOpenChange, workflowId, patientId }: P
             >
               <option value="">Choisir un profil…</option>
               {profiles?.map(p => (
-                <option key={p.id} value={p.id}>{p.name}{p.email ? ` (${p.email})` : ''}</option>
+                <option key={p.id} value={p.id}>{formatPatientDisplayName(p.name)}{p.email ? ` (${p.email})` : ''}</option>
               ))}
             </select>
             {profiles && profiles.length === 0 ? (

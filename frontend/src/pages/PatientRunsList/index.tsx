@@ -5,6 +5,7 @@ import type { Graph } from '@rainpath/shared'
 import { Icon, IconName } from '@/components/Icon'
 import { Button } from '@/components/ui/Button'
 import { relativeFromNow } from '@/lib/format-date'
+import { formatPatientDisplayName } from '@/lib/format-person-name'
 import { queryKeys } from '@/api/query-keys'
 import { listPatientRunsForWorkflow } from '@/api/patient-runs'
 import { getWorkflow } from '@/api/workflows'
@@ -139,7 +140,7 @@ export default function PatientRunsList() {
                           onClick={e => e.stopPropagation()}
                           className="font-medium text-fg hover:text-primary focus-visible:outline-none focus-visible:underline"
                         >
-                          {r.patient.name}
+                          {formatPatientDisplayName(r.patient.name)}
                         </Link>
                         {r.patient.deletedAt ? (
                           <span className="ml-2 inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 text-xs text-fg-muted">

@@ -10,6 +10,7 @@ import {
   DropdownMenu, DropdownTrigger, DropdownContent, DropdownItem, DropdownSeparator
 } from '@/components/ui/DropdownMenu'
 import { relativeFromNow } from '@/lib/format-date'
+import { formatFirstName, formatLastName, formatPatientFullName } from '@/lib/format-person-name'
 import { queryKeys } from '@/api/query-keys'
 import { listPatientProfiles, deletePatientProfile, type PatientProfile } from '@/api/patient-profiles'
 import { listPatientRunsForPatient } from '@/api/patient-runs'
@@ -309,15 +310,15 @@ export default function PatientProfilesList() {
                     onClick={() => handleOpenDetails(p)}
                   >
                     <td className="px-4 py-3 text-center text-fg-muted">{civility(p.gender)}</td>
-                    <td className="px-4 py-3 font-medium text-fg">{p.lastName}</td>
-                    <td className="px-4 py-3 text-fg">{p.firstName}</td>
+                    <td className="px-4 py-3 font-medium text-fg">{formatLastName(p.lastName)}</td>
+                    <td className="px-4 py-3 text-fg">{formatFirstName(p.firstName)}</td>
                     <td className="px-4 py-3 text-fg-muted">{p.email ?? '—'}</td>
                     <td className="px-4 py-3 text-fg-muted tabular-nums">{p.phone ?? '—'}</td>
                     <td className="px-4 py-3 text-center"><RunsBadge count={p.runsCount ?? 0} /></td>
                     <td className="px-2 py-2 text-right" onClick={e => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownTrigger asChild>
-                          <IconButton icon="EllipsisVertical" aria-label={`Actions sur ${p.firstName} ${p.lastName}`} size="sm" />
+                          <IconButton icon="EllipsisVertical" aria-label={`Actions sur ${formatPatientFullName(p)}`} size="sm" />
                         </DropdownTrigger>
                         <DropdownContent>
                           <DropdownItem icon="Pencil" onSelect={() => handleEdit(p)}>Éditer</DropdownItem>
@@ -411,7 +412,7 @@ function ProfileDetailDialog({ open, profile, onOpenChange, onEdit, onCreateRun 
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold text-fg">
-                {civility(profile.gender)} {profile.lastName} {profile.firstName}
+                {civility(profile.gender)} {formatPatientFullName(profile)}
               </h2>
               <p className="text-sm text-fg-muted">{profile.gender === 'female' ? 'Féminin' : 'Masculin'}</p>
             </div>

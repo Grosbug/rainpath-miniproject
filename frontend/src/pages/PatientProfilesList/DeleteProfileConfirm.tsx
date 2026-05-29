@@ -1,6 +1,7 @@
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import type { PatientProfile } from '@/api/patient-profiles'
+import { formatPatientFullName } from '@/lib/format-person-name'
 
 interface Props {
   open: boolean
@@ -15,7 +16,7 @@ export function DeleteProfileConfirm({ open, target, loading, onCancel, onConfir
     <Dialog
       open={open}
       onOpenChange={o => !o && onCancel()}
-      title={`Supprimer « ${target?.name ?? ''} » ?`}
+      title={`Supprimer « ${target ? formatPatientFullName(target) : ''} » ?`}
       description="Le profil est archivé (suppression douce). Les parcours existants restent visibles mais marqués « Patient supprimé »."
       size="sm"
     >

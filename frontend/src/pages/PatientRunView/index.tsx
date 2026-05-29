@@ -4,6 +4,7 @@ import { Icon } from '@/components/Icon'
 import { queryKeys } from '@/api/query-keys'
 import { focusPatientRun, getPatientRun } from '@/api/patient-runs'
 import { describeError } from '@/api/error-messages'
+import { formatPatientFullName } from '@/lib/format-person-name'
 import { toast } from 'sonner'
 import { PatientCanvas } from './PatientCanvas'
 import { PatientProfilePanel } from './PatientProfilePanel'
@@ -86,7 +87,7 @@ function LoadedView({ run, workflowId }: { run: import('@/api/patient-runs').Pat
         </Link>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-sm font-semibold text-fg">
-            {run.patient.name}
+            {formatPatientFullName(run.patient)}
             <span className="ml-2 text-xs font-normal text-fg-muted">
               · J+0 le {new Date(run.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </span>

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { describeError } from '@/api/error-messages'
 import { createPatientProfile, updatePatientProfile, type PatientGender, type PatientProfile } from '@/api/patient-profiles'
 import { queryKeys } from '@/api/query-keys'
+import { normalizePatientNameFields } from '@/lib/format-person-name'
 
 interface Props {
   open: boolean
@@ -54,15 +55,21 @@ export function ProfileFormDialog({ open, onOpenChange, editing }: Props) {
     return { street: s, postalCode: p, city: c, country: co || null }
   }
 
-  const buildPayload = () => ({
-    firstName: firstName.trim(),
-    lastName: lastName.trim(),
-    gender,
-    email: email.trim() || null,
-    phone: phone.trim() || null,
-    whatsapp: whatsapp.trim() || null,
-    address: buildAddress()
-  })
+  const buildPayload = () => {
+    const names = normalizePatientNameFields({
+      firstName: firstName.trim(),
+      lastName: lastName.trim()
+    })
+    return {
+      firstName: names.firstName,
+      lastName: names.lastName,
+      gender,
+      email: email.trim() || null,
+      phone: phone.trim() || null,
+      whatsapp: whatsapp.trim() || null,
+      address: buildAddress()
+    }
+  }
 
   const createMut = useMutation({
     mutationFn: () => createPatientProfile(buildPayload()),
