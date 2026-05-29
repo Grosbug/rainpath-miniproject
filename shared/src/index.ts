@@ -1,7 +1,6 @@
 export * from './constants'
 export * from './schemas/channels'
 export * from './schemas/format'
-export * from './schemas/expressions'
 export * from './schemas/output-config'
 export * from './schemas/node-data'
 export * from './schemas/primitives'

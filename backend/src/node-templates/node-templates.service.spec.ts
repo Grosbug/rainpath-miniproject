@@ -40,7 +40,7 @@ describe('NodeTemplatesService', () => {
     const t = await service.create({
       name: 'Email — première relance',
       kind: 'send_email',
-      params: { subject: 'Hello', body: 'Bonjour', output: { mode: 'single' } }
+      params: { subject: 'Hello', body: 'Bonjour', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
     } as any)
     expect(t.kind).toBe('send_email')
     if (t.kind === 'send_email') expect(t.params.subject).toBe('Hello')
@@ -56,9 +56,10 @@ describe('NodeTemplatesService', () => {
   })
 
   it('list() returns templates sorted by kind then name', async () => {
-    await service.create({ name: 'Z', kind: 'send_sms', params: { body: 'b', output: { mode: 'single' } } } as any)
-    await service.create({ name: 'A', kind: 'send_email', params: { subject: '', body: '', output: { mode: 'single' } } } as any)
-    await service.create({ name: 'B', kind: 'send_email', params: { subject: '', body: '', output: { mode: 'single' } } } as any)
+    await service.create({ name: 'Z', kind: 'send_sms', params: { body: 'b', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } } } as any)
+
+    await service.create({ name: 'A', kind: 'send_email', params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } } } as any)
+    await service.create({ name: 'B', kind: 'send_email', params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } } } as any)
     const list = await service.list()
     expect(list.map(t => `${t.kind}:${t.name}`)).toEqual([
       'send_email:A',
@@ -71,7 +72,7 @@ describe('NodeTemplatesService', () => {
     const t = await service.create({
       name: 'T',
       kind: 'send_email',
-      params: { subject: '', body: '', output: { mode: 'single' } }
+      params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
     } as any)
     const updated = await service.update(t.id, {
       params: { subject: 'New', body: 'Body', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
@@ -86,7 +87,7 @@ describe('NodeTemplatesService', () => {
     const t = await service.create({
       name: 'T',
       kind: 'send_email',
-      params: { subject: '', body: '', output: { mode: 'single' } }
+      params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
     } as any)
     await expect(service.update(t.id, {
       params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['nonsense'] } } }
@@ -97,7 +98,7 @@ describe('NodeTemplatesService', () => {
     const t = await service.create({
       name: 'T',
       kind: 'send_email',
-      params: { subject: '', body: '', output: { mode: 'single' } }
+      params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
     } as any)
     await service.softDelete(t.id)
     const list = await service.list()

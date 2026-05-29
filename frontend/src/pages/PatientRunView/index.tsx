@@ -7,6 +7,8 @@ import { PatientCanvas } from './PatientCanvas'
 import { PatientProfilePanel } from './PatientProfilePanel'
 import { PatientAdvanceControls } from './PatientAdvanceControls'
 import { PatientHistoryList } from './PatientHistoryList'
+import { DayCursorControls } from './DayCursorControls'
+import { useDaySimulator } from './use-day-simulator'
 
 export default function PatientRunView() {
   const { id: workflowId, runId } = useParams<{ id: string; runId: string }>()
@@ -39,6 +41,19 @@ export default function PatientRunView() {
     )
   }
 
+  return <LoadedView run={run} workflowId={workflowId} />
+}
+
+function LoadedView({ run, workflowId }: { run: import('@/api/patient-runs').PatientRunFull; workflowId: string | undefined }) {
+  const sim = useDaySimulator({
+    runId: run.id,
+    workflowId: run.workflowId,
+    graph: run.workflow.graph,
+    currentNodeId: run.currentNodeId,
+    history: run.history,
+    profile: run.patient
+  })
+
   return (
     <div className="flex h-[calc(100dvh-48px)] flex-col">
       <div className="sticky top-12 z-10 flex h-12 items-center gap-4 border-b border-border bg-surface px-6">
@@ -52,6 +67,9 @@ export default function PatientRunView() {
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-sm font-semibold text-fg">
             {run.patient.name}
+            <span className="ml-2 text-xs font-normal text-fg-muted">
+              · J+0 le {new Date(run.startDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+            </span>
             {run.patient.deletedAt ? (
               <span className="ml-2 inline-flex items-center rounded-full bg-surface-muted px-2 py-0.5 text-xs text-fg-muted">
                 Patient supprimé
@@ -60,16 +78,30 @@ export default function PatientRunView() {
           </h1>
           <p className="truncate text-xs text-fg-muted">{run.workflow.name}</p>
         </div>
+        <Link
+          to={`/workflows/${run.workflowId}`}
+          className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-fg hover:bg-surface-muted"
+          data-rp-tooltip={`Ouvrir « ${run.workflow.name} » dans l'éditeur`}
+        >
+          <Icon name="Pencil" size={16} />
+          Éditer le workflow
+        </Link>
       </div>
 
       <div className="grid flex-1 grid-cols-[1fr_360px] overflow-hidden">
-        <div className="relative">
-          <PatientCanvas
-            graph={run.workflow.graph}
-            profile={run.patient}
-            currentNodeId={run.currentNodeId}
-            history={run.history}
-          />
+        <div className="relative flex flex-col">
+          <div className="border-b border-border bg-surface px-4 py-2">
+            <DayCursorControls sim={sim} />
+          </div>
+          <div className="relative flex-1">
+            <PatientCanvas
+              graph={run.workflow.graph}
+              profile={run.patient}
+              currentNodeId={run.currentNodeId}
+              history={run.history}
+              dayCursor={sim.day}
+            />
+          </div>
         </div>
 
         <aside className="flex flex-col gap-6 overflow-y-auto border-l border-border bg-surface p-6">
@@ -78,11 +110,12 @@ export default function PatientRunView() {
             workflowId={run.workflowId}
             graph={run.workflow.graph}
             currentNodeId={run.currentNodeId}
+            profile={run.patient}
           />
           <div className="h-px bg-border" />
           <PatientProfilePanel patient={run.patient} runId={run.id} />
           <div className="h-px bg-border" />
-          <PatientHistoryList graph={run.workflow.graph} history={run.history} />
+          <PatientHistoryList graph={run.workflow.graph} history={run.history} startDate={run.startDate} />
         </aside>
       </div>
     </div>

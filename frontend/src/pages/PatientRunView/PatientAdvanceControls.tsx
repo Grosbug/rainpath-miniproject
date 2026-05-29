@@ -7,29 +7,22 @@ import { Button } from '@/components/ui/Button'
 import { Icon } from '@/components/Icon'
 import { advancePatientRun, resetPatientRun } from '@/api/patient-runs'
 import { queryKeys } from '@/api/query-keys'
-import { ApiError } from '@/api/client'
+import { describeError } from '@/api/error-messages'
+import { frStatus } from '@/pages/WorkflowEditor/modal/status-labels'
+import {
+  hasChannelData, failureStatusesForNode, missingChannelLabel,
+  type PatientContactData
+} from './cumulative-days'
 
 interface Props {
   runId: string
   workflowId: string
   graph: Graph
   currentNodeId: string | null
+  profile: PatientContactData
 }
 
 type NodeData = Graph['nodes'][number]['data']
-
-const STATUS_LABEL: Record<string, string> = {
-  delivered: 'Livré',
-  bounced: 'Rebondi',
-  rejected: 'Rejeté',
-  opened: 'Ouvert',
-  clicked: 'Cliqué',
-  unopened: 'Non ouvert',
-  sent: 'Envoyé',
-  failed: 'Échec',
-  read: 'Lu',
-  returned: 'Retourné'
-}
 
 function channelStatusesFor(data: NodeData): string[] | null {
   if (data.kind === 'send_email') return [...CHANNEL_STATUSES.email]
@@ -41,7 +34,42 @@ function channelStatusesFor(data: NodeData): string[] | null {
   return null
 }
 
-export function PatientAdvanceControls({ runId, workflowId, graph, currentNodeId }: Props) {
+/**
+ * Statuses the simulator can actually route from this node. For simple mode every
+ * channel status is acceptable (anything not in the success list falls into failure).
+ * For multi mode, only statuses listed in at least one output map to a handle —
+ * picking any other one would crash with `unhandled_outcome` on the backend, so we
+ * hide them from the dropdown. Coverage gaps are surfaced at edit time by the
+ * MissingStatusesAlert; this filter is the runtime mirror.
+ *
+ * When the patient lacks the contact data the channel needs (no email for
+ * `send_email`, no postal address for `send_postal`, etc.), success-class
+ * statuses are filtered out too — "delivered" / "opened" / "read" can't be
+ * observed if the message never reached the recipient. Only the failure set
+ * remains.
+ */
+function routableStatusesFor(data: NodeData, profile: PatientContactData): string[] | null {
+  const channel = channelStatusesFor(data)
+  if (!channel) return null
+  let candidates = channel
+  if (
+    data.kind === 'send_email' || data.kind === 'send_sms' ||
+    data.kind === 'send_whatsapp' || data.kind === 'send_postal'
+  ) {
+    const out = data.params.output
+    if (out.mode === 'multi') {
+      const routed = new Set(out.outputs.flatMap(o => o.condition.statuses))
+      candidates = candidates.filter(s => routed.has(s))
+    }
+  }
+  if (!hasChannelData(data, profile)) {
+    const failures = new Set<string>(failureStatusesForNode(data))
+    candidates = candidates.filter(s => failures.has(s))
+  }
+  return candidates
+}
+
+export function PatientAdvanceControls({ runId, workflowId, graph, currentNodeId, profile }: Props) {
   const node = currentNodeId ? graph.nodes.find(n => n.id === currentNodeId) : null
   const data = node?.data
 
@@ -56,12 +84,7 @@ export function PatientAdvanceControls({ runId, workflowId, graph, currentNodeId
       qc.invalidateQueries({ queryKey: queryKeys.patientRuns.listForWorkflow(workflowId) })
       setOutcome('')
     },
-    onError: e => {
-      const msg = e instanceof ApiError
-        ? e.body.errors?.[0]?.message ?? `Erreur ${e.status}`
-        : 'Échec de l\'avancement'
-      toast.error(msg)
-    }
+    onError: e => toast.error(describeError(e, 'Échec de l\'avancement.'))
   })
 
   const resetMut = useMutation({
@@ -97,33 +120,34 @@ export function PatientAdvanceControls({ runId, workflowId, graph, currentNodeId
     )
   }
 
-  const channelStatuses = channelStatusesFor(data)
-  const isCondition = data.kind === 'condition'
-  const noOutcomeNeeded =
-    data.kind === 'start' ||
-    (channelStatuses !== null && data.kind !== 'condition' && (data as any).params?.output?.mode === 'single')
+  const channelStatuses = routableStatusesFor(data, profile)
+  const noOutcomeNeeded = data.kind === 'start'
+  const lacksData = !hasChannelData(data, profile)
+  const missingLabel = lacksData ? missingChannelLabel(data) : null
+  // Empty dropdown can mean either: multi mode mis-configured (no routed status),
+  // OR the patient lacks contact data AND no failure status exists (postal_untracked).
+  const noOutcomeAvailable =
+    channelStatuses !== null && channelStatuses.length === 0
 
   return (
     <div className="space-y-3">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">Avancement</h2>
 
-      {isCondition ? (
-        <div className="flex gap-2">
-          <label className={`flex h-9 flex-1 cursor-pointer items-center justify-center rounded-md border text-sm font-medium ${
-            outcome === 'true' ? 'border-primary bg-primary-soft text-primary' : 'border-border bg-surface text-fg-muted'
-          }`}>
-            <input type="radio" className="sr-only" checked={outcome === 'true'} onChange={() => setOutcome('true')} />
-            Vrai
-          </label>
-          <label className={`flex h-9 flex-1 cursor-pointer items-center justify-center rounded-md border text-sm font-medium ${
-            outcome === 'false' ? 'border-primary bg-primary-soft text-primary' : 'border-border bg-surface text-fg-muted'
-          }`}>
-            <input type="radio" className="sr-only" checked={outcome === 'false'} onChange={() => setOutcome('false')} />
-            Faux
-          </label>
-        </div>
-      ) : noOutcomeNeeded ? (
+      {lacksData && missingLabel ? (
+        <p className="rounded-md border border-warning bg-[#FFFBEB] p-2 text-xs text-fg" role="status">
+          <Icon name="TriangleAlert" size={16} className="mr-1 inline text-warning" />
+          Patient sans <strong>{missingLabel}</strong> — seuls les statuts d'échec sont proposés.
+        </p>
+      ) : null}
+
+      {noOutcomeNeeded ? (
         <p className="text-xs text-fg-muted">Aucun statut à fournir, cliquez sur Avancer.</p>
+      ) : noOutcomeAvailable ? (
+        <p className="rounded-md border border-warning bg-[#FFFBEB] p-2 text-xs text-warning">
+          {lacksData
+            ? 'Ce canal n\'a pas de statut d\'échec routé — impossible de simuler ce nœud tant que la donnée manque ou que la sortie d\'échec n\'est pas configurée.'
+            : 'Ce nœud n\'a aucun statut routé vers une sortie. Ajoutez au moins un statut dans la configuration du nœud avant d\'avancer.'}
+        </p>
       ) : channelStatuses ? (
         <div>
           <label htmlFor="run-outcome" className="mb-1 block text-xs font-medium text-fg-muted">
@@ -137,7 +161,7 @@ export function PatientAdvanceControls({ runId, workflowId, graph, currentNodeId
           >
             <option value="">Choisir un statut…</option>
             {channelStatuses.map(s => (
-              <option key={s} value={s}>{STATUS_LABEL[s] ?? s}</option>
+              <option key={s} value={s}>{frStatus(s)}</option>
             ))}
           </select>
         </div>
@@ -148,10 +172,7 @@ export function PatientAdvanceControls({ runId, workflowId, graph, currentNodeId
           type="button"
           variant="primary"
           loading={advanceMut.isPending}
-          disabled={
-            (isCondition && !outcome) ||
-            (!isCondition && channelStatuses !== null && !noOutcomeNeeded && !outcome)
-          }
+          disabled={noOutcomeAvailable || (channelStatuses !== null && !noOutcomeNeeded && !outcome)}
           onClick={() => advanceMut.mutate()}
         >
           <Icon name="ArrowRight" size={16} />

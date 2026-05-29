@@ -1,7 +1,6 @@
 import type { Graph, GraphEdge, GraphNode } from '../schemas/primitives'
 import type { NodeData } from '../schemas/node-data'
 import { CHANNEL_STATUSES, type ChannelKey } from '../schemas/channels'
-import { DataAvailableExpressions } from '../schemas/expressions'
 import { START_Y } from '../constants'
 
 export interface ValidationError {
@@ -57,8 +56,14 @@ export function validateGraph(graph: Graph): ValidationResult {
     }
   }
 
-  // Edges — dangling / self-loop / into-start / from-end / duplicate handles
-  const handleUsage = new Map<string, Set<string | undefined>>() // nodeId -> set of handles seen
+  // Edges — dangling / self-loop / into-start / from-end / duplicate handles.
+  // Duplicate-handle is only meaningful for nodes that expose multiple discrete output slots
+  // (send_*). For others (start, end, etc.) all outgoing edges share the same implicit handle
+  // and legitimately fan out to several downstream nodes — defensively skip the check based on
+  // node KIND instead of relying solely on sourceHandle being falsy (React Flow may emit a
+  // non-null default sourceHandle in some configurations).
+  const hasDiscreteOutputs = (n: GraphNode): boolean => n.data.kind.startsWith('send_')
+  const handleUsage = new Map<string, Set<string>>() // nodeId -> set of explicit handles seen
   for (const e of graph.edges) {
     if (!nodesById.has(e.source) || !nodesById.has(e.target)) {
       errors.push({ code: 'edge_dangling', message: 'Une arête référence un nœud inexistant', edgeId: e.id })
@@ -73,16 +78,18 @@ export function validateGraph(graph: Graph): ValidationResult {
     if (nodesById.get(e.source)!.data.kind === 'end') {
       errors.push({ code: 'edge_from_end', message: 'Aucune arête ne peut sortir d\'un nœud de fin', edgeId: e.id })
     }
-    const handles = handleUsage.get(e.source) ?? new Set()
-    if (handles.has(e.sourceHandle)) {
-      errors.push({
-        code: 'duplicate_source_handle',
-        message: 'Deux arêtes utilisent le même handle de sortie',
-        edgeId: e.id, nodeId: e.source
-      })
+    if (e.sourceHandle && hasDiscreteOutputs(nodesById.get(e.source)!)) {
+      const handles = handleUsage.get(e.source) ?? new Set<string>()
+      if (handles.has(e.sourceHandle)) {
+        errors.push({
+          code: 'duplicate_source_handle',
+          message: 'Deux arêtes utilisent le même handle de sortie',
+          edgeId: e.id, nodeId: e.source
+        })
+      }
+      handles.add(e.sourceHandle)
+      handleUsage.set(e.source, handles)
     }
-    handles.add(e.sourceHandle)
-    handleUsage.set(e.source, handles)
   }
 
   // Send node output rules
@@ -94,14 +101,6 @@ export function validateGraph(graph: Graph): ValidationResult {
 
     const data = n.data as Extract<NodeData, { kind: 'send_email' | 'send_sms' | 'send_whatsapp' | 'send_postal' }>
     const output = data.params.output
-
-    if (n.data.kind === 'send_postal' && !n.data.params.tracked && output.mode !== 'single') {
-      errors.push({
-        code: 'postal_untracked_must_be_single',
-        message: 'Postal non suivi : seul le mode single est autorisé',
-        nodeId: n.id
-      })
-    }
 
     if (output.mode === 'simple') {
       for (const s of output.successCondition.statuses) {
@@ -143,13 +142,6 @@ export function validateGraph(graph: Graph): ValidationResult {
     // Validate sourceHandle of outgoing edges matches the output config.
     const outgoing = graph.edges.filter(e => e.source === n.id)
     for (const e of outgoing) {
-      if (output.mode === 'single' && e.sourceHandle !== undefined) {
-        errors.push({
-          code: 'invalid_source_handle_for_single',
-          message: 'Mode single : aucune arête ne doit porter un sourceHandle',
-          edgeId: e.id
-        })
-      }
       if (output.mode === 'simple' && e.sourceHandle !== 'success' && e.sourceHandle !== 'failure') {
         errors.push({
           code: 'invalid_source_handle_for_simple',
@@ -166,30 +158,6 @@ export function validateGraph(graph: Graph): ValidationResult {
             edgeId: e.id
           })
         }
-      }
-    }
-  }
-
-  // Condition rules
-  for (const n of graph.nodes) {
-    if (n.data.kind !== 'condition') continue
-    if (n.data.params.conditionType === 'data_available') {
-      if (!(DataAvailableExpressions as readonly string[]).includes(n.data.params.expression)) {
-        errors.push({
-          code: 'unknown_data_available_expression',
-          message: `Expression inconnue pour data_available : ${n.data.params.expression}`,
-          nodeId: n.id
-        })
-      }
-    }
-    const outgoing = graph.edges.filter(e => e.source === n.id)
-    for (const e of outgoing) {
-      if (e.sourceHandle !== 'true' && e.sourceHandle !== 'false') {
-        errors.push({
-          code: 'invalid_source_handle_for_condition',
-          message: 'Condition : sourceHandle doit valoir "true" ou "false"',
-          edgeId: e.id
-        })
       }
     }
   }
@@ -216,6 +184,45 @@ export function validateGraph(graph: Graph): ValidationResult {
   }
   if (visited < graph.nodes.length) {
     errors.push({ code: 'cycle', message: 'Un cycle a été détecté dans le graphe' })
+  }
+
+  // Reachability: at least one End must be reachable from the (single) Start. A workflow
+  // with a Start and an End but no wiring between them is structurally valid for each
+  // individual rule above but semantically useless — patient runs would dead-end on the
+  // very first advance. We surface this as a hard error rather than a warning because
+  // it blocks the runtime simulator outright.
+  if (starts.length === 1 && ends.length > 0) {
+    const start = starts[0]!
+    const reach = new Set<string>([start.id])
+    const stack = [start.id]
+    while (stack.length > 0) {
+      const id = stack.pop()!
+      for (const e of outgoing.get(id) ?? []) {
+        if (!reach.has(e.target)) { reach.add(e.target); stack.push(e.target) }
+      }
+    }
+    if (!ends.some(e => reach.has(e.id))) {
+      errors.push({
+        code: 'no_path_start_to_end',
+        message: 'Aucun nœud Fin n\'est atteignable depuis le nœud Départ'
+      })
+    }
+    // Each non-Start, non-End node that isn't reachable from Start would never execute —
+    // warn so the author either wires it in or removes it. Ends are intentionally skipped:
+    // a dangling End is already covered by `no_path_start_to_end` above (firing both at
+    // once would be noisy), and on a default freshly-created workflow the disconnected End
+    // is the expected state until the user starts wiring.
+    for (const n of graph.nodes) {
+      if (n.id === start.id) continue
+      if (n.data.kind === 'end') continue
+      if (!reach.has(n.id)) {
+        warnings.push({
+          code: 'unreachable_node',
+          message: 'Ce nœud n\'est pas relié au flux depuis Départ',
+          nodeId: n.id
+        })
+      }
+    }
   }
 
   return { errors, warnings }

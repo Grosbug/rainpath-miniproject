@@ -4,7 +4,7 @@ import { createId } from '@paralleldrive/cuid2'
 import type { GraphNode, GraphEdge, EditorSnapshot } from './snapshot'
 import { hashSnapshot } from './snapshot'
 
-export type SaveStatus = 'idle' | 'saving' | 'saved' | 'invalid' | 'error' | 'offline'
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'saved_invalid' | 'invalid' | 'error' | 'offline'
 
 export type ValidationError = {
   code: string
@@ -39,6 +39,8 @@ type EditorActions = {
   setSelectedNode(id: string | null): void
   setSelectedEdge(id: string | null): void
   updateNodePositionY(id: string, y: number): void
+  updateNodePositionDrag(id: string, x: number, y: number): void
+  commitNodePositionDrag(id: string, x: number, y: number): void
   updateEdgeDays(id: string, daysAfter: number): void
   removeNode(id: string): void
   removeEdge(id: string): void
@@ -47,8 +49,8 @@ type EditorActions = {
   setValidationErrors(errors: ValidationError[]): void
   markSaved(hash: string, savedAt: Date): void
   setPendingSave(pending: boolean): void
-  addNode(p: { kind: GraphNode['data']['kind']; data: GraphNode['data']; atY?: number }): string
-  addEdge(p: { source: string; target: string; sourceHandle?: string; daysAfter: number }): { ok: true; edgeId: string } | { ok: false; reason: 'self_loop' | 'cycle' | 'handle_conflict' | 'dangling' | 'edge_into_start' | 'edge_from_end' }
+  addNode(p: { kind: GraphNode['data']['kind']; data: GraphNode['data']; atX?: number; atY?: number }): string
+  addEdge(p: { source: string; target: string; sourceHandle?: string; daysAfter: number }): { ok: true; edgeId: string } | { ok: false; reason: 'self_loop' | 'cycle' | 'dangling' | 'edge_into_start' | 'edge_from_end' | 'unreachable_source' }
   updateNodeData(id: string, data: GraphNode['data']): void
   undo(): void
   redo(): void
@@ -119,6 +121,30 @@ function runValidation(nodes: GraphNode[], edges: GraphEdge[]): { errors: Valida
   }
 }
 
+/** BFS from the Start node along outgoing edges → set of node ids touched by the timeline. */
+function reachableFromStart(nodes: GraphNode[], edges: GraphEdge[]): Set<string> {
+  const start = nodes.find(n => n.data.kind === 'start')
+  if (!start) return new Set()
+  const outgoing = new Map<string, GraphEdge[]>()
+  for (const e of edges) {
+    const list = outgoing.get(e.source)
+    if (list) list.push(e)
+    else outgoing.set(e.source, [e])
+  }
+  const reach = new Set<string>([start.id])
+  const stack = [start.id]
+  while (stack.length > 0) {
+    const id = stack.pop()!
+    for (const e of outgoing.get(id) ?? []) {
+      if (!reach.has(e.target)) {
+        reach.add(e.target)
+        stack.push(e.target)
+      }
+    }
+  }
+  return reach
+}
+
 function recomputeAndApply(nodes: GraphNode[], edges: GraphEdge[]): GraphNode[] {
   const existing = new Map<string, number>(nodes.map(n => [n.id, n.position.x]))
   try {
@@ -169,13 +195,17 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       return recordCurrentSnapshot({ ...pushed, description })
     }),
 
-  addNode: ({ data, atY }) => {
+  addNode: ({ data, atX, atY }) => {
     const newId = createId()
     set(state => {
       const startY = state.nodes.find(n => n.data.kind === 'start')?.position.y ?? 200
+      // Orphan nodes (no incoming edges yet) keep their initial X in computeXPositions,
+      // so passing atX places the node where the user dropped it. Clamp to ≥0 — negative
+      // days have no meaning on the timeline.
+      const initialX = atX !== undefined ? Math.max(0, atX) : 0
       const node: GraphNode = {
         id: newId,
-        position: { x: 0, y: atY ?? startY + 120 },
+        position: { x: initialX, y: atY ?? startY + 120 },
         data
       } as GraphNode
       const pushed = pushHistory(state)
@@ -207,12 +237,29 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
     if (targetNode.data.kind === 'start') return { ok: false, reason: 'edge_into_start' }
     if (sourceNode.data.kind === 'end') return { ok: false, reason: 'edge_from_end' }
 
-    if (sourceHandle) {
-      const conflict = state.edges.some(e => e.source === source && e.sourceHandle === sourceHandle)
-      if (conflict) return { ok: false, reason: 'handle_conflict' }
+    // Handle conflict only applies to nodes with discrete output slots (send_*).
+    // Other nodes (start, end…) share a single implicit output and may fan out to N targets.
+    // When a discrete handle is already wired, treat the new connection as a *replacement*
+    // (the user is rerouting the same output to a different target) rather than an error.
+    const hasDiscreteOutputs = sourceNode.data.kind.startsWith('send_')
+    const conflictingEdgeId = (sourceHandle && hasDiscreteOutputs)
+      ? state.edges.find(e => e.source === source && e.sourceHandle === sourceHandle)?.id ?? null
+      : null
+
+    // Orphan-source guard: an orphan (not reachable from Start) has no defined timing in the
+    // workflow, so it can't legitimately be the source of an edge into a node that IS reachable
+    // from Start — that would graft a "ghost" upstream branch onto a real timeline. Two orphans
+    // connecting to each other is still allowed (lets users build an island and link it later).
+    const reachable = reachableFromStart(state.nodes, state.edges)
+    if (!reachable.has(source) && reachable.has(target)) {
+      return { ok: false, reason: 'unreachable_source' }
     }
 
-    const prospective = [...state.edges, { id: '__candidate__', source, target, sourceHandle, daysAfter }]
+    // Cycle check against the post-replacement graph (drop the old conflicting edge first).
+    const baseEdges = conflictingEdgeId
+      ? state.edges.filter(e => e.id !== conflictingEdgeId)
+      : state.edges
+    const prospective = [...baseEdges, { id: '__candidate__', source, target, sourceHandle, daysAfter }]
     try {
       computeXPositions({ nodes: state.nodes, edges: prospective })
     } catch {
@@ -222,7 +269,10 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
     const id = createId()
     set(stateInner => {
       const pushed = pushHistory(stateInner)
-      const edges = [...pushed.edges, { id, source, target, sourceHandle, daysAfter }]
+      const baseEdgesInner = conflictingEdgeId
+        ? pushed.edges.filter(e => e.id !== conflictingEdgeId)
+        : pushed.edges
+      const edges = [...baseEdgesInner, { id, source, target, sourceHandle, daysAfter }]
       const nodes = recomputeAndApply(pushed.nodes, edges)
       const v = runValidation(nodes, edges)
       const next = {
@@ -268,6 +318,89 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       return recordCurrentSnapshot({ ...pushed, nodes, validationErrors: v.errors, validationWarnings: v.warnings })
     }),
 
+  /**
+   * Live drag tick: free fractional X and free Y. Every edge connected to the dragged
+   * node — both incoming and outgoing — has its `daysAfter` rewritten so each delay chip
+   * reflects the live visual gap. Incoming: daysAfter = round(node.x) - source.x.
+   * Outgoing: daysAfter = target.x - round(node.x). Both clamped to ≥0 (negative days are
+   * meaningless on the timeline; dragging past a neighbour collapses the gap to zero).
+   * Downstream X is left static during the drag and is propagated on commit.
+   */
+  updateNodePositionDrag: (id, x, y) =>
+    set(state => {
+      const node = state.nodes.find(n => n.id === id)
+      if (!node) return state
+
+      // Live drag ticks DO NOT push history — they're ephemeral previews. Only the
+      // commit (release) lands in undo history. Pushing on every tick would saturate
+      // the 50-entry FIFO with intermediate positions and evict the pre-drag snapshot,
+      // making undo "jump back" to a random mid-drag frame instead of the real prior state.
+      const nodes = state.nodes.map(n =>
+        n.id === id ? { ...n, position: { x, y } } : n
+      )
+
+      const nodeXs = new Map(state.nodes.map(n => [n.id, n.position.x]))
+      const roundedDay = Math.max(0, Math.round(x))
+
+      const edges = state.edges.map(e => {
+        if (e.target === id) {
+          const sourceX = nodeXs.get(e.source) ?? 0
+          return { ...e, daysAfter: Math.max(0, roundedDay - sourceX) }
+        }
+        if (e.source === id) {
+          const targetX = nodeXs.get(e.target) ?? 0
+          return { ...e, daysAfter: Math.max(0, targetX - roundedDay) }
+        }
+        return e
+      })
+
+      const v = runValidation(nodes, edges)
+      return {
+        ...state, nodes, edges,
+        validationErrors: v.errors, validationWarnings: v.warnings
+      }
+    }),
+
+  /**
+   * Drag release: snap X to nearest day (clamped ≥ 0), then rewrite every connected
+   * edge's `daysAfter` so each chip matches the snapped gap. `recomputeAndApply` then
+   * re-lays out the rest of the graph: downstream nodes drift forward when the source
+   * was pushed past them, otherwise positions stay put. Start/orphan nodes (no edges)
+   * keep their snapped X verbatim.
+   */
+  commitNodePositionDrag: (id, x, y) =>
+    set(state => {
+      const node = state.nodes.find(n => n.id === id)
+      if (!node) return state
+
+      const snappedX = Math.max(0, Math.round(x))
+      const pushed = pushHistory(state)
+
+      const nodeXs = new Map(pushed.nodes.map(n => [n.id, n.position.x]))
+      const edges = pushed.edges.map(e => {
+        if (e.target === id) {
+          const sourceX = nodeXs.get(e.source) ?? 0
+          return { ...e, daysAfter: Math.max(0, snappedX - sourceX) }
+        }
+        if (e.source === id) {
+          const targetX = nodeXs.get(e.target) ?? 0
+          return { ...e, daysAfter: Math.max(0, targetX - snappedX) }
+        }
+        return e
+      })
+
+      let nodes = pushed.nodes.map(n =>
+        n.id === id ? { ...n, position: { x: snappedX, y } } : n
+      )
+      nodes = recomputeAndApply(nodes, edges)
+
+      const v = runValidation(nodes, edges)
+      return recordCurrentSnapshot({
+        ...pushed, nodes, edges,
+        validationErrors: v.errors, validationWarnings: v.warnings
+      })
+    }),
+
   updateEdgeDays: (id, daysAfter) =>
     set(state => {
       const pushed = pushHistory(state)
@@ -280,9 +413,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
   removeNode: id =>
     set(state => {
       const node = state.nodes.find(n => n.id === id)
-      if (!node || node.data.kind === 'start') return state
-      const endsCount = state.nodes.filter(n => n.data.kind === 'end').length
-      if (node.data.kind === 'end' && endsCount <= 1) return state
+      if (!node || node.data.kind === 'start' || node.data.kind === 'end') return state
       const pushed = pushHistory(state)
       const nodes = pushed.nodes.filter(n => n.id !== id)
       const edges = pushed.edges.filter(e => e.source !== id && e.target !== id)

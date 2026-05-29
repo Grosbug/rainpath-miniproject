@@ -15,13 +15,16 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
 ) {
   const dim = size === 'sm' ? 'h-8 w-8' : 'h-9 w-9'
   const tone = variant === 'danger' ? 'text-danger hover:bg-[#FEF2F2]' : 'text-fg hover:bg-surface-muted'
+  // disabled: visibly inert — no hover, no pointer, faded. Native `:disabled` already blocks
+  // clicks but the default visual is too subtle, especially next to enabled siblings.
+  const disabledTone = 'disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent'
   return (
     <button
       ref={ref}
       className={
         `inline-flex items-center justify-center rounded-md transition-colors ` +
         `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ` +
-        `${dim} ${tone} ${className ?? ''}`
+        `${dim} ${tone} ${disabledTone} ${className ?? ''}`
       }
       {...rest}
     >

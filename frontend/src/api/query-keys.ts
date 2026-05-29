@@ -16,6 +16,7 @@ export const queryKeys = {
   patientRuns: {
     all: ['patient-runs'] as const,
     listForWorkflow: (workflowId: string) => [...queryKeys.patientRuns.all, 'workflow', workflowId] as const,
+    listForPatient: (patientId: string) => [...queryKeys.patientRuns.all, 'patient', patientId] as const,
     detail: (id: string) => [...queryKeys.patientRuns.all, 'detail', id] as const
   }
 }

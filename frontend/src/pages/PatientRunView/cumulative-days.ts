@@ -1,0 +1,144 @@
+import type { Graph } from '@rainpath/shared'
+import { CHANNEL_FAILURE_STATUSES } from '@rainpath/shared'
+
+type HistoryEntry = { nodeId: string; outcome?: string }
+
+type NodeData = Graph['nodes'][number]['data']
+type PostalAddress = { street: string; postalCode: string; city: string; country?: string | null }
+
+export interface PatientContactData {
+  email: string | null
+  phone: string | null
+  whatsapp: string | null
+  address: PostalAddress | null
+}
+
+/**
+ * Whether the patient profile carries the contact field a send node would
+ * physically need to attempt delivery. Non-send nodes return true (they don't
+ * consume any contact data).
+ *
+ * Postal counts as "available" only when the structured address has the three
+ * mandatory parts (street + postal code + city) — a half-filled address can't
+ * be posted.
+ */
+export function hasChannelData(data: NodeData, profile: PatientContactData): boolean {
+  switch (data.kind) {
+    case 'send_email':    return !!profile.email && profile.email.trim() !== ''
+    case 'send_sms':      return !!profile.phone && profile.phone.trim() !== ''
+    case 'send_whatsapp': return !!profile.whatsapp && profile.whatsapp.trim() !== ''
+    case 'send_postal':   return !!profile.address?.street && !!profile.address?.postalCode && !!profile.address?.city
+    default: return true
+  }
+}
+
+/**
+ * Statuses that can realistically be observed when the patient lacks the
+ * channel's contact data. The provider would either bounce / fail server-side
+ * or never even attempt the send — both fold into the channel's failure set.
+ * Used to filter the outcome dropdown so "delivered / opened / read" never
+ * shows up for a patient with no contact info.
+ */
+export function failureStatusesForNode(data: NodeData): readonly string[] {
+  switch (data.kind) {
+    case 'send_email':    return CHANNEL_FAILURE_STATUSES.email
+    case 'send_sms':      return CHANNEL_FAILURE_STATUSES.sms
+    case 'send_whatsapp': return CHANNEL_FAILURE_STATUSES.whatsapp
+    case 'send_postal':
+      return data.params.tracked
+        ? CHANNEL_FAILURE_STATUSES.postal_tracked
+        : CHANNEL_FAILURE_STATUSES.postal_untracked
+    default: return []
+  }
+}
+
+/** Human label for the missing piece of contact data (used in the warning banner). */
+export function missingChannelLabel(data: NodeData): string | null {
+  switch (data.kind) {
+    case 'send_email':    return 'email'
+    case 'send_sms':      return 'numéro de téléphone'
+    case 'send_whatsapp': return 'numéro WhatsApp'
+    case 'send_postal':   return 'adresse postale complète'
+    default: return null
+  }
+}
+
+/**
+ * Walk the patient's history and sum daysAfter on each consumed edge to
+ * derive the cumulative day at which the current node was entered.
+ *
+ * The history is the authoritative path — we don't recompute via topo sort
+ * because branches with the same target day would otherwise be ambiguous.
+ */
+export function dayOfHistory(graph: Graph, history: HistoryEntry[]): number {
+  if (history.length === 0) return 0
+  let day = 0
+  for (let i = 1; i < history.length; i++) {
+    const prev = history[i - 1]!
+    const curr = history[i]!
+    const edge = pickEdge(graph, prev.nodeId, curr.nodeId)
+    day += edge?.daysAfter ?? 0
+  }
+  return day
+}
+
+/**
+ * The edge the patient would take next from `currentNodeId` if we had to pick
+ * a single default — the "happy path" outgoing edge. Returns undefined when
+ * the node has no outgoing edges (end) or no default is meaningful (multi).
+ *
+ * Used by the day simulator to know when the next event is due:
+ *   nextEventDay = dayOfCurrent + (nextDefaultEdge?.daysAfter ?? Infinity)
+ */
+export function nextDefaultEdge(graph: Graph, currentNodeId: string): Graph['edges'][number] | undefined {
+  const node = graph.nodes.find(n => n.id === currentNodeId)
+  if (!node || node.data.kind === 'end') return undefined
+  const outs = graph.edges.filter(e => e.source === currentNodeId)
+  if (outs.length === 0) return undefined
+
+  if (node.data.kind === 'start') return outs[0]
+
+  const out = node.data.params.output
+  if (out.mode === 'simple') return outs.find(e => e.sourceHandle === 'success')
+  return undefined // multi-output → no single default
+}
+
+/**
+ * Default outcome that auto-advance feeds to POST /advance for a "happy path"
+ * tick. Returns undefined when no auto-advance is possible (multi-output, end).
+ *
+ * When the patient lacks the channel's contact data, the simulator can't
+ * realistically pick a success status (e.g. "delivered" makes no sense without
+ * an email) — it falls back on the first available failure status so the run
+ * naturally routes through the failure handle. Returns undefined when even
+ * the failure set is empty (postal_untracked has no failure status, for
+ * instance) so the caller can pause.
+ */
+export function defaultOutcomeFor(
+  graph: Graph,
+  currentNodeId: string,
+  profile: PatientContactData
+): string | undefined {
+  const node = graph.nodes.find(n => n.id === currentNodeId)
+  if (!node) return undefined
+  if (node.data.kind === 'start') return undefined
+  if (node.data.kind === 'end') return undefined
+  const out = node.data.params.output
+  if (out.mode !== 'simple') return undefined
+
+  if (hasChannelData(node.data, profile)) return out.successCondition.statuses[0]
+  const failures = failureStatusesForNode(node.data)
+  return failures[0]
+}
+
+function pickEdge(
+  graph: Graph,
+  sourceId: string,
+  targetId: string
+): Graph['edges'][number] | undefined {
+  const candidates = graph.edges.filter(e => e.source === sourceId && e.target === targetId)
+  if (candidates.length === 0) return undefined
+  if (candidates.length === 1) return candidates[0]
+  // Best effort: prefer 'success' for any positive outcome, else first.
+  return candidates.find(e => e.sourceHandle === 'success') ?? candidates[0]
+}

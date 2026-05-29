@@ -65,7 +65,7 @@ Single brand accent (medical cyan/teal) + neutral SaaS chrome (slate) + dedicate
 
 Each node family gets its own tonal pair: a `bg` (very tinted, low chroma) for the node body, a `border` for the outline, and an `accent` for the icon dot / header strip. This keeps families recognizable at a glance without screaming.
 
-Per spec, the workflow's `kind` enum is: `start`, `end`, `send_email`, `send_sms`, `send_whatsapp`, `send_postal`, `condition`. There is **no `delay` / `wait` node** — temporisation is carried by `edge.daysAfter`. The `condition` kind splits visually into two families via its `conditionType` parameter (`data_available` vs `previous_result`), so the canvas exposes 8 distinct visual families for 7 logical kinds.
+The workflow's `kind` enum is: `start`, `end`, `send_email`, `send_sms`, `send_whatsapp`, `send_postal`. There is **no `delay` / `wait` node** — temporisation is carried by `edge.daysAfter`. The `condition` kind from the original spec was retired (see `docs/interview-prep.md` § Deviations from the brief) ; all branching now happens via the `multi` output of a send node. The canvas exposes **6 visual families**.
 
 | Family | Maps to | Bg | Border | Accent | CSS variables |
 |---|---|---|---|---|---|
@@ -74,9 +74,9 @@ Per spec, the workflow's `kind` enum is: `start`, `end`, `send_email`, `send_sms
 | **SMS** | `kind = send_sms` | `#EEF2FF` | `#C7D2FE` | `#4338CA` | `--node-sms-{bg,border,accent}` |
 | **WhatsApp** | `kind = send_whatsapp` | `#F0FDF4` | `#BBF7D0` | `#15803D` | `--node-whatsapp-{bg,border,accent}` |
 | **Courrier postal** | `kind = send_postal` | `#FFFBEB` | `#FDE68A` | `#B45309` | `--node-postal-{bg,border,accent}` |
-| **Condition — donnée** | `kind = condition`, `conditionType = data_available` | `#FAF5FF` | `#E9D5FF` | `#7C3AED` | `--node-cond-data-{bg,border,accent}` |
-| **Condition — résultat** | `kind = condition`, `conditionType = previous_result` | `#FDF4FF` | `#F5D0FE` | `#A21CAF` | `--node-cond-result-{bg,border,accent}` |
 | **Fin** | `kind = end` | `#F1F5F9` | `#94A3B8` | `#334155` | `--node-end-{bg,border,accent}` |
+
+> **`--node-cond-data-*` and `--node-cond-result-*` tokens were removed alongside the Condition node.** If a future iteration reintroduces a branching primitive (data-availability check, etc.), pick fresh tokens rather than reviving these — purple is now free for other uses.
 
 > **`--node-wait-*` tokens (#F8FAFC / #CBD5E1 / #475569) are defined for forward-compatibility but unused in v1.** If a future iteration reverses the spec divergence (delay-on-edge → dedicated wait node), the tokens are already in place. Do **not** ship a wait node card while the spec is in force.
 
@@ -208,7 +208,6 @@ Swiss style says "no shadows," but a graph editor needs to lift nodes above the 
   | `send_sms` | `MessageSquare` | — |
   | `send_whatsapp` | `MessageCircle` | Brand WhatsApp SVG only if a licensed asset is supplied; otherwise stay on Lucide |
   | `send_postal` | `Inbox` | + `Truck` or `MapPin` micro-badge when `tracked = true` |
-  | `condition` (both subtypes) | `GitBranch` | Family is distinguished by color tokens, not by icon |
   | `end` | `Square` | — |
 
 - **UI icons** used by the spec: `Plus`, `Upload`, `RotateCw`, `Undo2`, `Redo2`, `MoreVertical`, `GripVertical`, `Check`, `XCircle`, `AlertCircle`, `AlertTriangle`, `Loader2`, `WifiOff`, `Anchor`, `Edit`, `Copy`, `Trash2`.
@@ -279,8 +278,6 @@ Uniform card per family — never different shapes (no circles, no diamonds). Sw
 | `send_sms` | 240–280px | — | Body truncated + character counter `X / 160` colored per §5.2.b rules |
 | `send_whatsapp` | 240–280px | — | Body truncated |
 | `send_postal` | 240–280px | "Suivi" badge (`--success` chip) when `tracked = true` | Body truncated |
-| `condition` (data) | 240–280px | — | Humanized expression (`patient.email` → "Email connu ?") |
-| `condition` (result) | 240–280px | — | Raw expression text |
 | `end` (Fin) | **180px** | **Border 2px** (not 1px) — terminal weight | Icon + "Fin" label only. No detail rows. |
 
 **Source handles — position and count depend on `output.mode`:**
@@ -291,7 +288,6 @@ Uniform card per family — never different shapes (no circles, no diamonds). Sw
 | `send_*` mode `single` | 1 handle `out` | right edge, center | family accent |
 | `send_*` mode `simple` | 2 handles: `success`, `failure` | `success` top-right (~25% from top), `failure` bottom-right (~75%) | `success` → `--success`; `failure` → `--danger` |
 | `send_*` mode `multi` | N handles, one per `output` | right edge, vertically stacked at even intervals; each labeled with `output.label` next to the handle (text-xs, fg-muted) | family accent |
-| `condition` (both subtypes) | 2 handles: `true`, `false` | `true` right edge, `false` bottom edge | `true` → `--success`; `false` → `--danger` |
 | `end` | none | — | — |
 
 **Target handle:** every kind except `start` has one target handle on the left edge, centered. 10px circle, `--surface` background, family-accent border.
@@ -327,12 +323,6 @@ Uniform card per family — never different shapes (no circles, no diamonds). Sw
   - Mode `single` : message "1 sortie unique, aucun routage requis".
   - Aperçu live des handles tels qu'ils apparaîtront sur le nœud.
 
-- **Onglet unique** pour `condition` :
-  - `conditionType` : 2 radios "Donnée disponible" / "Résultat précédent".
-  - `expression` :
-    - si `data_available` → dropdown parmi `DataAvailableExpressions` (`patient.email`, `patient.phone`, `patient.whatsapp`, `patient.address`).
-    - si `previous_result` → input texte libre + placeholder d'exemple.
-
 **Bandeau d'alerte** en bas du body si la modale ferme alors que des edges sortants référencent des `sourceHandle` qui ne sont plus définis (mutation d'outputs) → "supprimer ces edges" ou "annuler".
 
 **Pied** : `Annuler` (secondary) à gauche du primary `Enregistrer`, right-aligned. Le primary est disabled tant que la validation Zod inline n'est pas verte.
@@ -354,7 +344,7 @@ Largeur **320px**, full canvas height, scrollable. La palette n'expose pas une l
 
 - Header `--text-xs` weight 600 uppercase tracking 0.02em `--fg-muted`.
 - Bouton `+ Nouveau modèle` (variant secondary, icône `Plus`, full-width) en tête de section. Ouvre un sélecteur de `kind` (Radix Popover) puis la modale d'édition vide.
-- Liste **groupée par `kind`** via Radix Accordion (sous-sections collapsables "Email", "SMS", "WhatsApp", "Postal", "Condition") — chaque sous-titre `--text-xs` weight 500 `--fg-muted` avec compteur `(N)`.
+- Liste **groupée par `kind`** via Radix Accordion (sous-sections collapsables "Email", "SMS", "WhatsApp", "Postal") — chaque sous-titre `--text-xs` weight 500 `--fg-muted` avec compteur `(N)`.
 - Chaque entrée modèle : 48px de haut, padding 12px, hover bg `--surface-muted` :
   - icône Lucide du canal (16px)
   - `name` (`--text-md` weight 500)
@@ -526,8 +516,9 @@ Vue read-only du graphe avec curseur "jour courant" et 5 états par nœud calcul
 
 **Panneau latéral** (30% de la largeur, à droite, full-height scrollable) :
 1. **Profil patient éditable** : champs `name` / `email` / `phone` / `whatsapp` / `address`. Toggle "Ajouter" / "Supprimer" sur les champs optionnels. Debounce 500ms → `PATCH /patient-profiles/:id`. Bannière `--info` "Modifier ces données change immédiatement les chemins disponibles dans le workflow."
-2. **Avancement** : bouton primary `Étape suivante` + sélecteur d'outcome contextuel (dropdown statuts du canal pour `send_*`, radios Vrai/Faux pour `condition`, rien pour `start` / `single`). Bouton disabled si l'outcome choisi n'a pas de branche définie (tooltip explicatif). Pré-warning `--warning` si le nœud courant est `send_*` et la donnée nécessaire manque dans le profil. Bouton ghost `Réinitialiser le parcours`.
-3. **Historique** : liste chronologique des étapes traversées (label + jour d'entrée + outcome simulé), `--text-sm`, separators `<Separator />`.
+2. **Avancement** : bouton primary `Étape suivante` + sélecteur d'outcome contextuel (dropdown statuts du canal pour `send_*` en mode `simple`/`multi`, rien pour `start`). Bouton disabled si l'outcome choisi n'a pas de branche définie (tooltip explicatif). Bouton ghost `Réinitialiser le parcours`.
+3. **Simulateur jour-par-jour** (toolbar en tête du canvas) : badge `Aujourd'hui J+N` + boutons `+1 j` / `+7 j` / `Prochain événement` + retour-arrière. Le cursor est calculé front (somme `daysAfter` des arêtes parcourues). Quand la cursor traverse l'arête `success` du nœud courant, un POST `/advance` part automatiquement avec l'outcome par défaut ; pause sur `multi`/`end` jusqu'à choix manuel.
+4. **Historique** : liste chronologique des étapes traversées (label + date calendaire `startDate + J+N` + outcome simulé), `--text-sm`, separators `<Separator />`.
 
 ---
 

@@ -20,24 +20,26 @@ describe('patient-profiles api client', () => {
     mockFetchOnce({
       status: 200,
       body: [{
-        id: 'p1', name: 'Alice', email: 'a@b.co', phone: null, whatsapp: null, address: null,
+        id: 'p1', firstName: 'Alice', lastName: 'Doe', name: 'Alice Doe', gender: 'female', postalCode: '75001',
+        email: 'a@b.co', phone: null, whatsapp: null, address: null,
         createdAt: '2026-05-28T10:00:00.000Z', updatedAt: '2026-05-28T10:00:00.000Z', deletedAt: null
       }]
     })
     const list = await listPatientProfiles()
     expect(list).toHaveLength(1)
-    expect(list[0]?.name).toBe('Alice')
+    expect(list[0]?.firstName).toBe('Alice')
   })
 
   it('createPatientProfile forwards body', async () => {
     mockFetchOnce({
       status: 201,
       body: {
-        id: 'p1', name: 'Bob', email: null, phone: null, whatsapp: null, address: null,
+        id: 'p1', firstName: 'Bob', lastName: 'Smith', name: 'Bob Smith', gender: 'male', postalCode: '75001',
+        email: null, phone: null, whatsapp: null, address: null,
         createdAt: '2026-05-28T10:00:00.000Z', updatedAt: '2026-05-28T10:00:00.000Z', deletedAt: null
       }
     })
-    const p = await createPatientProfile({ name: 'Bob' })
+    const p = await createPatientProfile({ firstName: 'Bob', lastName: 'Test', gender: 'male' })
     expect(p.id).toBe('p1')
   })
 
@@ -45,7 +47,8 @@ describe('patient-profiles api client', () => {
     mockFetchOnce({
       status: 200,
       body: {
-        id: 'p1', name: 'Bob', email: null, phone: '+33', whatsapp: null, address: null,
+        id: 'p1', firstName: 'Bob', lastName: 'Smith', name: 'Bob Smith', gender: 'male', postalCode: '75001',
+        email: null, phone: '+33', whatsapp: null, address: null,
         createdAt: '2026-05-28T10:00:00.000Z', updatedAt: '2026-05-28T10:00:00.000Z', deletedAt: null
       }
     })
@@ -64,7 +67,7 @@ describe('patient-profiles api client', () => {
       body: { statusCode: 422, errors: [{ code: 'too_small', message: 'name required' }], warnings: [] }
     })
     let caught: unknown
-    try { await createPatientProfile({ name: '' }) } catch (e) { caught = e }
+    try { await createPatientProfile({ firstName: '', lastName: '', gender: 'male' }) } catch (e) { caught = e }
     expect(caught).toBeInstanceOf(ApiError)
   })
 })

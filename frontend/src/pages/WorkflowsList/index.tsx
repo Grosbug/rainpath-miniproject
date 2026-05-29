@@ -7,21 +7,16 @@ import { queryKeys } from '@/api/query-keys'
 import {
   deleteWorkflow,
   duplicateWorkflow,
-  getWorkflow,
   listWorkflows,
   type WorkflowSummary
 } from '@/api/workflows'
-import { downloadJson } from '@/lib/download-json'
-import { ApiError } from '@/api/client'
 import { WorkflowsTable } from './WorkflowsTable'
 import { CreateWorkflowDialog } from './CreateWorkflowDialog'
-import { ImportWorkflowDialog } from './ImportWorkflowDialog'
 import { DeleteWorkflowConfirm } from './DeleteWorkflowConfirm'
 
 export default function WorkflowsList() {
   const qc = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
-  const [importOpen, setImportOpen] = useState(false)
   const [toDelete, setToDelete] = useState<WorkflowSummary | null>(null)
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -49,26 +44,11 @@ export default function WorkflowsList() {
     onError: () => toast.error('Échec de la suppression')
   })
 
-  const handleExport = async (id: string) => {
-    try {
-      const wf = await getWorkflow(id)
-      downloadJson(`${wf.name.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase() || 'workflow'}.json`, wf)
-      toast.success('Export téléchargé')
-    } catch (e) {
-      const msg = e instanceof ApiError ? `Erreur ${e.status}` : 'Échec de l\'export'
-      toast.error(msg)
-    }
-  }
-
   return (
     <div className='mx-auto max-w-6xl px-6 py-8'>
       <header className='flex items-center justify-between'>
         <h1 className='text-2xl font-semibold tracking-tight text-fg'>Workflows</h1>
         <div className='flex gap-2'>
-          <Button variant='secondary' onClick={() => setImportOpen(true)}>
-            <Icon name='Upload' size={16} />
-            Importer un JSON
-          </Button>
           <Button variant='primary' onClick={() => setCreateOpen(true)}>
             <Icon name='Plus' size={16} />
             Nouveau workflow
@@ -101,14 +81,12 @@ export default function WorkflowsList() {
           <WorkflowsTable
             rows={data}
             onDuplicate={id => duplicateMut.mutate(id)}
-            onExport={handleExport}
             onDelete={row => setToDelete(row)}
           />
         )}
       </div>
 
       <CreateWorkflowDialog open={createOpen} onOpenChange={setCreateOpen} />
-      <ImportWorkflowDialog open={importOpen} onOpenChange={setImportOpen} />
       <DeleteWorkflowConfirm
         open={!!toDelete}
         target={toDelete}

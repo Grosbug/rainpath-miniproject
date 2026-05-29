@@ -10,6 +10,8 @@ const HistoryEntry = z.object({
 })
 export type RunHistoryEntry = z.infer<typeof HistoryEntry>
 
+const PatientGender = z.enum(['male', 'female'])
+
 const PatientRunSummary = z.object({
   id: z.string(),
   patient: z.object({
@@ -18,9 +20,22 @@ const PatientRunSummary = z.object({
     deletedAt: z.string().nullable()
   }),
   currentNodeId: z.string().nullable(),
+  startDate: z.string(),
   updatedAt: z.string()
 })
 export type PatientRunSummary = z.infer<typeof PatientRunSummary>
+
+const PatientRunForPatient = z.object({
+  id: z.string(),
+  workflow: z.object({
+    id: z.string(),
+    name: z.string()
+  }),
+  currentNodeId: z.string().nullable(),
+  startDate: z.string(),
+  updatedAt: z.string()
+})
+export type PatientRunForPatient = z.infer<typeof PatientRunForPatient>
 
 const FullRunEnvelope = z.object({
   id: z.string(),
@@ -32,15 +47,24 @@ const FullRunEnvelope = z.object({
   }),
   patient: z.object({
     id: z.string(),
+    firstName: z.string(),
+    lastName: z.string(),
     name: z.string(),
+    gender: PatientGender,
     email: z.string().nullable(),
     phone: z.string().nullable(),
     whatsapp: z.string().nullable(),
-    address: z.string().nullable(),
+    address: z.object({
+      street: z.string(),
+      postalCode: z.string(),
+      city: z.string(),
+      country: z.string().nullable().optional()
+    }).nullable(),
     deletedAt: z.string().nullable()
   }),
   currentNodeId: z.string().nullable(),
   history: z.array(HistoryEntry),
+  startDate: z.string(),
   createdAt: z.string(),
   updatedAt: z.string()
 })
@@ -74,9 +98,20 @@ function parseList(raw: unknown): PatientRunSummary[] {
   return r.data
 }
 
+function parsePatientList(raw: unknown): PatientRunForPatient[] {
+  const r = z.array(PatientRunForPatient).safeParse(raw)
+  if (!r.success) throwDrift(r.error.issues)
+  return r.data
+}
+
 export async function listPatientRunsForWorkflow(workflowId: string): Promise<PatientRunSummary[]> {
   const raw = await apiFetch<unknown>(`/workflows/${workflowId}/patient-runs`)
   return parseList(raw)
+}
+
+export async function listPatientRunsForPatient(patientId: string): Promise<PatientRunForPatient[]> {
+  const raw = await apiFetch<unknown>(`/patient-profiles/${patientId}/patient-runs`)
+  return parsePatientList(raw)
 }
 
 export async function getPatientRun(id: string): Promise<PatientRunFull> {

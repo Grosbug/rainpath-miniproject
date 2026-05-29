@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Icon } from '@/components/Icon'
 import { updatePatientProfile } from '@/api/patient-profiles'
-import { ApiError } from '@/api/client'
+import { describeError } from '@/api/error-messages'
 import { queryKeys } from '@/api/query-keys'
 
 interface PatientShape {
@@ -12,7 +12,8 @@ interface PatientShape {
   email: string | null
   phone: string | null
   whatsapp: string | null
-  address: string | null
+  /** Structured postal address — same shape as the API model. */
+  address: { street: string; postalCode: string; city: string; country?: string | null } | null
   deletedAt: string | null
 }
 
@@ -21,24 +22,26 @@ interface Props {
   runId: string
 }
 
-type DraftKey = 'name' | 'email' | 'phone' | 'whatsapp' | 'address'
+type DraftKey = 'email' | 'phone' | 'whatsapp' | 'street' | 'postalCode' | 'city'
 
 export function PatientProfilePanel({ patient, runId }: Props) {
   const [draft, setDraft] = useState<Record<DraftKey, string>>({
-    name: patient.name,
     email: patient.email ?? '',
     phone: patient.phone ?? '',
     whatsapp: patient.whatsapp ?? '',
-    address: patient.address ?? ''
+    street: patient.address?.street ?? '',
+    postalCode: patient.address?.postalCode ?? '',
+    city: patient.address?.city ?? ''
   })
 
   useEffect(() => {
     setDraft({
-      name: patient.name,
       email: patient.email ?? '',
       phone: patient.phone ?? '',
       whatsapp: patient.whatsapp ?? '',
-      address: patient.address ?? ''
+      street: patient.address?.street ?? '',
+      postalCode: patient.address?.postalCode ?? '',
+      city: patient.address?.city ?? ''
     })
   }, [patient])
 
@@ -46,22 +49,28 @@ export function PatientProfilePanel({ patient, runId }: Props) {
   const qc = useQueryClient()
 
   const saveMut = useMutation({
-    mutationFn: (next: Record<DraftKey, string>) =>
-      updatePatientProfile(patient.id, {
-        name: next.name.trim() || patient.name,
+    mutationFn: (next: Record<DraftKey, string>) => {
+      // Address is sent as a structured object when at least one address field is filled,
+      // null otherwise. Postal code must match the 5-digit pattern to be persisted;
+      // partial input is held client-side until valid.
+      const s = next.street.trim(), p = next.postalCode.trim(), c = next.city.trim()
+      const anyAddr = s || p || c
+      let address: { street: string; postalCode: string; city: string; country: string } | null = null
+      if (anyAddr && s && /^\d{5}$/.test(p) && c) {
+        address = { street: s, postalCode: p, city: c, country: patient.address?.country ?? 'France' }
+      }
+      return updatePatientProfile(patient.id, {
         email: next.email.trim() ? next.email.trim() : null,
         phone: next.phone.trim() ? next.phone.trim() : null,
         whatsapp: next.whatsapp.trim() ? next.whatsapp.trim() : null,
-        address: next.address.trim() ? next.address.trim() : null
-      } as any),
+        ...(address !== null || !anyAddr ? { address } : {})
+      })
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.patientRuns.detail(runId) })
       qc.invalidateQueries({ queryKey: queryKeys.patientProfiles.list() })
     },
-    onError: e => {
-      const msg = e instanceof ApiError ? e.body.errors?.[0]?.message ?? e.message : 'Erreur'
-      toast.error(`Échec : ${msg}`)
-    }
+    onError: e => toast.error(describeError(e, 'Échec de la sauvegarde du profil patient.'))
   })
 
   const setField = (key: DraftKey, value: string) => {
@@ -95,11 +104,27 @@ export function PatientProfilePanel({ patient, runId }: Props) {
         Modifier ces données change immédiatement les chemins disponibles dans le workflow.
       </p>
 
-      <PanelField label="Nom"      value={draft.name}     onChange={v => setField('name', v)} />
       <PanelField label="Email"    value={draft.email}    onChange={v => setField('email', v)}    placeholder="alice@example.com" />
       <PanelField label="Téléphone" value={draft.phone}   onChange={v => setField('phone', v)}    placeholder="+33 …" />
       <PanelField label="WhatsApp" value={draft.whatsapp} onChange={v => setField('whatsapp', v)} placeholder="+33 …" />
-      <PanelField label="Adresse"  value={draft.address}  onChange={v => setField('address', v)} placeholder="123 rue …" />
+
+      {/* Adresse postale — bloc commun pour que les 3 champs (rue, CP, ville) se lisent
+          comme une unité. Une bordure légère + un label de section les distingue des
+          contacts au-dessus, et un message d'aide explicite la règle "tout-ou-rien". */}
+      <fieldset className='space-y-2 rounded-md border border-border bg-surface-muted/40 p-3'>
+        <legend className='px-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted'>
+          Adresse postale
+        </legend>
+        <PanelField label="Rue"      value={draft.street}   onChange={v => setField('street', v)}   placeholder="123 rue …" />
+        <div className='grid grid-cols-[6.5rem_1fr] gap-2'>
+          <PanelField label="CP"     value={draft.postalCode} onChange={v => setField('postalCode', v)} placeholder="75001" />
+          <PanelField label="Ville"  value={draft.city}     onChange={v => setField('city', v)}     placeholder="Paris" />
+        </div>
+        <p className='px-1 text-[11px] leading-snug text-fg-subtle'>
+          Les trois champs doivent être complétés et le CP au format 5 chiffres pour que
+          l'adresse soit enregistrée.
+        </p>
+      </fieldset>
     </div>
   )
 }

@@ -1,12 +1,13 @@
 import { Handle, NodeProps, Position } from '@xyflow/react'
 import { NodeCard } from './NodeCard'
 import { handleClass } from './handle-styles'
+import { SendNodeSourceHandles } from './SendNodeSourceHandles'
 import type { Graph } from '@rainpath/shared'
 
 type PostalNodeData = Extract<Graph['nodes'][number]['data'], { kind: 'send_postal' }>
 
 export function SendPostalNode({ data, selected }: NodeProps) {
-  const d = data as PostalNodeData
+  const d = data as PostalNodeData & { _dayX?: number }
   return (
     <NodeCard
       family="postal"
@@ -20,6 +21,7 @@ export function SendPostalNode({ data, selected }: NodeProps) {
         </p>
       }
       selected={!!selected}
+      dayX={d._dayX}
       handles={
         <>
           <Handle
@@ -27,11 +29,7 @@ export function SendPostalNode({ data, selected }: NodeProps) {
             position={Position.Left}
             className={`${handleClass} border-[var(--node-postal-accent)]`}
           />
-          <Handle
-            type="source"
-            position={Position.Right}
-            className={`${handleClass} border-[var(--node-postal-accent)]`}
-          />
+          <SendNodeSourceHandles output={d.params.output} />
         </>
       }
     />

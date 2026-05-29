@@ -15,7 +15,11 @@ function emailNode(id: string): GraphNode {
     position: { x: 0, y: START_Y },
     data: {
       kind: 'send_email',
-      params: { subject: '', body: '', output: { mode: 'single' } }
+      params: {
+        subject: '',
+        body: '',
+        output: { mode: 'simple', successCondition: { statuses: ['delivered'] } }
+      }
     }
   }
 }
@@ -76,6 +80,51 @@ describe('useEditorStore', () => {
     expect(s.historyIndex).toBe(1)
   })
 
+  it('updateNodePositionDrag stores fractional X / Y and live-updates the defining edge daysAfter to the rounded day', () => {
+    useEditorStore.getState().load({
+      id: 'w1', name: '', description: '',
+      nodes: [startNode(), emailNode('a'), endNode()],
+      edges: [edge('e1', 's', 'a', 5), edge('e2', 'a', 'e', 10)]
+    })
+    // Drag 'a' to X=8.7 → rounded day = 9 → daysAfter('s'→'a') becomes 9.
+    useEditorStore.getState().updateNodePositionDrag('a', 8.7, 400)
+    const s = useEditorStore.getState()
+    expect(s.nodes.find(n => n.id === 'a')?.position).toEqual({ x: 8.7, y: 400 })
+    expect(s.edges.find(e => e.id === 'e1')?.daysAfter).toBe(9)
+    // Downstream X stays static during drag — propagation happens on commit.
+    expect(s.nodes.find(n => n.id === 'e')?.position.x).toBe(15)
+  })
+
+  it('commitNodePositionDrag snaps X and rewrites ALL connected edges (rubber-band)', () => {
+    useEditorStore.getState().load({
+      id: 'w1', name: '', description: '',
+      nodes: [startNode(), emailNode('a'), endNode()],
+      edges: [edge('e1', 's', 'a', 5), edge('e2', 'a', 'e', 10)]
+    })
+    // Initial layout: s(0) → a(5) → e(15). Drag 'a' right to X=7.6 (snaps to 8).
+    useEditorStore.getState().commitNodePositionDrag('a', 7.6, 400)
+    const s = useEditorStore.getState()
+    expect(s.nodes.find(n => n.id === 'a')?.position).toEqual({ x: 8, y: 400 })
+    // Incoming edge stretches: s→a now spans 8 days.
+    expect(s.edges.find(e => e.id === 'e1')?.daysAfter).toBe(8)
+    // Outgoing edge shrinks: a→e now spans 15 − 8 = 7 days. End stays put at x=15.
+    expect(s.edges.find(e => e.id === 'e2')?.daysAfter).toBe(7)
+    expect(s.nodes.find(n => n.id === 'e')?.position.x).toBe(15)
+  })
+
+  it('commitNodePositionDrag clamps daysAfter ≥ 0 when dragged before the source', () => {
+    useEditorStore.getState().load({
+      id: 'w1', name: '', description: '',
+      nodes: [startNode(), emailNode('a'), endNode()],
+      edges: [edge('e1', 's', 'a', 5), edge('e2', 'a', 'e', 10)]
+    })
+    // Try to drag 'a' to X=-3 (left of start). Snapped to 0; daysAfter clamped to 0.
+    useEditorStore.getState().commitNodePositionDrag('a', -3.2, 400)
+    const s = useEditorStore.getState()
+    expect(s.edges.find(e => e.id === 'e1')?.daysAfter).toBe(0)
+    expect(s.nodes.find(n => n.id === 'a')?.position.x).toBe(0)
+  })
+
   it('updateEdgeDays recomputes downstream X', () => {
     useEditorStore.getState().load({
       id: 'w1', name: '', description: '',
@@ -110,14 +159,16 @@ describe('useEditorStore', () => {
     expect(useEditorStore.getState().nodes.find(n => n.id === 's')).toBeDefined()
   })
 
-  it('removeNode is a no-op on the last end node', () => {
+  it('removeNode is a no-op on any end node', () => {
     useEditorStore.getState().load({
       id: 'w1', name: '', description: '',
-      nodes: [startNode(), endNode()],
-      edges: [edge('e1', 's', 'e', 30)]
+      nodes: [startNode(), endNode('e1'), endNode('e2')],
+      edges: [edge('x1', 's', 'e1', 30), edge('x2', 's', 'e2', 30)]
     })
-    useEditorStore.getState().removeNode('e')
-    expect(useEditorStore.getState().nodes.find(n => n.id === 'e')).toBeDefined()
+    useEditorStore.getState().removeNode('e1')
+    expect(useEditorStore.getState().nodes.find(n => n.id === 'e1')).toBeDefined()
+    useEditorStore.getState().removeNode('e2')
+    expect(useEditorStore.getState().nodes.find(n => n.id === 'e2')).toBeDefined()
   })
 
   it('undo / redo restores prior and next states', () => {
@@ -160,7 +211,7 @@ describe('useEditorStore', () => {
       kind: 'send_email',
       data: {
         kind: 'send_email',
-        params: { subject: 'Hi', body: 'B', output: { mode: 'single' } }
+        params: { subject: 'Hi', body: 'B', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
       } as any
     })
     expect(newId).toBeTruthy()
@@ -208,6 +259,31 @@ describe('useEditorStore', () => {
     expect(s.nodes.find(n => n.id === 'e')?.position.x).toBe(15)
   })
 
+  it('addEdge rejects when an orphan source tries to feed a Start-reachable target', () => {
+    // `b` is an orphan placed in the canvas — it has no path from Start.
+    // Linking b → a (which IS reachable from Start) would graft a meaningless upstream onto the timeline.
+    useEditorStore.getState().load({
+      id: 'w1', name: '', description: '',
+      nodes: [startNode(), emailNode('a'), emailNode('b'), endNode()],
+      edges: [edge('e1', 's', 'a', 5), edge('e2', 'a', 'e', 10)]
+    })
+    const r = useEditorStore.getState().addEdge({ source: 'b', target: 'a', daysAfter: 1 })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toBe('unreachable_source')
+  })
+
+  it('addEdge allows two orphans to link together (island under construction)', () => {
+    // Both `a` and `b` are orphans — building a sub-branch in isolation is OK; the user
+    // can stitch it onto the main flow later by connecting Start (or anything reachable) to `a`.
+    useEditorStore.getState().load({
+      id: 'w1', name: '', description: '',
+      nodes: [startNode(), emailNode('a'), emailNode('b'), endNode()],
+      edges: [edge('e1', 's', 'e', 30)]
+    })
+    const r = useEditorStore.getState().addEdge({ source: 'a', target: 'b', daysAfter: 2 })
+    expect(r.ok).toBe(true)
+  })
+
   it('updateNodeData replaces a node\'s data discriminant payload', () => {
     useEditorStore.getState().load({
       id: 'w1', name: '', description: '',
@@ -216,7 +292,7 @@ describe('useEditorStore', () => {
     })
     useEditorStore.getState().updateNodeData('a', {
       kind: 'send_email',
-      params: { subject: 'Updated', body: 'Body', output: { mode: 'single' } }
+      params: { subject: 'Updated', body: 'Body', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
     } as any)
     const node = useEditorStore.getState().nodes.find(n => n.id === 'a')
     expect(node?.data).toMatchObject({ kind: 'send_email', params: { subject: 'Updated' } })

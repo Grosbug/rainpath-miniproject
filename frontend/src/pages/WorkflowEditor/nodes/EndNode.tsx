@@ -2,16 +2,17 @@ import { Handle, NodeProps, Position } from '@xyflow/react'
 import { NodeCard } from './NodeCard'
 import { handleClass } from './handle-styles'
 
-export function EndNode({ selected }: NodeProps) {
+export function EndNode({ data, selected }: NodeProps) {
+  const dayX = (data as { _dayX?: number })._dayX
   return (
     <NodeCard
       family="end"
       icon="Square"
       familyLabel="Fin"
       title="Patient relancé"
-      width={180}
       thickBorder
       selected={!!selected}
+      dayX={dayX}
       handles={
         <Handle
           type="target"

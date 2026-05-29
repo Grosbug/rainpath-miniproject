@@ -13,7 +13,10 @@ const WorkflowSummary = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  updatedAt: z.string()
+  updatedAt: z.string(),
+  /** Backend-computed validity flag — gates "Démarrer un parcours" and the inline list
+   *  badge. Optional so older API responses (or stale browser caches) don't blow up. */
+  isValid: z.boolean().optional()
 })
 export type WorkflowSummary = z.infer<typeof WorkflowSummary>
 

@@ -3,10 +3,10 @@ import { Icon } from '@/components/Icon'
 import { useWorkflowLoader } from './hooks/useWorkflowLoader'
 import { useAutoSave } from './hooks/useAutoSave'
 import { useEditorShortcuts } from './hooks/useEditorShortcuts'
+import { useValidationToasts } from './hooks/useValidationToasts'
 import { TopBar } from './TopBar'
 import { Canvas } from './Canvas'
 import { Palette } from './palette/Palette'
-import { ValidationBanner } from './ValidationBanner'
 import { NodeEditorModal } from './modal/NodeEditorModal'
 
 export default function WorkflowEditor() {
@@ -14,6 +14,7 @@ export default function WorkflowEditor() {
   const query = useWorkflowLoader(id)
   const { saveNow } = useAutoSave()
   useEditorShortcuts({ saveNow })
+  useValidationToasts()
 
   if (query.isLoading) {
     return (
@@ -47,7 +48,6 @@ export default function WorkflowEditor() {
         <Palette />
         <div className="relative flex-1">
           <Canvas />
-          <ValidationBanner />
         </div>
       </div>
       <NodeEditorModal />

@@ -37,16 +37,19 @@ describe('PatientProfilesService', () => {
   })
 
   it('create() persists a profile with nullable fields preserved', async () => {
-    const p = await service.create({ name: 'Alice', email: 'a@b.co' })
-    expect(p).toMatchObject({ name: 'Alice', email: 'a@b.co', phone: null, whatsapp: null, address: null })
+    const p = await service.create({ firstName: 'Alice', lastName: 'Durand', gender: 'female', email: 'a@b.co' })
+    expect(p).toMatchObject({
+      firstName: 'Alice', lastName: 'Durand', name: 'Alice Durand', gender: 'female',
+      email: 'a@b.co', phone: null, whatsapp: null, address: null
+    })
   })
 
   it('list() omits soft-deleted profiles', async () => {
-    const a = await service.create({ name: 'Alice' })
-    await service.create({ name: 'Bob' })
+    const a = await service.create({ firstName: 'Alice', lastName: 'Durand', gender: 'female' })
+    await service.create({ firstName: 'Bob', lastName: 'Martin', gender: 'male' })
     await service.softDelete(a.id)
     const list = await service.list()
-    expect(list.map(p => p.name).sort()).toEqual(['Bob'])
+    expect(list.map(p => p.firstName).sort()).toEqual(['Bob'])
   })
 
   it('get() throws 404 on unknown id', async () => {
@@ -54,15 +57,15 @@ describe('PatientProfilesService', () => {
   })
 
   it('update() accepts nulls to clear fields', async () => {
-    const p = await service.create({ name: 'Alice', email: 'a@b.co', phone: '+33...' })
+    const p = await service.create({ firstName: 'Alice', lastName: 'Durand', gender: 'female', email: 'a@b.co', phone: '+33...' })
     const updated = await service.update(p.id, { email: null, phone: null })
     expect(updated.email).toBeNull()
     expect(updated.phone).toBeNull()
-    expect(updated.name).toBe('Alice')
+    expect(updated.firstName).toBe('Alice')
   })
 
   it('softDelete() does NOT cascade to runs (spec §6.3)', async () => {
-    const p = await service.create({ name: 'Alice' })
+    const p = await service.create({ firstName: 'Alice', lastName: 'Durand', gender: 'female' })
     const wf = await prisma.workflow.create({
       data: { name: 'WF', graph: JSON.stringify({ nodes: [], edges: [] }) }
     })

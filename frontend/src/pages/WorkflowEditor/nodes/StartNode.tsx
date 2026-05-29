@@ -11,7 +11,6 @@ export function StartNode({ selected }: NodeProps) {
         icon="Play"
         familyLabel="Départ"
         title="Examen effectué"
-        width={180}
         selected={!!selected}
         handles={
           <Handle

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { NodeTemplate } from '@rainpath/shared'
 
-export type NodeKind = 'send_email' | 'send_sms' | 'send_whatsapp' | 'send_postal' | 'condition'
+export type NodeKind = 'send_email' | 'send_sms' | 'send_whatsapp' | 'send_postal'
 
 export type ModalContent =
   | { mode: 'node-edit'; nodeId: string; kind: NodeKind }

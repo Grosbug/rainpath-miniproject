@@ -15,3 +15,69 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Sonner toast icon coloring (richColors is off — we apply DS tokens ourselves). */
+[data-sonner-toast][data-type='error'] [data-icon] { color: var(--danger); }
+[data-sonner-toast][data-type='success'] [data-icon] { color: var(--success); }
+[data-sonner-toast][data-type='warning'] [data-icon] { color: var(--warning); }
+[data-sonner-toast][data-type='info'] [data-icon] { color: var(--info); }
+
+/* Workflow canvas cursors:
+   - Background (pane) shows the default arrow — left-click drag does nothing.
+     Panning is reserved for middle/right-click hold or the MiniMap.
+   - Connection handles use the standard pointer instead of crosshair so the
+     edge-creation gesture feels like "click and drag", not "draw a line". */
+.react-flow__pane,
+.react-flow__pane.draggable {
+  cursor: default;
+}
+.react-flow__pane.dragging {
+  cursor: grabbing;
+}
+.react-flow__handle {
+  cursor: pointer;
+}
+
+/* Suppress the macOS Force-Touch "Look Up / Dictionary" popup when the user
+   click-holds on nodes, edges, or timeline labels. The popup fires whenever
+   Safari/Chrome detects a force-press on text that's still selectable. We
+   blanket-disable selection across the entire React Flow container — and
+   crucially on its SVG descendants (edge labels, timeline ticks), since SVG
+   text bypasses the `user-select: none` already set on `.react-flow__node`.
+   Inputs/textareas inside the canvas keep their normal text-selection. */
+.react-flow,
+.react-flow * {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.react-flow input,
+.react-flow textarea,
+.react-flow [contenteditable='true'] {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
+}
+
+/* Proactive connection-validity feedback — set by useClickConnection on hover and by
+   React Flow's `valid` / drag classes during drag-to-connect. The combined selectors
+   cover both interaction paths (custom click + native drag).
+   IMPORTANT: do not set `transform` here. React Flow anchors handles via
+   `transform: translate(±50%, ±50%)` on the position-side classes (.react-flow__handle-right
+   etc.); any transform override would erase the translate and shift the handle off its
+   visual mount point. Visibility comes from color + ring only. */
+.react-flow__handle[data-rp-conn-state='valid'],
+.react-flow__handle.connectingto.valid {
+  box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.25);
+  background: var(--success) !important;
+  border-color: var(--success) !important;
+  transition: box-shadow 80ms ease-out, background 80ms ease-out;
+}
+.react-flow__handle[data-rp-conn-state='invalid'],
+.react-flow__handle.connectingto:not(.valid) {
+  box-shadow: 0 0 0 4px rgba(185, 28, 28, 0.2);
+  background: #FEE2E2 !important;
+  border-color: var(--danger) !important;
+  cursor: not-allowed;
+}

@@ -13,20 +13,21 @@ import { listNodeTemplates, deleteNodeTemplate } from '@/api/node-templates'
 import { useModalState, type NodeKind } from '../modal-state'
 import { NewTemplateButton } from './NewTemplateButton'
 
-const KIND_LABEL: Record<NodeKind, string> = {
+type PaletteKind = NodeKind
+const PALETTE_KINDS = ['send_email', 'send_sms', 'send_whatsapp', 'send_postal'] as const satisfies readonly PaletteKind[]
+
+const KIND_LABEL: Record<PaletteKind, string> = {
   send_email: 'Email',
   send_sms: 'SMS',
   send_whatsapp: 'WhatsApp',
-  send_postal: 'Postal',
-  condition: 'Condition'
+  send_postal: 'Postal'
 }
 
-const KIND_ICON: Record<NodeKind, IconName> = {
+const KIND_ICON: Record<PaletteKind, IconName> = {
   send_email: 'Mail',
   send_sms: 'MessageSquare',
   send_whatsapp: 'MessageCircle',
-  send_postal: 'Inbox',
-  condition: 'GitBranch'
+  send_postal: 'Inbox'
 }
 
 export function TemplatesSection() {
@@ -36,7 +37,7 @@ export function TemplatesSection() {
   })
   const qc = useQueryClient()
   const open = useModalState(s => s.open)
-  const [expanded, setExpanded] = useState<string[]>(['send_email', 'send_sms', 'send_whatsapp', 'send_postal', 'condition'])
+  const [expanded, setExpanded] = useState<string[]>([...PALETTE_KINDS])
 
   const delMut = useMutation({
     mutationFn: (id: string) => deleteNodeTemplate(id),
@@ -48,8 +49,8 @@ export function TemplatesSection() {
   })
 
   const grouped = useMemo(() => {
-    const out: Record<NodeKind, NodeTemplate[]> = {
-      send_email: [], send_sms: [], send_whatsapp: [], send_postal: [], condition: []
+    const out: Record<PaletteKind, NodeTemplate[]> = {
+      send_email: [], send_sms: [], send_whatsapp: [], send_postal: []
     }
     if (!data) return out
     for (const t of data) {
@@ -87,7 +88,7 @@ export function TemplatesSection() {
         <p className="text-xs text-danger">Impossible de charger les modèles</p>
       ) : (
         <Accordion.Root type="multiple" value={expanded} onValueChange={setExpanded}>
-          {(Object.keys(grouped) as NodeKind[]).map(kind => {
+          {PALETTE_KINDS.map(kind => {
             const items = grouped[kind]
             if (items.length === 0) return null
             return (
@@ -107,10 +108,11 @@ export function TemplatesSection() {
                       key={t.id}
                       draggable
                       onDragStart={e => onDragStart(e, t)}
-                      className="group flex h-10 cursor-grab items-center gap-2 rounded-md px-2 text-sm hover:bg-surface-muted active:cursor-grabbing"
+                      onClick={() => open({ mode: 'template-edit', template: t })}
+                      className="group flex h-10 cursor-pointer items-center gap-2 rounded-md px-2 text-sm hover:bg-surface-muted active:cursor-grabbing"
                     >
                       <Icon name="GripVertical" size={16} className="text-fg-subtle" />
-                      <span className="flex-1 truncate font-medium text-fg" title={t.name}>
+                      <span className="flex-1 truncate font-medium text-fg" data-rp-tooltip={t.name}>
                         {t.name}
                       </span>
                       <DropdownMenu>
@@ -119,6 +121,7 @@ export function TemplatesSection() {
                             icon="EllipsisVertical"
                             aria-label={`Actions sur ${t.name}`}
                             size="sm"
+                            onClick={e => e.stopPropagation()}
                           />
                         </DropdownTrigger>
                         <DropdownContent>

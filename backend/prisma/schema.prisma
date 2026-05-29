@@ -34,15 +34,18 @@ model NodeTemplate {
 }
 
 model PatientProfile {
-  id        String   @id @default(cuid())
-  name      String
-  email     String?
-  phone     String?
-  whatsapp  String?
-  address   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?
+  id         String   @id @default(cuid())
+  firstName  String
+  lastName   String
+  gender     String
+  email      String?
+  phone      String?
+  whatsapp   String?
+  address    String?
+  postalCode String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
   patientRuns PatientRun[]
 
   @@index([deletedAt])
@@ -56,6 +59,7 @@ model PatientRun {
   patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Restrict)
   currentNodeId String?
   history       String         // JSON-encoded [{ nodeId, enteredAt, outcome? }]
+  startDate     DateTime       @default(now())
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   deletedAt     DateTime?

@@ -24,7 +24,7 @@ describe('node-templates api client', () => {
       body: [{
         id: 't1', name: 'Email A',
         kind: 'send_email',
-        params: { subject: 'Hi', body: '', output: { mode: 'single' } },
+        params: { subject: 'Hi', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } },
         createdAt: '2026-05-28T10:00:00.000Z',
         updatedAt: '2026-05-28T10:00:00.000Z'
       }]
@@ -39,7 +39,7 @@ describe('node-templates api client', () => {
       status: 201,
       body: {
         id: 't1', name: 'SMS short', kind: 'send_sms',
-        params: { body: 'hi', output: { mode: 'single' } },
+        params: { body: 'hi', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } },
         createdAt: '2026-05-28T10:00:00.000Z',
         updatedAt: '2026-05-28T10:00:00.000Z'
       }
@@ -47,7 +47,7 @@ describe('node-templates api client', () => {
     const t = await createNodeTemplate({
       name: 'SMS short',
       kind: 'send_sms',
-      params: { body: 'hi', output: { mode: 'single' } }
+      params: { body: 'hi', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
     } as any)
     expect(t.id).toBe('t1')
   })
@@ -57,7 +57,7 @@ describe('node-templates api client', () => {
       status: 200,
       body: {
         id: 't1', name: 'renamed', kind: 'send_sms',
-        params: { body: 'hi', output: { mode: 'single' } },
+        params: { body: 'hi', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } },
         createdAt: '2026-05-28T10:00:00.000Z',
         updatedAt: '2026-05-28T10:00:00.000Z'
       }
@@ -80,7 +80,7 @@ describe('node-templates api client', () => {
     try {
       await createNodeTemplate({
         name: 'X', kind: 'send_email',
-        params: { subject: '', body: '', output: { mode: 'single' } }
+        params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
       } as any)
     } catch (e) {
       caught = e

@@ -6,6 +6,7 @@ import WorkflowEditor from '@/pages/WorkflowEditor'
 import PatientProfilesList from '@/pages/PatientProfilesList'
 import PatientRunsList from '@/pages/PatientRunsList'
 import PatientRunView from '@/pages/PatientRunView'
+import Documentation from '@/pages/Documentation'
 
 export const router = createBrowserRouter([
   {
@@ -17,6 +18,7 @@ export const router = createBrowserRouter([
       { path: '/patient-profiles', element: <PatientProfilesList /> },
       { path: '/workflows/:id/patient-runs', element: <PatientRunsList /> },
       { path: '/workflows/:id/patient-runs/:runId', element: <PatientRunView /> },
+      { path: '/docs', element: <Documentation /> },
       { path: '*', element: <NotFound /> }
     ]
   }

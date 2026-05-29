@@ -29,10 +29,12 @@ const FULL_RUN = {
     }
   },
   patient: {
-    id: 'p1', name: 'Alice', email: 'a@b.co', phone: null, whatsapp: null, address: null, deletedAt: null
+    id: 'p1', firstName: 'Alice', lastName: 'Durand', name: 'Alice Durand', gender: 'female', postalCode: '75001',
+    email: 'a@b.co', phone: null, whatsapp: null, address: null, deletedAt: null
   },
   currentNodeId: 's',
   history: [{ nodeId: 's', enteredAt: '2026-05-28T10:00:00.000Z' }],
+  startDate: '2026-05-28T10:00:00.000Z',
   createdAt: '2026-05-28T10:00:00.000Z',
   updatedAt: '2026-05-28T10:00:00.000Z'
 }
@@ -45,21 +47,22 @@ describe('patient-runs api client', () => {
       status: 200,
       body: [{
         id: 'r1',
-        patient: { id: 'p1', name: 'Alice', deletedAt: null },
+        patient: { id: 'p1', name: 'Alice Durand', deletedAt: null },
         currentNodeId: 's',
+        startDate: '2026-05-28T10:00:00.000Z',
         updatedAt: '2026-05-28T10:00:00.000Z'
       }]
     })
     const list = await listPatientRunsForWorkflow('w1')
     expect(list).toHaveLength(1)
-    expect(list[0]?.patient.name).toBe('Alice')
+    expect(list[0]?.patient.name).toBe('Alice Durand')
   })
 
   it('getPatientRun parses the full run', async () => {
     mockFetchOnce({ status: 200, body: FULL_RUN })
     const run = await getPatientRun('r1')
     expect(run.workflow.graph.nodes).toHaveLength(2)
-    expect(run.patient.name).toBe('Alice')
+    expect(run.patient.name).toBe('Alice Durand')
   })
 
   it('createPatientRun POSTs to workflow path', async () => {

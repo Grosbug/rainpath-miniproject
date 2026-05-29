@@ -1,17 +1,19 @@
-import { KeyboardEvent, useEffect, useState } from 'react'
+import { KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Icon } from '@/components/Icon'
+import { Button } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import {
   DropdownMenu, DropdownTrigger, DropdownContent, DropdownItem, DropdownSeparator
 } from '@/components/ui/DropdownMenu'
-import { downloadJson } from '@/lib/download-json'
-import { duplicateWorkflow, deleteWorkflow, getWorkflow } from '@/api/workflows'
+import { duplicateWorkflow, deleteWorkflow } from '@/api/workflows'
 import { queryKeys } from '@/api/query-keys'
 import { useEditorStore } from './store'
+import { useHistoryActions } from './hooks/useHistoryActions'
 import { SaveStatusBadge } from './SaveStatusBadge'
+import { ValidationStatusBadge } from './ValidationStatusBadge'
 
 interface Props {
   saveNow: () => void
@@ -23,15 +25,26 @@ export function TopBar({ saveNow }: Props) {
   const description = useEditorStore(s => s.description)
   const setName = useEditorStore(s => s.setName)
   const setDescription = useEditorStore(s => s.setDescription)
-  const undo = useEditorStore(s => s.undo)
-  const redo = useEditorStore(s => s.redo)
-  const canUndo = useEditorStore(s => s.historyIndex > 0)
-  const canRedo = useEditorStore(s => s.historyIndex < s.history.length - 1)
+  const { handleUndo, handleRedo, canUndo, canRedo, undoCount, redoCount } = useHistoryActions()
 
   const [editingName, setEditingName] = useState(false)
   const [draftName, setDraftName] = useState(name)
   const [editingDesc, setEditingDesc] = useState(false)
   const [draftDesc, setDraftDesc] = useState(description)
+  const [savePulse, setSavePulse] = useState(false)
+  const savePulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (savePulseTimer.current) clearTimeout(savePulseTimer.current)
+  }, [])
+
+  const handleSaveClick = () => {
+    saveNow()
+    toast.success('Enregistrement déclenché')
+    setSavePulse(true)
+    if (savePulseTimer.current) clearTimeout(savePulseTimer.current)
+    savePulseTimer.current = setTimeout(() => setSavePulse(false), 800)
+  }
 
   useEffect(() => {
     if (!editingName) setDraftName(name)
@@ -62,17 +75,6 @@ export function TopBar({ saveNow }: Props) {
     },
     onError: () => toast.error('Échec de la suppression')
   })
-
-  const handleExport = async () => {
-    if (!id) return
-    try {
-      const wf = await getWorkflow(id)
-      downloadJson(`${(wf.name || 'workflow').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase()}.json`, wf)
-      toast.success('Export téléchargé')
-    } catch {
-      toast.error('Échec de l\'export')
-    }
-  }
 
   const onNameKey = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') { setName(draftName.trim() || name); setEditingName(false) }
@@ -133,23 +135,46 @@ export function TopBar({ saveNow }: Props) {
         )}
       </div>
 
-      <SaveStatusBadge />
+      <div className='flex items-center gap-3'>
+        <ValidationStatusBadge />
+        <SaveStatusBadge />
+      </div>
 
       <div className='flex items-center gap-1'>
-        <IconButton icon='Undo2' aria-label='Annuler' onClick={undo} disabled={!canUndo} />
-        <IconButton icon='Redo2' aria-label='Rétablir' onClick={redo} disabled={!canRedo} />
-        <IconButton icon='Save' aria-label='Enregistrer maintenant' onClick={saveNow} />
+        <Button
+          variant='secondary'
+          size='sm'
+          onClick={() => navigate(`/workflows/${id}/patient-runs`)}
+        >
+          <Icon name='Play' size={16} />
+          Parcours patients
+        </Button>
+        <IconButton
+          icon='Undo2'
+          aria-label='Annuler'
+          onClick={handleUndo}
+          disabled={!canUndo}
+          data-rp-tooltip={canUndo ? `Annuler (${undoCount} action${undoCount > 1 ? 's' : ''} en arrière)` : 'Rien à annuler'}
+        />
+        <IconButton
+          icon='Redo2'
+          aria-label='Rétablir'
+          onClick={handleRedo}
+          disabled={!canRedo}
+          data-rp-tooltip={canRedo ? `Rétablir (${redoCount} action${redoCount > 1 ? 's' : ''} en avant)` : 'Rien à rétablir'}
+        />
+        <IconButton
+          icon='Save'
+          aria-label='Enregistrer maintenant'
+          onClick={handleSaveClick}
+          className={savePulse ? 'animate-pulse bg-success/15 text-success ring-2 ring-success/40' : undefined}
+        />
         <DropdownMenu>
           <DropdownTrigger asChild>
             <IconButton icon='EllipsisVertical' aria-label="Plus d'actions" />
           </DropdownTrigger>
           <DropdownContent>
-            <DropdownItem icon='Play' onSelect={() => navigate(`/workflows/${id}/patient-runs`)}>
-              Voir les parcours patients
-            </DropdownItem>
-            <DropdownSeparator />
             <DropdownItem icon='Copy' onSelect={() => dupMut.mutate()}>Dupliquer</DropdownItem>
-            <DropdownItem icon='Download' onSelect={handleExport}>Exporter en JSON</DropdownItem>
             <DropdownSeparator />
             <DropdownItem icon='Trash2' danger onSelect={() => delMut.mutate()}>Supprimer</DropdownItem>
           </DropdownContent>

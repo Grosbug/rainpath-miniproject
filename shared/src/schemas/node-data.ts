@@ -28,20 +28,13 @@ export const PostalParams = z.object({
 })
 export type PostalParams = z.infer<typeof PostalParams>
 
-export const ConditionParams = z.object({
-  conditionType: z.enum(['data_available', 'previous_result']),
-  expression: z.string()
-})
-export type ConditionParams = z.infer<typeof ConditionParams>
-
 export const NodeData = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('start') }),
   z.object({ kind: z.literal('end') }),
   z.object({ kind: z.literal('send_email'),    params: EmailParams }),
   z.object({ kind: z.literal('send_sms'),      params: SmsParams }),
   z.object({ kind: z.literal('send_whatsapp'), params: WhatsAppParams }),
-  z.object({ kind: z.literal('send_postal'),   params: PostalParams }),
-  z.object({ kind: z.literal('condition'),     params: ConditionParams })
+  z.object({ kind: z.literal('send_postal'),   params: PostalParams })
 ])
 export type NodeData = z.infer<typeof NodeData>
 export type NodeKind = NodeData['kind']

@@ -2,16 +2,32 @@ import { z } from 'zod'
 import type { CreatePatientProfileDto, UpdatePatientProfileDto } from '@rainpath/shared'
 import { ApiError, apiFetch } from './client'
 
+export const PatientGender = z.enum(['male', 'female'])
+export type PatientGender = z.infer<typeof PatientGender>
+
+const PostalAddress = z.object({
+  street: z.string(),
+  postalCode: z.string(),
+  city: z.string(),
+  country: z.string().nullable().optional()
+})
+export type PostalAddress = z.infer<typeof PostalAddress>
+
 const PatientProfile = z.object({
   id: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
   name: z.string(),
+  gender: PatientGender,
   email: z.string().nullable(),
   phone: z.string().nullable(),
   whatsapp: z.string().nullable(),
-  address: z.string().nullable(),
+  address: PostalAddress.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
-  deletedAt: z.string().nullable()
+  deletedAt: z.string().nullable(),
+  /** Only populated by listPatientProfiles(); undefined on single-profile reads. */
+  runsCount: z.number().int().min(0).optional()
 })
 export type PatientProfile = z.infer<typeof PatientProfile>
 

@@ -5,10 +5,6 @@ export const OutputCondition = z.object({
 })
 export type OutputCondition = z.infer<typeof OutputCondition>
 
-const SingleOutput = z.object({
-  mode: z.literal('single')
-})
-
 const SimpleOutput = z.object({
   mode: z.literal('simple'),
   successCondition: OutputCondition
@@ -23,5 +19,5 @@ const MultiOutput = z.object({
   })).min(1)
 })
 
-export const OutputConfig = z.discriminatedUnion('mode', [SingleOutput, SimpleOutput, MultiOutput])
+export const OutputConfig = z.discriminatedUnion('mode', [SimpleOutput, MultiOutput])
 export type OutputConfig = z.infer<typeof OutputConfig>

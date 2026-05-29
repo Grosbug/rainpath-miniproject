@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { OutputConfig } from '../src/schemas/output-config'
-import { NodeData, EmailParams, SmsParams, WhatsAppParams, PostalParams, ConditionParams } from '../src/schemas/node-data'
+import { NodeData, EmailParams, SmsParams, WhatsAppParams, PostalParams } from '../src/schemas/node-data'
 import { GraphNode, Graph } from '../src/schemas/primitives'
 
 describe('OutputConfig', () => {
-  it('parses single mode', () => {
-    expect(OutputConfig.parse({ mode: 'single' }).mode).toBe('single')
+  it('rejects single mode (deprecated)', () => {
+    expect(() => OutputConfig.parse({ mode: 'single' })).toThrow()
   })
   it('parses simple mode with successCondition', () => {
     const out = OutputConfig.parse({
@@ -38,14 +38,14 @@ describe('EmailParams', () => {
     expect(() => EmailParams.parse({
       subject: 'a'.repeat(79),
       body: 'ok',
-      output: { mode: 'single' }
+      output: { mode: 'simple', successCondition: { statuses: ['delivered'] } }
     })).toThrow()
   })
   it('caps body at 100_000 chars', () => {
     expect(() => EmailParams.parse({
       subject: '',
       body: 'a'.repeat(100_001),
-      output: { mode: 'single' }
+      output: { mode: 'simple', successCondition: { statuses: ['delivered'] } }
     })).toThrow()
   })
   it('accepts a valid email params', () => {
@@ -61,7 +61,7 @@ describe('SmsParams', () => {
   it('caps body at 459', () => {
     expect(() => SmsParams.parse({
       body: 'a'.repeat(460),
-      output: { mode: 'single' }
+      output: { mode: 'simple', successCondition: { statuses: ['delivered'] } }
     })).toThrow()
   })
 })
@@ -70,7 +70,7 @@ describe('WhatsAppParams', () => {
   it('caps body at 4096', () => {
     expect(() => WhatsAppParams.parse({
       body: 'a'.repeat(4097),
-      output: { mode: 'single' }
+      output: { mode: 'simple', successCondition: { statuses: ['delivered'] } }
     })).toThrow()
   })
 })
@@ -80,23 +80,8 @@ describe('PostalParams', () => {
     expect(PostalParams.parse({
       body: 'lettre',
       tracked: true,
-      output: { mode: 'single' }
+      output: { mode: 'simple', successCondition: { statuses: ['delivered'] } }
     }).tracked).toBe(true)
-  })
-})
-
-describe('ConditionParams', () => {
-  it('accepts data_available with patient.email', () => {
-    expect(ConditionParams.parse({
-      conditionType: 'data_available',
-      expression: 'patient.email'
-    }).conditionType).toBe('data_available')
-  })
-  it('rejects unknown conditionType', () => {
-    expect(() => ConditionParams.parse({
-      conditionType: 'other',
-      expression: 'x'
-    })).toThrow()
   })
 })
 
@@ -110,9 +95,15 @@ describe('NodeData', () => {
   it('parses send_email node with params', () => {
     const n = NodeData.parse({
       kind: 'send_email',
-      params: { subject: '', body: '', output: { mode: 'single' } }
+      params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
     })
     expect(n.kind).toBe('send_email')
+  })
+  it('rejects the removed condition kind', () => {
+    expect(() => NodeData.parse({
+      kind: 'condition',
+      params: { conditionType: 'data_available', expression: 'patient.email' }
+    })).toThrow()
   })
 })
 

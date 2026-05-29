@@ -6,7 +6,7 @@ const NodeTemplateResp = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable().optional(),
-  kind: z.enum(['send_email', 'send_sms', 'send_whatsapp', 'send_postal', 'condition']),
+  kind: z.enum(['send_email', 'send_sms', 'send_whatsapp', 'send_postal']),
   params: z.unknown(),
   createdAt: z.string(),
   updatedAt: z.string()

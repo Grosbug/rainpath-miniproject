@@ -5,6 +5,7 @@ import { RouterProvider } from 'react-router-dom'
 import { router } from './router'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Toaster } from './components/Toaster'
+import { AnchoredToasts } from './components/AnchoredToasts'
 import './styles/globals.css'
 
 const queryClient = new QueryClient({
@@ -23,6 +24,7 @@ createRoot(document.getElementById('root')!).render(
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
         <Toaster />
+        <AnchoredToasts />
       </QueryClientProvider>
     </ErrorBoundary>
   </StrictMode>

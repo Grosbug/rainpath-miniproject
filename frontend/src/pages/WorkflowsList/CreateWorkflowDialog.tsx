@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
-import { ApiError } from '@/api/client'
+import { describeError } from '@/api/error-messages'
 import { createWorkflow } from '@/api/workflows'
 import { queryKeys } from '@/api/query-keys'
 
@@ -30,9 +30,7 @@ export function CreateWorkflowDialog({ open, onOpenChange }: Props) {
       onOpenChange(false)
       navigate(`/workflows/${wf.id}`)
     },
-    onError: err => {
-      setError(err instanceof ApiError ? err.body.errors?.[0]?.message ?? err.message : 'Erreur')
-    }
+    onError: err => setError(describeError(err, 'Impossible de créer le workflow.'))
   })
 
   const reset = () => {

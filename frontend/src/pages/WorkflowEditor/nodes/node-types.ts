@@ -5,7 +5,6 @@ import { SendEmailNode } from './SendEmailNode'
 import { SendSmsNode } from './SendSmsNode'
 import { SendWhatsAppNode } from './SendWhatsAppNode'
 import { SendPostalNode } from './SendPostalNode'
-import { ConditionNode } from './ConditionNode'
 
 /**
  * React Flow looks up the component by `node.type`. We use `data.kind` as the React Flow type.
@@ -17,6 +16,5 @@ export const nodeTypes: NodeTypes = {
   send_email: SendEmailNode,
   send_sms: SendSmsNode,
   send_whatsapp: SendWhatsAppNode,
-  send_postal: SendPostalNode,
-  condition: ConditionNode
+  send_postal: SendPostalNode
 }

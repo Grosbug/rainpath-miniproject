@@ -6,7 +6,7 @@ const startNode = { id: 's', position: { x: 0, y: 200 }, data: { kind: 'start' a
 const endNode = (id = 'e') => ({ id, position: { x: 1, y: 200 }, data: { kind: 'end' as const } })
 const sendNode = (id: string) => ({
   id, position: { x: 1, y: 200 },
-  data: { kind: 'send_email' as const, params: { subject: '', body: '', output: { mode: 'single' as const } } }
+  data: { kind: 'send_email' as const, params: { subject: '', body: '', output: { mode: 'simple' as const, successCondition: { statuses: ['delivered'] } } } }
 })
 const edge = (id: string, source: string, target: string, daysAfter = 1, sourceHandle?: string) =>
   ({ id, source, target, daysAfter, sourceHandle })

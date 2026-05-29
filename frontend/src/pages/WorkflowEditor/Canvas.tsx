@@ -1,17 +1,20 @@
-import { useCallback, useMemo, useState, MouseEvent, DragEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, MouseEvent, DragEvent } from 'react'
 import {
-  ReactFlow, MiniMap, Controls, useReactFlow, ReactFlowProvider,
+  ReactFlow, Controls, useReactFlow, ReactFlowProvider,
   type Node as RFNode, type Edge as RFEdge,
   type NodeChange, type EdgeChange, type Connection
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { toast } from 'sonner'
+import { showAnchoredToast } from '@/components/AnchoredToasts'
 import { useEditorStore } from './store'
 import { nodeTypes } from './nodes/node-types'
 import { edgeTypes } from './edges/edge-types'
 import { TimelineBackground } from './TimelineBackground'
 import { DaysAfterPopover } from './edges/DaysAfterPopover'
 import { useModalState, type NodeKind } from './modal-state'
+import { useLeftAnchoredZoom } from './hooks/useLeftAnchoredZoom'
+import { useClickConnection } from './hooks/useClickConnection'
+import { ConnectionPreview } from './ConnectionPreview'
 
 const PX_PER_DAY = 28
 
@@ -20,7 +23,9 @@ function toRFNodes(nodes: ReturnType<typeof useEditorStore.getState>['nodes']): 
     id: n.id,
     type: n.data.kind,
     position: { x: n.position.x * PX_PER_DAY, y: n.position.y },
-    data: n.data,
+    // Inject _dayX (cumulative delay from start, in days) so node renderers can show
+    // a "J+N" badge. Non-store field — not persisted (toRFNodes is read-only mapping).
+    data: { ...n.data, _dayX: Math.max(0, Math.round(n.position.x)) },
     draggable: n.data.kind !== 'start'
   }))
 }
@@ -39,10 +44,10 @@ function toRFEdges(edges: ReturnType<typeof useEditorStore.getState>['edges']): 
 const REJECTION_MSG: Record<string, string> = {
   self_loop: 'Auto-connexion impossible',
   cycle: 'Boucle détectée — connexion impossible',
-  handle_conflict: 'Ce handle a déjà une sortie',
   dangling: 'Nœud cible inexistant',
   edge_into_start: 'Impossible d\'entrer dans le nœud Départ',
-  edge_from_end: 'Impossible de partir d\'un nœud Fin'
+  edge_from_end: 'Impossible de partir d\'un nœud Fin',
+  unreachable_source: 'Connectez d\'abord ce nœud au flux principal avant d\'en partir'
 }
 
 function CanvasInner() {
@@ -50,12 +55,29 @@ function CanvasInner() {
   const edges = useEditorStore(s => s.edges)
   const setSelectedNode = useEditorStore(s => s.setSelectedNode)
   const setSelectedEdge = useEditorStore(s => s.setSelectedEdge)
-  const updateNodePositionY = useEditorStore(s => s.updateNodePositionY)
-  const updateEdgeDays = useEditorStore(s => s.updateEdgeDays)
+  const updateNodePositionDrag = useEditorStore(s => s.updateNodePositionDrag)
+  const commitNodePositionDrag = useEditorStore(s => s.commitNodePositionDrag)
+  const removeEdge = useEditorStore(s => s.removeEdge)
   const addNode = useEditorStore(s => s.addNode)
   const addEdge = useEditorStore(s => s.addEdge)
   const openModal = useModalState(s => s.open)
   const { screenToFlowPosition } = useReactFlow()
+  // 56 px of breathing room left of J+0 so the Start node and the timeline labels stay clear
+// of the canvas left edge at any zoom level — without it, deep-zoomed views clip the origin.
+useLeftAnchoredZoom(56)
+  const { interaction, isValidConnection } = useClickConnection()
+
+  // Track latest viewport-coords cursor so action-rejection toasts can anchor where the user
+  // is currently aiming (onConnect doesn't expose the underlying MouseEvent).
+  const mouseRef = useRef({ x: 0, y: 0 })
+  useEffect(() => {
+    const onMove = (e: globalThis.MouseEvent) => {
+      mouseRef.current.x = e.clientX
+      mouseRef.current.y = e.clientY
+    }
+    document.addEventListener('mousemove', onMove)
+    return () => document.removeEventListener('mousemove', onMove)
+  }, [])
 
   const rfNodes = useMemo(() => toRFNodes(nodes), [nodes])
   const rfEdges = useMemo(() => toRFEdges(edges), [edges])
@@ -68,16 +90,22 @@ function CanvasInner() {
         if (ch.type === 'select' && 'selected' in ch) {
           setSelectedNode(ch.selected ? ch.id : null)
         }
-        if (ch.type === 'position' && ch.position && ch.dragging) {
+        if (ch.type === 'position' && ch.position) {
           const id = ch.id
           const node = nodes.find(n => n.id === id)
-          if (node && node.data.kind !== 'start') {
-            updateNodePositionY(id, ch.position.y)
+          if (!node || node.data.kind === 'start') continue
+          // React Flow gives position in canvas pixels; X is day-units in the store.
+          const dayX = ch.position.x / PX_PER_DAY
+          if (ch.dragging) {
+            updateNodePositionDrag(id, dayX, ch.position.y)
+          } else {
+            // Drag release: snap to nearest day, rewrite incoming edge's daysAfter, propagate.
+            commitNodePositionDrag(id, dayX, ch.position.y)
           }
         }
       }
     },
-    [nodes, setSelectedNode, updateNodePositionY]
+    [nodes, setSelectedNode, updateNodePositionDrag, commitNodePositionDrag]
   )
 
   const onEdgesChange = useCallback(
@@ -93,17 +121,36 @@ function CanvasInner() {
 
   const onConnect = useCallback((params: Connection) => {
     if (!params.source || !params.target) return
+    // Pick daysAfter so the target keeps its current X. The layout invariant forces
+    // target.X >= source.X — if target is currently left of source, it still snaps to source.X.
+    const sourceNode = nodes.find(n => n.id === params.source)
+    const targetNode = nodes.find(n => n.id === params.target)
+    const daysAfter = sourceNode && targetNode
+      ? Math.max(0, Math.round(targetNode.position.x - sourceNode.position.x))
+      : 0
+    // Only send_* nodes carry a meaningful sourceHandle; for others (start, end…)
+    // strip whatever React Flow emitted so the stored edge stays clean and the duplicate-handle
+    // check (which is type-aware) can't be confused by a stale id.
+    const sourceHasDiscreteOutputs = !!sourceNode && sourceNode.data.kind.startsWith('send_')
+    const normalizedHandle = sourceHasDiscreteOutputs
+      ? (params.sourceHandle ?? undefined)
+      : undefined
     const result = addEdge({
       source: params.source,
       target: params.target,
-      sourceHandle: params.sourceHandle ?? undefined,
-      daysAfter: 0
+      sourceHandle: normalizedHandle,
+      daysAfter
     })
     if (!result.ok) {
       const msg = REJECTION_MSG[result.reason] ?? 'Connexion impossible'
-      toast.error(msg)
+      showAnchoredToast({
+        message: msg,
+        type: 'error',
+        x: mouseRef.current.x,
+        y: mouseRef.current.y
+      })
     }
-  }, [addEdge])
+  }, [addEdge, nodes])
 
   const onDragOver = useCallback((e: DragEvent) => {
     if (e.dataTransfer.types.includes('application/x-rainpath-palette')) {
@@ -117,25 +164,14 @@ function CanvasInner() {
     if (!raw) return
     e.preventDefault()
 
-    let payload: { kind: 'start' | 'end' | 'template'; templateId?: string }
+    let payload: { kind: 'template'; templateId?: string }
     try { payload = JSON.parse(raw) } catch { return }
 
     const flowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+    // Convert drop pixels → store units. X is day-index (1 day = PX_PER_DAY), Y is raw pixels.
+    const atX = flowPos.x / PX_PER_DAY
     const atY = flowPos.y
 
-    if (payload.kind === 'start') {
-      const hasStart = useEditorStore.getState().nodes.some(n => n.data.kind === 'start')
-      if (hasStart) {
-        toast.info('Un nœud Départ existe déjà')
-        return
-      }
-      addNode({ kind: 'start', data: { kind: 'start' } as any, atY })
-      return
-    }
-    if (payload.kind === 'end') {
-      addNode({ kind: 'end', data: { kind: 'end' } as any, atY })
-      return
-    }
     if (payload.kind === 'template') {
       const tmplRaw = e.dataTransfer.getData('application/x-rainpath-template')
       if (!tmplRaw) return
@@ -144,10 +180,11 @@ function CanvasInner() {
         addNode({
           kind: tmpl.kind,
           data: { kind: tmpl.kind, params: structuredClone(tmpl.params) } as any,
+          atX,
           atY
         })
       } catch {
-        toast.error('Modèle invalide')
+        showAnchoredToast({ message: 'Modèle invalide', type: 'error', x: e.clientX, y: e.clientY })
       }
     }
   }, [addNode, screenToFlowPosition])
@@ -164,15 +201,25 @@ function CanvasInner() {
     const chip = target.closest('[data-edge-label-id]') as HTMLElement | null
     if (chip) {
       const id = chip.dataset['edgeLabelId']!
+      // Anchor at the CHIP's center (not the cursor) so the popover overlays the "+ N j"
+      // label cleanly, regardless of which pixel inside the chip the user happened to click.
       const rect = chip.getBoundingClientRect()
-      setPopover({ edgeId: id, anchor: { x: rect.left + rect.width / 2, y: rect.top } })
+      setPopover({
+        edgeId: id,
+        anchor: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+      })
     }
   }, [])
 
   const popoverEdge = popover ? edges.find(e => e.id === popover.edgeId) ?? null : null
 
   return (
-    <div className='relative h-full w-full' onClick={onCanvasClick} onDragOver={onDragOver} onDrop={onDrop}>
+    <div
+      className='relative h-full w-full'
+      onClick={onCanvasClick}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
@@ -183,25 +230,36 @@ function CanvasInner() {
         onConnect={onConnect}
         onNodeDoubleClick={onNodeDoubleClick}
         nodesConnectable
+        connectOnClick={false}
+        isValidConnection={isValidConnection}
+        zoomOnDoubleClick={false}
+        panOnDrag={[1, 2]}
+        selectionOnDrag={false}
         deleteKeyCode={null}
         proOptions={{ hideAttribution: true }}
+        translateExtent={[[-360, -Infinity], [Infinity, Infinity]]}
         fitView
       >
         <TimelineBackground />
-        <Controls className='!bg-surface !border-border' showInteractive={false} />
-        <MiniMap className='!bg-surface-muted !border-border' pannable zoomable />
+        <Controls
+          className='!bg-surface !border-border'
+          position='bottom-center'
+          orientation='horizontal'
+          showInteractive={false}
+        />
       </ReactFlow>
 
       <DaysAfterPopover
         open={!!popover && !!popoverEdge}
         anchor={popover?.anchor ?? null}
-        initialValue={popoverEdge?.daysAfter ?? 0}
-        onCommit={value => {
-          if (popover) updateEdgeDays(popover.edgeId, value)
+        onCancel={() => setPopover(null)}
+        onDelete={() => {
+          if (popover) removeEdge(popover.edgeId)
           setPopover(null)
         }}
-        onCancel={() => setPopover(null)}
       />
+
+      <ConnectionPreview interaction={interaction} />
     </div>
   )
 }

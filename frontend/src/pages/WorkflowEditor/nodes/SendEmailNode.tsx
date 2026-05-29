@@ -1,12 +1,13 @@
 import { Handle, NodeProps, Position } from '@xyflow/react'
 import { NodeCard } from './NodeCard'
 import { handleClass } from './handle-styles'
+import { SendNodeSourceHandles } from './SendNodeSourceHandles'
 import type { Graph } from '@rainpath/shared'
 
 type EmailNodeData = Extract<Graph['nodes'][number]['data'], { kind: 'send_email' }>
 
 export function SendEmailNode({ data, selected }: NodeProps) {
-  const d = data as EmailNodeData
+  const d = data as EmailNodeData & { _dayX?: number }
   return (
     <NodeCard
       family="email"
@@ -17,6 +18,7 @@ export function SendEmailNode({ data, selected }: NodeProps) {
         <p className="line-clamp-1">{d.params.body || '(corps vide)'}</p>
       }
       selected={!!selected}
+      dayX={d._dayX}
       handles={
         <>
           <Handle
@@ -24,11 +26,7 @@ export function SendEmailNode({ data, selected }: NodeProps) {
             position={Position.Left}
             className={`${handleClass} border-[var(--node-email-accent)]`}
           />
-          <Handle
-            type="source"
-            position={Position.Right}
-            className={`${handleClass} border-[var(--node-email-accent)]`}
-          />
+          <SendNodeSourceHandles output={d.params.output} />
         </>
       }
     />

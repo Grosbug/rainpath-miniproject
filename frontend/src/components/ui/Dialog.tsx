@@ -26,13 +26,13 @@ export function Dialog({ open, onOpenChange, title, description, children, size 
         <RadixDialog.Overlay className='fixed inset-0 z-[100] bg-[var(--elev-scrim)] data-[state=open]:animate-in data-[state=open]:fade-in' />
         <RadixDialog.Content
           className={
-            'fixed left-1/2 top-1/2 z-[100] w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 ' +
-            'rounded-lg bg-surface p-6 shadow-elev-3 ' +
+            'fixed left-1/2 top-1/2 z-[100] flex w-[calc(100vw-32px)] max-h-[calc(100dvh-32px)] -translate-x-1/2 -translate-y-1/2 flex-col ' +
+            'rounded-lg bg-surface shadow-elev-3 ' +
             'data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95 ' +
             WIDTH[size]
           }
         >
-          <div className='flex items-start justify-between gap-4'>
+          <div className='flex shrink-0 items-start justify-between gap-4 px-6 pt-6'>
             <div>
               <RadixDialog.Title className='text-lg font-semibold text-fg'>{title}</RadixDialog.Title>
               {description ? (
@@ -48,7 +48,7 @@ export function Dialog({ open, onOpenChange, title, description, children, size 
               <Icon name='X' size={16} />
             </RadixDialog.Close>
           </div>
-          <div className='mt-4'>{children}</div>
+          <div className='mt-4 min-h-0 flex-1 overflow-y-auto px-6 pb-6'>{children}</div>
         </RadixDialog.Content>
       </RadixDialog.Portal>
     </RadixDialog.Root>

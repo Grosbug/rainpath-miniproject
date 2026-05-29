@@ -2,7 +2,6 @@ import type { Graph } from '@rainpath/shared'
 
 export type AdvanceErrorCode =
   | 'workflow_already_finished'
-  | 'condition_outcome_required'
   | 'unhandled_outcome'
   | 'no_outgoing_edge'
   | 'current_node_missing'
@@ -33,13 +32,6 @@ function resolveHandle(node: Graph['nodes'][number], outcome: string | undefined
 
   if (data.kind === 'start') return { type: 'single' }
 
-  if (data.kind === 'condition') {
-    if (outcome !== 'true' && outcome !== 'false') {
-      throw new AdvanceError('condition_outcome_required', 422, { nodeId: node.id })
-    }
-    return { type: 'handle', handle: outcome }
-  }
-
   if (
     data.kind === 'send_email' ||
     data.kind === 'send_sms' ||
@@ -47,7 +39,6 @@ function resolveHandle(node: Graph['nodes'][number], outcome: string | undefined
     data.kind === 'send_postal'
   ) {
     const out = data.params.output
-    if (out.mode === 'single') return { type: 'single' }
 
     if (out.mode === 'simple') {
       if (outcome && out.successCondition.statuses.includes(outcome)) {

@@ -12,8 +12,9 @@
 6. **Auto-save indicator** transitions through "Enregistrement…" → "Enregistré".
 
 7. **Open the patient simulation** at `/workflows/:id/patient-runs`. Pick a patient and start a run.
-8. **Live reachability**: with `patient.email` set, watch the email branch open. Clear the email field — the email branch greys out (blocked) and an alternative path lights up.
-9. **Click "Étape suivante"** through the workflow. The current node pulses; visited nodes show a check; future reachable nodes stay normal.
+8. **Read-only canvas** : same graph as the editor, but laid out by `computeLanes` — main path stays on rail 0, alternate branches drop below, orphans get their own rails. A vertical dashed "today" line tracks the day cursor.
+9. **Day-by-day simulator** (top toolbar) : `+1 j` / `+7 j` / `Prochain événement`. When the cursor crosses an edge's `daysAfter`, `useDaySimulator` auto-fires POST `/advance` with the default success outcome and the loop re-evaluates after refetch. Pause on multi-output (user picks a branch) and `end`.
+10. **Manual step** : `Étape suivante` in the right panel still works — it lets you force a specific outcome (e.g. `bounced`) instead of the default success. The cursor snaps forward to the new current-node day after each manual advance.
 
 ## Defensible choices (from spec §9)
 
@@ -21,12 +22,18 @@
 - **JSON blob + Zod**: 1 table for workflows vs. normalized Node/Edge tables. Lower friction for a mini-project; the validation rigor lives in `shared/`.
 - **Monorepo pnpm + shared package**: one source of truth for types, schemas, and algorithms used by both front and back.
 - **Auto-save debouncé + retry exponentiel**: modern UX with hash-dedup gate and validation gate; PATCHs never fire on invalid graphs.
-- **Statuts d'envoi typés par canal + 3 modes de sortie**: reflects real-world observability (email has rich events, postal untracked has none). Avoids configuring impossible branchings.
-- **Vue patient avec reachability live**: changing a patient field reorganises the graph visually — the algorithm `computeReachability` is testable in isolation in `shared/`.
+- **Statuts d'envoi typés par canal + 3 modes de sortie**: reflects real-world observability (email has rich events, postal untracked has none). Avoids configuring impossible branchings. **All branching now goes through these outputs** — see "deviations from the brief" below.
+- **Vue patient avec reachability live + auto-layout en couloirs**: `computeLanes` ignore le Y libre de l'éditeur et redessine les branches sur des rails ; le user voit immédiatement « cette branche est celle du succès, celle-là est l'alternative ». L'algorithme `computeReachability` reste testable en isolation dans `shared/`.
+- **Simulateur jour-par-jour côté front** : le cursor `day = max(userBumped, dayOfHistory)` est purement frontend (somme `daysAfter` des arêtes traversées + offset utilisateur). Aucune migration BDD, aucun endpoint supplémentaire — le simulateur orchestre des `/advance` existants avec l'outcome par défaut. Mimic un scheduler sans embarquer BullMQ.
 - **Bibliothèque de modèles** + drop détaché: palette is dynamic (BDD-driven), drop creates a fully independent node copy via `structuredClone`.
 - **Soft delete par défaut**: appropriate for an anatomopathologie context (audit, RGPD future-proofing).
 - **Undo/redo dans l'éditeur** (50 snapshots, Ctrl+Z/Y): signal of UX care.
 - **Modal d'édition focalisée** (double-click): tested approach; DS §7.4 was updated to adopt it after iteration.
+
+## Deviations from the brief (assume + defend)
+
+- **No Condition nodes**. The brief (§3) explicitly lists `Condition — disponibilité d'une donnée` and `Condition — résultat d'une action précédente`. They were removed in favor of pushing all branching into the **multi-output** mode of send nodes. Argument: the multi-output's status-based routing covers "résultat d'une action précédente" natively; "disponibilité d'une donnée" is partially absorbed by the fact that sending to a missing channel yields a `bounced`/`failed` status which routes via the failure handle. Acknowledge the cost: you can no longer pre-empt the send to spare a useless attempt. Add Condition back as a half-day re-implementation if reviewer pushes.
+- **`daysAfter` on the edge** rather than a dedicated `Wait` node (already in the original deck; reiterate).
 
 ## Choices to interrogate / future improvements
 
@@ -46,11 +53,12 @@
 
 ## Architecture talking points
 
-- **shared/ package** : Zod schemas (single source of truth), `computeXPositions` (topological propagation), `computeReachability` (5-state algorithm with formal invariants), `validateGraph` (structural + per-output + format), `simulate*` helpers (for future ghost preview).
+- **shared/ package** : Zod schemas (single source of truth), `computeXPositions` (topological propagation), `computeReachability` (5-state algorithm with formal invariants — now purely outcome-driven since Condition nodes were removed), `validateGraph` (structural + per-output + format), `simulate*` helpers (for future ghost preview).
 - **Backend layered validation** : Zod pipe (DTOs) + `GraphValidationError` (rules) + drift detection on read (`decodeGraph` throws 500 on stored-blob corruption).
 - **Frontend dual-zod workaround** : never compose shared Zod schemas in frontend `z.object` (TS2719 dual-instance). Pattern: envelope schema with `graph: z.unknown()`, then `Graph.safeParse(envelope.data.graph)` separately.
 - **Auto-save state machine** : idle → saving → saved | invalid | error → offline (after 5 retries with exponential backoff `[1, 2, 4, 8, 16]s`).
 - **Reachability monotony** : a node marked `reachable` never regresses; `blocked` can be promoted to `reachable` if another path activates it (tested invariant).
+- **Day simulator architecture** : zero backend change. `dayOfHistory` sums `daysAfter` over the visited path → `currentNodeDay`. The user cursor is `userCursor + offset` ; effective cursor is `max(userCursor, currentNodeDay)`. A `useEffect` watches `(day, nextEventDay, currentNodeId)` and fires `POST /advance` with the default success outcome whenever the cursor crosses `currentNodeDay + nextEdge.daysAfter`. Refetch re-runs the effect → cascades until pause (multi-output or `end`). Reset is detected via history length collapsing to 1 → cursor rewinds.
 
 ## Tooling decisions worth mentioning
 
@@ -66,5 +74,5 @@
 - **3 packages**: `shared`, `frontend`, `backend`, with pnpm workspaces.
 - **~10,000 lines** added across all phases.
 - **80+ tests** total (shared algorithm unit tests + backend Jest + frontend Vitest + e2e Supertest).
-- **8 plans + 1 spec + 1 design system** in `docs/superpowers/`.
+- **8 plans + 1 spec + 1 design system** in `docs/superpowers/` (the Condition-node bits are now historical — kept as-is for traceability).
 - **0 emoji**, **0 hex outside `tokens.css`** (except documented intentional exceptions).

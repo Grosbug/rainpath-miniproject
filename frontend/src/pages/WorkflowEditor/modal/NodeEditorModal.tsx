@@ -5,31 +5,28 @@ import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { queryKeys } from '@/api/query-keys'
 import { createNodeTemplate, updateNodeTemplate } from '@/api/node-templates'
-import { ApiError } from '@/api/client'
+import { describeError } from '@/api/error-messages'
 import { useEditorStore } from '../store'
 import { useModalState, type NodeKind, type ModalContent } from '../modal-state'
 import { EmailParamsForm } from './EmailParamsForm'
 import { SmsParamsForm } from './SmsParamsForm'
 import { WhatsAppParamsForm } from './WhatsAppParamsForm'
 import { PostalParamsForm } from './PostalParamsForm'
-import { ConditionParamsForm } from './ConditionParamsForm'
 import type { AnyParams } from './form-types'
 
 const KIND_LABEL: Record<NodeKind, string> = {
   send_email: 'Email',
   send_sms: 'SMS',
   send_whatsapp: 'WhatsApp',
-  send_postal: 'Courrier postal',
-  condition: 'Condition'
+  send_postal: 'Courrier postal'
 }
 
 function emptyParams(kind: NodeKind): AnyParams {
   switch (kind) {
-    case 'send_email':    return { subject: '', body: '', output: { mode: 'single' } } as AnyParams
-    case 'send_sms':      return { body: '', output: { mode: 'single' } } as AnyParams
-    case 'send_whatsapp': return { body: '', output: { mode: 'single' } } as AnyParams
-    case 'send_postal':   return { body: '', tracked: false, output: { mode: 'single' } } as AnyParams
-    case 'condition':     return { conditionType: 'data_available', expression: 'patient.email' } as AnyParams
+    case 'send_email':    return { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered', 'opened', 'clicked', 'unopened'] } } } as AnyParams
+    case 'send_sms':      return { body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } } as AnyParams
+    case 'send_whatsapp': return { body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered', 'read'] } } } as AnyParams
+    case 'send_postal':   return { body: '', tracked: false, output: { mode: 'simple', successCondition: { statuses: ['sent'] } } } as AnyParams
   }
 }
 
@@ -92,7 +89,7 @@ function ModalBody({ content, onClose }: BodyProps) {
       toast.success('Modèle créé')
       onClose()
     },
-    onError: e => setError(e instanceof ApiError ? e.body.errors?.[0]?.message ?? e.message : 'Erreur')
+    onError: e => setError(describeError(e, 'Impossible de créer le modèle.'))
   })
 
   const updateMut = useMutation({
@@ -105,7 +102,7 @@ function ModalBody({ content, onClose }: BodyProps) {
       toast.success('Modèle mis à jour')
       onClose()
     },
-    onError: e => setError(e instanceof ApiError ? e.body.errors?.[0]?.message ?? e.message : 'Erreur')
+    onError: e => setError(describeError(e, 'Impossible de mettre à jour le modèle.'))
   })
 
   const handleSave = () => {
@@ -171,9 +168,6 @@ function ModalBody({ content, onClose }: BodyProps) {
         )}
         {kind === 'send_postal' && (
           <PostalParamsForm value={params as any} onChange={setParams as any} />
-        )}
-        {kind === 'condition' && (
-          <ConditionParamsForm value={params as any} onChange={setParams as any} />
         )}
 
         {error ? <p role='alert' className='text-sm text-danger'>{error}</p> : null}

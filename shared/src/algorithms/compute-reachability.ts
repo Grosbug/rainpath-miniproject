@@ -1,22 +1,15 @@
 import type { Graph, GraphEdge, GraphNode } from '../schemas/primitives'
+import type { PostalAddress } from '../schemas/api-dtos'
 
 export type NodeReachState = 'visited' | 'current' | 'reachable' | 'blocked' | 'unreachable'
 
+/** Structural shape used by the reachability evaluator. Accepts both the new structured
+ *  postal address and a plain string for backward compatibility (legacy profiles). */
 export interface PatientProfileLike {
   email?: string | null
   phone?: string | null
   whatsapp?: string | null
-  address?: string | null
-}
-
-function evaluateDataAvailable(expression: string, profile: PatientProfileLike): boolean | undefined {
-  switch (expression) {
-    case 'patient.email':    return !!profile.email && profile.email !== ''
-    case 'patient.phone':    return !!profile.phone && profile.phone !== ''
-    case 'patient.whatsapp': return !!profile.whatsapp && profile.whatsapp !== ''
-    case 'patient.address': return !!profile.address && profile.address !== ''
-    default: return undefined
-  }
+  address?: PostalAddress | string | null
 }
 
 function topologicalOrder(graph: Graph, root: string): string[] {
@@ -64,56 +57,22 @@ function topologicalOrder(graph: Graph, root: string): string[] {
   return order
 }
 
-interface OutgoingResolution {
-  followed: GraphEdge[]
-  skippedBlocked: GraphEdge[]
-}
-
-function resolveOutgoingEdges(node: GraphNode, edges: GraphEdge[], profile: PatientProfileLike): OutgoingResolution {
-  const outgoing = edges.filter(e => e.source === node.id)
-  switch (node.data.kind) {
-    case 'start':
-    case 'send_email':
-    case 'send_sms':
-    case 'send_whatsapp':
-    case 'send_postal':
-      return { followed: outgoing, skippedBlocked: [] }
-    case 'condition': {
-      const params = node.data.params
-      if (params.conditionType === 'data_available') {
-        const result = evaluateDataAvailable(params.expression, profile)
-        if (result === undefined) {
-          return { followed: outgoing, skippedBlocked: [] }
-        }
-        const trueEdge = outgoing.find(e => e.sourceHandle === 'true')
-        const falseEdge = outgoing.find(e => e.sourceHandle === 'false')
-        if (result) {
-          return {
-            followed: trueEdge ? [trueEdge] : [],
-            skippedBlocked: falseEdge ? [falseEdge] : []
-          }
-        } else {
-          return {
-            followed: falseEdge ? [falseEdge] : [],
-            skippedBlocked: trueEdge ? [trueEdge] : []
-          }
-        }
-      }
-      // previous_result : both branches potentially possible
-      return { followed: outgoing, skippedBlocked: [] }
-    }
-    case 'end':
-      return { followed: [], skippedBlocked: [] }
-  }
+function resolveOutgoingEdges(node: GraphNode, edges: GraphEdge[]): GraphEdge[] {
+  if (node.data.kind === 'end') return []
+  return edges.filter(e => e.source === node.id)
 }
 
 /**
  * Compute the reachability state of every node from the perspective of `currentNodeId`,
  * given a patient profile and execution history. Idempotent and deterministic.
+ *
+ * Without condition nodes, branching is entirely outcome-driven (send-node success /
+ * failure / multi-output handles). All outgoing edges of a non-end node are treated
+ * as "reachable" — we don't try to predict which outcome the simulator will pick.
  */
 export function computeReachability(
   graph: Graph,
-  profile: PatientProfileLike,
+  _profile: PatientProfileLike,
   currentNodeId: string | null,
   history: string[]
 ): Map<string, NodeReachState> {
@@ -133,14 +92,9 @@ export function computeReachability(
     const here = state.get(id)
     const canPropagate = here === 'current' || here === 'visited' || here === 'reachable'
     if (!canPropagate) continue
-    const { followed, skippedBlocked } = resolveOutgoingEdges(node, graph.edges, profile)
-    for (const e of followed) {
+    for (const e of resolveOutgoingEdges(node, graph.edges)) {
       const target = state.get(e.target)
       if (target === 'unreachable' || target === 'blocked') state.set(e.target, 'reachable')
-    }
-    for (const e of skippedBlocked) {
-      const target = state.get(e.target)
-      if (target === 'unreachable') state.set(e.target, 'blocked')
     }
   }
   return state

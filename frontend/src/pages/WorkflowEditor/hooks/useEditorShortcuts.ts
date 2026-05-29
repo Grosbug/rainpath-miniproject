@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useEditorStore } from '../store'
+import { useHistoryActions } from './useHistoryActions'
 
 interface Options {
   saveNow: () => void
@@ -9,12 +10,14 @@ interface Options {
  * Wires Ctrl/Cmd+Z (undo), Ctrl/Cmd+Shift+Z (redo), Cmd/Ctrl+S (save),
  * Delete/Backspace (remove selected node or edge). Ignored when focus is in
  * an input/textarea or `contenteditable` to avoid hijacking text editing.
+ *
+ * Undo/redo go through `useHistoryActions` so the toast + guards behave the
+ * same whether triggered by the TopBar buttons or the keyboard.
  */
 export function useEditorShortcuts({ saveNow }: Options) {
-  const undo = useEditorStore(s => s.undo)
-  const redo = useEditorStore(s => s.redo)
   const removeNode = useEditorStore(s => s.removeNode)
   const removeEdge = useEditorStore(s => s.removeEdge)
+  const { handleUndo, handleRedo } = useHistoryActions()
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -36,17 +39,17 @@ export function useEditorShortcuts({ saveNow }: Options) {
 
       if (mod && e.key.toLowerCase() === 'z' && e.shiftKey) {
         e.preventDefault()
-        redo()
+        handleRedo()
         return
       }
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault()
-        undo()
+        handleUndo()
         return
       }
       if (mod && e.key.toLowerCase() === 'y') {
         e.preventDefault()
-        redo()
+        handleRedo()
         return
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -62,5 +65,5 @@ export function useEditorShortcuts({ saveNow }: Options) {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [undo, redo, removeNode, removeEdge, saveNow])
+  }, [handleUndo, handleRedo, removeNode, removeEdge, saveNow])
 }

@@ -9,8 +9,13 @@ import {
   validateGraph
 } from '@rainpath/shared'
 import { PrismaService, buildSoftDeleteClient } from '../prisma/prisma.service'
-import { GraphValidationError, GraphWarning } from '../validation/graph-validation.error'
+import { GraphErrorItem, GraphWarning } from '../validation/graph-validation.error'
 import { decodeGraph, encodeGraph } from './graph-codec'
+
+type ValidationResult = {
+  warnings: GraphWarning[]
+  validationErrors: GraphErrorItem[]
+}
 
 type WorkflowOut = {
   id: string
@@ -20,6 +25,7 @@ type WorkflowOut = {
   createdAt: string
   updatedAt: string
   warnings: GraphWarning[]
+  validationErrors: GraphErrorItem[]
 }
 
 @Injectable()
@@ -33,20 +39,39 @@ export class WorkflowsService {
   async list() {
     const rows = await this.db.workflow.findMany({
       orderBy: { updatedAt: 'desc' },
-      select: { id: true, name: true, description: true, updatedAt: true }
+      // graph included so we can compute `isValid` server-side — clients use that flag
+      // to gate "Démarrer un parcours" and to badge the row in the listing. Cheap enough
+      // for the current dataset; if the list grows large we'd cache validity on save.
+      select: { id: true, name: true, description: true, updatedAt: true, graph: true }
     })
-    return rows.map(r => ({ ...r, updatedAt: r.updatedAt.toISOString() }))
+    return rows.map(r => {
+      let isValid = false
+      try {
+        const graph = decodeGraph(r.graph, r.id)
+        isValid = this.validate(graph).validationErrors.length === 0
+      } catch {
+        // Corrupted JSON / drift → treat as invalid; the detail endpoint surfaces the real issue.
+      }
+      return {
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        updatedAt: r.updatedAt.toISOString(),
+        isValid
+      }
+    })
   }
 
   async get(id: string): Promise<WorkflowOut> {
     const row = await this.db.workflow.findUnique({ where: { id } })
     if (!row) throw new NotFoundException(`Workflow ${id} not found`)
-    return this.toResponse(row, [])
+    const graph = decodeGraph(row.graph, row.id)
+    return this.toResponse(row, this.validate(graph))
   }
 
   async create(dto: CreateWorkflowDto): Promise<WorkflowOut> {
     const graph = dto.graph ?? this.defaultGraph()
-    const warnings = this.validate(graph)
+    const result = this.validate(graph)
     const row = await this.prisma.workflow.create({
       data: {
         name: dto.name,
@@ -54,31 +79,33 @@ export class WorkflowsService {
         graph: encodeGraph(graph)
       }
     })
-    return this.toResponse(row, warnings)
+    return this.toResponse(row, result)
   }
 
   async update(id: string, dto: UpdateWorkflowDto): Promise<WorkflowOut> {
     const existing = await this.db.workflow.findUnique({ where: { id } })
     if (!existing) throw new NotFoundException(`Workflow ${id} not found`)
 
-    let warnings: GraphWarning[] = []
+    let result: ValidationResult = { warnings: [], validationErrors: [] }
     const data: Record<string, unknown> = {}
     if (dto.name !== undefined) data.name = dto.name
     if (dto.description !== undefined) data.description = dto.description
     if (dto.graph !== undefined) {
-      warnings = this.validate(dto.graph)
+      result = this.validate(dto.graph)
       data.graph = encodeGraph(dto.graph)
+    } else {
+      result = this.validate(decodeGraph(existing.graph, existing.id))
     }
 
     const row = await this.prisma.workflow.update({ where: { id }, data })
-    return this.toResponse(row, warnings)
+    return this.toResponse(row, result)
   }
 
   async duplicate(id: string, dto: DuplicateWorkflowDto): Promise<WorkflowOut> {
     const source = await this.db.workflow.findUnique({ where: { id } })
     if (!source) throw new NotFoundException(`Workflow ${id} not found`)
     const graph = decodeGraph(source.graph, source.id)
-    const warnings = this.validate(graph)
+    const result = this.validate(graph)
     const row = await this.prisma.workflow.create({
       data: {
         name: dto.name ?? `${source.name} (copie)`,
@@ -86,7 +113,7 @@ export class WorkflowsService {
         graph: encodeGraph(graph)
       }
     })
-    return this.toResponse(row, warnings)
+    return this.toResponse(row, result)
   }
 
   async softDelete(id: string): Promise<void> {
@@ -102,28 +129,26 @@ export class WorkflowsService {
     ])
   }
 
-  private validate(graph: Graph): GraphWarning[] {
+  private validate(graph: Graph): ValidationResult {
     const { errors, warnings } = validateGraph(graph)
-    if (errors.length > 0) throw new GraphValidationError(errors, warnings)
-    return warnings
+    return { warnings, validationErrors: errors }
   }
 
   private defaultGraph(): Graph {
     const startId = createId()
     const endId = createId()
-    const edgeId = createId()
     return {
       nodes: [
         { id: startId, position: { x: 0, y: START_Y }, data: { kind: 'start' } },
         { id: endId, position: { x: 30, y: START_Y }, data: { kind: 'end' } }
       ],
-      edges: [{ id: edgeId, source: startId, target: endId, daysAfter: 30 }]
+      edges: []
     }
   }
 
   private toResponse(
     row: { id: string; name: string; description: string | null; graph: string; createdAt: Date; updatedAt: Date },
-    warnings: GraphWarning[]
+    result: ValidationResult
   ): WorkflowOut {
     return {
       id: row.id,
@@ -132,7 +157,8 @@ export class WorkflowsService {
       graph: decodeGraph(row.graph, row.id),
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
-      warnings
+      warnings: result.warnings,
+      validationErrors: result.validationErrors
     }
   }
 }

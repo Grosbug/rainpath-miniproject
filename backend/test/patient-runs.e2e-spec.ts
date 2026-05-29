@@ -8,13 +8,13 @@ const SIMPLE_GRAPH = {
   nodes: [
     { id: 's', position: { x: 0, y: START_Y }, data: { kind: 'start' } },
     { id: 'a', position: { x: 5, y: START_Y }, data: {
-      kind: 'send_email', params: { subject: '', body: '', output: { mode: 'single' } }
+      kind: 'send_email', params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
     }},
     { id: 'e', position: { x: 10, y: START_Y }, data: { kind: 'end' } }
   ],
   edges: [
     { id: 'e1', source: 's', target: 'a', daysAfter: 5 },
-    { id: 'e2', source: 'a', target: 'e', daysAfter: 5 }
+    { id: 'e2', source: 'a', target: 'e', daysAfter: 5, sourceHandle: 'success' }
   ]
 }
 
@@ -32,7 +32,7 @@ describe('PatientRuns (e2e)', () => {
       .send({ name: 'Simple', graph: SIMPLE_GRAPH })
     const patientRes = await request(app.getHttpServer())
       .post('/api/patient-profiles')
-      .send({ name: 'Alice', email: 'alice@example.com' })
+      .send({ firstName: 'Alice', lastName: 'Durand', gender: 'female', email: 'alice@example.com' })
     return { workflowId: wfRes.body.id as string, patientId: patientRes.body.id as string }
   }
 
@@ -57,7 +57,7 @@ describe('PatientRuns (e2e)', () => {
       .get(`/api/workflows/${workflowId}/patient-runs`)
       .expect(200)
     expect(list.body).toHaveLength(1)
-    expect(list.body[0].patient.name).toBe('Alice')
+    expect(list.body[0].patient.name).toBe('Alice Durand')
     expect(list.body[0].patient.deletedAt).not.toBeNull()
   })
 
@@ -76,7 +76,7 @@ describe('PatientRuns (e2e)', () => {
 
     r = await request(app.getHttpServer())
       .post(`/api/patient-runs/${runId}/advance`)
-      .send({})
+      .send({ outcome: 'delivered' })
       .expect(201)
     expect(r.body.currentNodeId).toBe('e')
 
@@ -107,14 +107,14 @@ describe('PatientRuns (e2e)', () => {
       .get(`/api/patient-runs/${created.body.id}`)
       .expect(200)
     expect(full.body.workflow.name).toBe('Simple')
-    expect(full.body.patient.name).toBe('Alice')
+    expect(full.body.patient.name).toBe('Alice Durand')
     expect(full.body.patient.email).toBe('alice@example.com')
   })
 
   it('POST /api/workflows/:id/patient-runs rejects unknown workflowId (404)', async () => {
     const patientRes = await request(app.getHttpServer())
       .post('/api/patient-profiles')
-      .send({ name: 'Alice' })
+      .send({ firstName: 'Alice', lastName: 'Test', gender: 'female' })
     await request(app.getHttpServer())
       .post('/api/workflows/no-such-wf/patient-runs')
       .send({ patientId: patientRes.body.id })

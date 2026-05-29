@@ -17,7 +17,7 @@ describe('Node templates (e2e)', () => {
       .send({
         name: 'Email — relance',
         kind: 'send_email',
-        params: { subject: 'Sujet', body: '', output: { mode: 'single' } }
+        params: { subject: 'Sujet', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
       })
       .expect(201)
     expect(res.body.kind).toBe('send_email')
@@ -53,13 +53,13 @@ describe('Node templates (e2e)', () => {
 
   it('GET /api/node-templates returns templates ordered by kind then name', async () => {
     await request(app.getHttpServer()).post('/api/node-templates').send({
-      name: 'Z', kind: 'send_sms', params: { body: 'x', output: { mode: 'single' } }
+      name: 'Z', kind: 'send_sms', params: { body: 'x', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
     })
     await request(app.getHttpServer()).post('/api/node-templates').send({
-      name: 'B', kind: 'send_email', params: { subject: '', body: '', output: { mode: 'single' } }
+      name: 'B', kind: 'send_email', params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
     })
     await request(app.getHttpServer()).post('/api/node-templates').send({
-      name: 'A', kind: 'send_email', params: { subject: '', body: '', output: { mode: 'single' } }
+      name: 'A', kind: 'send_email', params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
     })
     const res = await request(app.getHttpServer()).get('/api/node-templates').expect(200)
     expect(res.body.map((t: any) => `${t.kind}:${t.name}`)).toEqual([
@@ -69,11 +69,11 @@ describe('Node templates (e2e)', () => {
 
   it('PATCH /api/node-templates/:id updates name and validates new params', async () => {
     const created = await request(app.getHttpServer()).post('/api/node-templates').send({
-      name: 'T', kind: 'send_email', params: { subject: '', body: '', output: { mode: 'single' } }
+      name: 'T', kind: 'send_email', params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
     })
     const res = await request(app.getHttpServer())
       .patch(`/api/node-templates/${created.body.id}`)
-      .send({ name: 'T2', params: { subject: 'Updated', body: '', output: { mode: 'single' } } })
+      .send({ name: 'T2', params: { subject: 'Updated', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } } })
       .expect(200)
     expect(res.body.name).toBe('T2')
     expect(res.body.params.subject).toBe('Updated')
@@ -81,7 +81,7 @@ describe('Node templates (e2e)', () => {
 
   it('DELETE /api/node-templates/:id soft-deletes', async () => {
     const created = await request(app.getHttpServer()).post('/api/node-templates').send({
-      name: 'T', kind: 'send_email', params: { subject: '', body: '', output: { mode: 'single' } }
+      name: 'T', kind: 'send_email', params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } }
     })
     await request(app.getHttpServer()).delete(`/api/node-templates/${created.body.id}`).expect(204)
     const list = await request(app.getHttpServer()).get('/api/node-templates').expect(200)

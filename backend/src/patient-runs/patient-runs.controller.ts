@@ -12,6 +12,11 @@ export class PatientRunsController {
     return this.service.listForWorkflow(workflowId)
   }
 
+  @Get('patient-profiles/:patientId/patient-runs')
+  listForPatient(@Param('patientId') patientId: string) {
+    return this.service.listForPatient(patientId)
+  }
+
   @Post('workflows/:workflowId/patient-runs')
   @UsePipes(new ZodValidationPipe(CreatePatientRunDto))
   create(@Param('workflowId') workflowId: string, @Body() body: CreatePatientRunDto) {

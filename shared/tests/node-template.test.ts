@@ -3,11 +3,14 @@ import { NodeTemplate, NodeTemplateBody, NodeTemplateKind } from '../src/schemas
 import { CreateWorkflowDto, UpdateWorkflowDto } from '../src/schemas/api-dtos'
 
 describe('NodeTemplateKind', () => {
-  it('lists exactly send_* and condition (no start/end)', () => {
+  it('lists exactly the four send_* kinds (no start/end/condition)', () => {
     expect(() => NodeTemplateKind.parse('start')).toThrow()
     expect(() => NodeTemplateKind.parse('end')).toThrow()
+    expect(() => NodeTemplateKind.parse('condition')).toThrow()
     expect(NodeTemplateKind.parse('send_email')).toBe('send_email')
-    expect(NodeTemplateKind.parse('condition')).toBe('condition')
+    expect(NodeTemplateKind.parse('send_sms')).toBe('send_sms')
+    expect(NodeTemplateKind.parse('send_whatsapp')).toBe('send_whatsapp')
+    expect(NodeTemplateKind.parse('send_postal')).toBe('send_postal')
   })
 })
 
@@ -18,7 +21,7 @@ describe('NodeTemplateBody', () => {
       params: {
         subject: 'Hello',
         body: 'Bonjour',
-        output: { mode: 'single' }
+        output: { mode: 'simple', successCondition: { statuses: ['delivered'] } }
       }
     }).kind).toBe('send_email')
   })
@@ -39,7 +42,7 @@ describe('NodeTemplate', () => {
       params: {
         subject: 'Sujet',
         body: '',
-        output: { mode: 'single' }
+        output: { mode: 'simple', successCondition: { statuses: ['delivered'] } }
       },
       createdAt: '2026-05-28T00:00:00.000Z',
       updatedAt: '2026-05-28T00:00:00.000Z'

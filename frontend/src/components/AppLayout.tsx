@@ -1,9 +1,12 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
+import { Icon } from '@/components/Icon'
+import { Tooltip } from '@/components/Tooltip'
 
 export function AppLayout() {
   const location = useLocation()
   const isPatients = location.pathname.startsWith('/patient-profiles')
-  const isWorkflows = !isPatients && location.pathname.startsWith('/workflows')
+  const isDocs = location.pathname.startsWith('/docs')
+  const isWorkflows = !isPatients && !isDocs && location.pathname.startsWith('/workflows')
   return (
     <div className='flex min-h-dvh flex-col bg-bg'>
       <header className='sticky top-0 z-20 flex h-12 items-center gap-6 border-b border-border bg-surface px-6'>
@@ -23,11 +26,19 @@ export function AppLayout() {
           >
             Patients
           </Link>
+          <Link
+            to='/docs'
+            className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 ${isDocs ? 'bg-surface-muted text-fg' : 'text-fg-muted hover:text-fg'}`}
+          >
+            <Icon name='BookOpen' size={16} />
+            Documentation
+          </Link>
         </nav>
       </header>
       <main className='flex-1'>
         <Outlet />
       </main>
+      <Tooltip />
     </div>
   )
 }

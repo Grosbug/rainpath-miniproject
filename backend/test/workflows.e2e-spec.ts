@@ -50,12 +50,12 @@ describe('Workflows (e2e)', () => {
     expect(res.body.graph.edges[0].daysAfter).toBe(5)
   })
 
-  it('POST /api/workflows rejects import with cycle (422)', async () => {
+  it('POST /api/workflows accepts an import with a cycle but surfaces the validationError', async () => {
     const graph: Graph = {
       nodes: [
         { id: 's', position: { x: 0, y: START_Y }, data: { kind: 'start' } },
-        { id: 'a', position: { x: 1, y: START_Y }, data: { kind: 'send_email', params: { subject: '', body: '', output: { mode: 'single' } } } },
-        { id: 'b', position: { x: 2, y: START_Y }, data: { kind: 'send_email', params: { subject: '', body: '', output: { mode: 'single' } } } },
+        { id: 'a', position: { x: 1, y: START_Y }, data: { kind: 'send_email', params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } } } },
+        { id: 'b', position: { x: 2, y: START_Y }, data: { kind: 'send_email', params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } } } },
         { id: 'e', position: { x: 3, y: START_Y }, data: { kind: 'end' } }
       ],
       edges: [
@@ -68,8 +68,8 @@ describe('Workflows (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/api/workflows')
       .send({ name: 'Cyclic', graph })
-      .expect(422)
-    expect(res.body.errors.some((e: any) => e.code === 'cycle')).toBe(true)
+      .expect(201)
+    expect(res.body.validationErrors.some((e: any) => e.code === 'cycle')).toBe(true)
   })
 
   it('GET /api/workflows omits graph in the list response', async () => {

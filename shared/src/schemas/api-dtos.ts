@@ -40,27 +40,60 @@ export const UpdateNodeTemplateDto = z.object({
 export type UpdateNodeTemplateDto = z.infer<typeof UpdateNodeTemplateDto>
 
 // Patient profile
+export const PatientGender = z.enum(['male', 'female'])
+export type PatientGender = z.infer<typeof PatientGender>
+
+/**
+ * French CP — 5 digits, leading 0 allowed. Stricter than a free-form string so the
+ * postal node can rely on a well-formed code at runtime (e.g. to route by département).
+ */
+export const PostalCode = z.string().regex(/^\d{5}$/, {
+  message: 'Code postal invalide (5 chiffres attendus)'
+})
+export type PostalCode = z.infer<typeof PostalCode>
+
+/**
+ * Structured postal address — replaces the previous free-form `address: string` + flat
+ * `postalCode: string` pair. Stored as a single JSON-encoded column in the DB, marshalled
+ * back to this object at the service boundary. `country` defaults to "France" in the
+ * profile form but is kept optional in the type so legacy profiles can read back null.
+ */
+export const PostalAddress = z.object({
+  street: z.string().min(1),
+  postalCode: PostalCode,
+  city: z.string().min(1),
+  country: z.string().nullable().optional()
+})
+export type PostalAddress = z.infer<typeof PostalAddress>
+
+const OptionalAddress = PostalAddress.nullable().optional()
+
 export const CreatePatientProfileDto = z.object({
-  name: z.string().min(1),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  gender: PatientGender,
   email: z.string().email().nullable().optional(),
   phone: z.string().nullable().optional(),
   whatsapp: z.string().nullable().optional(),
-  address: z.string().nullable().optional()
+  address: OptionalAddress
 })
 export type CreatePatientProfileDto = z.infer<typeof CreatePatientProfileDto>
 
 export const UpdatePatientProfileDto = z.object({
-  name: z.string().min(1).optional(),
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().min(1).optional(),
+  gender: PatientGender.optional(),
   email: z.string().email().nullable().optional(),
   phone: z.string().nullable().optional(),
   whatsapp: z.string().nullable().optional(),
-  address: z.string().nullable().optional()
+  address: OptionalAddress
 })
 export type UpdatePatientProfileDto = z.infer<typeof UpdatePatientProfileDto>
 
 // Patient run
 export const CreatePatientRunDto = z.object({
-  patientId: z.string().min(1)
+  patientId: z.string().min(1),
+  startDate: z.string().datetime().optional()
 })
 export type CreatePatientRunDto = z.infer<typeof CreatePatientRunDto>
 

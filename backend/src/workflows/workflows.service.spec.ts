@@ -5,7 +5,6 @@ import { join } from 'node:path'
 import { Graph, START_Y } from '@rainpath/shared'
 import { PrismaService } from '../prisma/prisma.service'
 import { PrismaModule } from '../prisma/prisma.module'
-import { GraphValidationError } from '../validation/graph-validation.error'
 import { WorkflowsService } from './workflows.service'
 
 const TEST_DB = join(__dirname, '..', '..', 'test', 'workflows-svc.db')
@@ -38,12 +37,15 @@ describe('WorkflowsService', () => {
     await prisma.workflow.deleteMany()
   })
 
-  it('create() returns a default start→end graph when no graph provided', async () => {
+  it('create() returns a default start + end graph (no edges) when no graph provided', async () => {
     const wf = await service.create({ name: 'New' })
     expect(wf.graph.nodes.find(n => n.data.kind === 'start')?.position).toEqual({ x: 0, y: START_Y })
     expect(wf.graph.nodes.some(n => n.data.kind === 'end')).toBe(true)
-    expect(wf.graph.edges.length).toBe(1)
+    expect(wf.graph.edges).toEqual([])
     expect(wf.warnings).toEqual([])
+    // Default start+end is structurally OK but not wired yet — `no_path_start_to_end` flags
+    // that gap as a hard error so the UI can block patient-run creation until it's fixed.
+    expect(wf.validationErrors.some(e => e.code === 'no_path_start_to_end')).toBe(true)
   })
 
   it('create() accepts an imported graph and validates it', async () => {
@@ -58,9 +60,13 @@ describe('WorkflowsService', () => {
     expect(wf.graph.edges[0]?.daysAfter).toBe(5)
   })
 
-  it('create() rejects an invalid imported graph with GraphValidationError', async () => {
+  it('create() accepts an invalid imported graph but surfaces validationErrors in the response', async () => {
+    // The service now persists invalid workflows so users aren't trapped mid-edit;
+    // the validation surface moves to the response so the UI can block runs.
     const graph: Graph = { nodes: [], edges: [] }
-    await expect(service.create({ name: 'Bad', graph })).rejects.toBeInstanceOf(GraphValidationError)
+    const wf = await service.create({ name: 'Bad', graph })
+    expect(wf.validationErrors.length).toBeGreaterThan(0)
+    expect(wf.validationErrors.some(e => e.code === 'no_start')).toBe(true)
   })
 
   it('list() returns id/name/description/updatedAt only (no graph)', async () => {
@@ -92,8 +98,8 @@ describe('WorkflowsService', () => {
     const cyclicGraph: Graph = {
       nodes: [
         { id: 's', position: { x: 0, y: START_Y }, data: { kind: 'start' } },
-        { id: 'a', position: { x: 1, y: START_Y }, data: { kind: 'send_email', params: { subject: '', body: '', output: { mode: 'single' } } } },
-        { id: 'b', position: { x: 2, y: START_Y }, data: { kind: 'send_email', params: { subject: '', body: '', output: { mode: 'single' } } } },
+        { id: 'a', position: { x: 1, y: START_Y }, data: { kind: 'send_email', params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } } } },
+        { id: 'b', position: { x: 2, y: START_Y }, data: { kind: 'send_email', params: { subject: '', body: '', output: { mode: 'simple', successCondition: { statuses: ['delivered'] } } } } },
         { id: 'e', position: { x: 3, y: START_Y }, data: { kind: 'end' } }
       ],
       edges: [
@@ -103,7 +109,8 @@ describe('WorkflowsService', () => {
         { id: 'e4', source: 'b', target: 'e', daysAfter: 1 }
       ]
     }
-    await expect(service.update(wf.id, { graph: cyclicGraph })).rejects.toBeInstanceOf(GraphValidationError)
+    const updated = await service.update(wf.id, { graph: cyclicGraph })
+    expect(updated.validationErrors.some(e => e.code === 'cycle')).toBe(true)
   })
 
   it('duplicate() copies graph and appends "(copie)" by default', async () => {
@@ -130,7 +137,9 @@ describe('WorkflowsService', () => {
 
   it('softDelete() cascades to PatientRun rows (no orphan visible)', async () => {
     const wf = await service.create({ name: 'WF' })
-    const patient = await prisma.patientProfile.create({ data: { name: 'P' } })
+    const patient = await prisma.patientProfile.create({
+      data: { firstName: 'P', lastName: 'Test', gender: 'male' }
+    })
     await prisma.patientRun.create({
       data: {
         workflowId: wf.id,

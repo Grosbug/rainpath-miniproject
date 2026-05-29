@@ -1,89 +1,77 @@
-import { useEffect, useRef, useState } from 'react'
-import {
-  autoUpdate, flip, offset, shift, useFloating, useDismiss, useInteractions
-} from '@floating-ui/react'
+import { useEffect, useRef } from 'react'
+import { Icon } from '@/components/Icon'
 
 interface Props {
   open: boolean
+  /** Center point of the clicked chip in viewport coords. The popover is rendered with
+   *  its own center on this point so it overlays the "+ N j" label exactly. */
   anchor: { x: number; y: number } | null
-  initialValue: number
-  onCommit: (value: number) => void
   onCancel: () => void
+  onDelete: () => void
 }
 
 /**
- * Anchored to a {clientX, clientY} point because we don't have a stable DOM element
- * for the edge midpoint — React Flow renders edges as raw SVG paths.
+ * Compact action popover for an edge chip — only a delete button. The delay itself is
+ * edited exclusively by dragging the connected nodes (the edge's daysAfter is rewritten
+ * when the source/target node X shifts), so an explicit input would be redundant.
+ *
+ * Positioning is intentionally NOT delegated to Floating-UI: with a zero-size reference
+ * point Floating-UI already centers horizontally (placement: 'bottom' default), so
+ * applying `translate(-50%, -50%)` on top of its computed `left` shifted the popover
+ * an extra `width/2` to the left of the chip. We therefore position manually here —
+ * `position: fixed` + literal `left/top: anchor.x/y` + a single `translate(-50%, -50%)`
+ * gives a precise overlay regardless of popover size.
+ *
+ * Dismissal (Escape, outside click) is hand-rolled with a global pointerdown listener
+ * gated on the popover's own ref.
  */
-export function DaysAfterPopover({ open, anchor, initialValue, onCommit, onCancel }: Props) {
-  const [value, setValue] = useState(initialValue)
-  const inputRef = useRef<HTMLInputElement | null>(null)
+export function DaysAfterPopover({ open, anchor, onCancel, onDelete }: Props) {
+  const ref = useRef<HTMLDivElement | null>(null)
 
-  // Re-sync when re-opened.
   useEffect(() => {
-    if (open) {
-      setValue(initialValue)
-      requestAnimationFrame(() => inputRef.current?.focus())
+    if (!open) return
+    function onPointerDown(e: PointerEvent) {
+      if (!ref.current) return
+      if (!ref.current.contains(e.target as Node)) onCancel()
     }
-  }, [open, initialValue])
-
-  const { refs, floatingStyles, context } = useFloating({
-    open,
-    onOpenChange: o => { if (!o) onCancel() },
-    middleware: [offset(8), flip(), shift({ padding: 8 })],
-    whileElementsMounted: autoUpdate
-  })
-
-  // Position via a virtual reference element built from the anchor point.
-  useEffect(() => {
-    if (!anchor) return
-    refs.setPositionReference({
-      getBoundingClientRect: () => ({
-        x: anchor.x, y: anchor.y, top: anchor.y, left: anchor.x,
-        right: anchor.x, bottom: anchor.y, width: 0, height: 0
-      })
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCancel()
+    }
+    // Defer one frame so the click that opened the popover doesn't immediately close it.
+    const raf = requestAnimationFrame(() => {
+      document.addEventListener('pointerdown', onPointerDown, true)
     })
-  }, [anchor, refs])
-
-  const dismiss = useDismiss(context, { escapeKey: true, outsidePress: true })
-  const { getFloatingProps } = useInteractions([dismiss])
+    document.addEventListener('keydown', onKey)
+    return () => {
+      cancelAnimationFrame(raf)
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open, onCancel])
 
   if (!open || !anchor) return null
 
   return (
     <div
-      ref={refs.setFloating}
-      style={floatingStyles}
-      {...getFloatingProps()}
-      className='z-50 rounded-md border border-border bg-surface p-3 shadow-elev-2'
+      ref={ref}
+      role='dialog'
+      style={{
+        position: 'fixed',
+        left: anchor.x,
+        top: anchor.y,
+        transform: 'translate(-50%, -50%)'
+      }}
+      className='z-50 rounded-full border border-border bg-surface p-1 shadow-elev-2'
     >
-      <form
-        onSubmit={e => {
-          e.preventDefault()
-          if (Number.isFinite(value) && value >= 0 && Number.isInteger(value)) onCommit(value)
-        }}
-        className='flex items-center gap-2'
+      <button
+        type='button'
+        onClick={onDelete}
+        aria-label='Supprimer la connexion'
+        data-rp-tooltip='Supprimer la connexion'
+        className='inline-flex h-7 w-7 items-center justify-center rounded-full text-danger hover:bg-[#FEF2F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger'
       >
-        <label htmlFor='days-after' className='text-xs font-medium text-fg-muted'>
-          Délai (jours)
-        </label>
-        <input
-          id='days-after'
-          ref={inputRef}
-          type='number'
-          min={0}
-          step={1}
-          value={value}
-          onChange={e => setValue(Number(e.target.value))}
-          className='h-8 w-20 rounded-md border border-border bg-surface px-2 text-sm tabular-nums focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-        />
-        <button
-          type='submit'
-          className='h-8 rounded-md bg-primary px-3 text-xs font-medium text-on-primary hover:bg-primary-hover'
-        >
-          Valider
-        </button>
-      </form>
+        <Icon name='Trash2' size={16} />
+      </button>
     </div>
   )
 }

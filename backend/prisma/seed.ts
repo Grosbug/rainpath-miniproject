@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client'
 import {
   NodeTemplateBody, Graph,
-  type EmailParams, type SmsParams, type WhatsAppParams, type PostalParams, type ConditionParams,
+  type EmailParams, type SmsParams, type WhatsAppParams, type PostalParams,
   START_Y
 } from '@rainpath/shared'
 
@@ -45,17 +45,7 @@ const postalSuivi: PostalParams = {
 const postalNonSuivi: PostalParams = {
   body: 'Courrier postal simple.',
   tracked: false,
-  output: { mode: 'single' }
-}
-
-const condEmail: ConditionParams = {
-  conditionType: 'data_available',
-  expression: 'patient.email'
-}
-
-const condWhatsapp: ConditionParams = {
-  conditionType: 'data_available',
-  expression: 'patient.whatsapp'
+  output: { mode: 'simple', successCondition: { statuses: ['sent'] } }
 }
 
 const TEMPLATES = [
@@ -64,9 +54,7 @@ const TEMPLATES = [
   { name: 'SMS — court', kind: 'send_sms', params: smsCourt },
   { name: 'WhatsApp — message court', kind: 'send_whatsapp', params: whatsappCourt },
   { name: 'Postal — suivi', kind: 'send_postal', params: postalSuivi },
-  { name: 'Postal — non suivi', kind: 'send_postal', params: postalNonSuivi },
-  { name: 'Condition — email connu', kind: 'condition', params: condEmail },
-  { name: 'Condition — WhatsApp dispo', kind: 'condition', params: condWhatsapp }
+  { name: 'Postal — non suivi', kind: 'send_postal', params: postalNonSuivi }
 ]
 
 // Build a small example workflow: J+7 email → end at J+30 (simplistic but valid)
@@ -85,7 +73,7 @@ function buildExampleWorkflow(): { name: string; description: string; graph: Gra
       ],
       edges: [
         { id: 'e-s-email', source: startId, target: emailId, daysAfter: 7 },
-        { id: 'e-email-end', source: emailId, target: endId, daysAfter: 23 }
+        { id: 'e-email-end', source: emailId, target: endId, daysAfter: 23, sourceHandle: 'success' }
       ]
     }
   }
@@ -120,6 +108,33 @@ async function main() {
     console.log('✓ Example workflow seeded')
   } else {
     console.log(`= ${wfCount} workflows already present — skipping`)
+  }
+
+  const patientCount = await prisma.patientProfile.count()
+  if (patientCount === 0) {
+    const SAMPLE_PATIENTS = [
+      {
+        firstName: 'Alice', lastName: 'Durand', gender: 'female',
+        email: 'alice.durand@example.com', phone: '+33 6 12 34 56 78',
+        whatsapp: '+33 6 12 34 56 78', address: '12 rue de la Paix, Paris', postalCode: '75002'
+      },
+      {
+        firstName: 'Bruno', lastName: 'Martin', gender: 'male',
+        email: 'bruno.martin@example.com', phone: '+33 6 23 45 67 89',
+        whatsapp: null, address: '4 avenue des Champs, Lyon', postalCode: '69002'
+      },
+      {
+        firstName: 'Camille', lastName: 'Rousseau', gender: 'female',
+        email: null, phone: '+33 6 34 56 78 90',
+        whatsapp: '+33 6 34 56 78 90', address: '8 rue du Vieux Port, Marseille', postalCode: '13002'
+      }
+    ]
+    for (const p of SAMPLE_PATIENTS) {
+      await prisma.patientProfile.create({ data: p })
+    }
+    console.log(`✓ ${SAMPLE_PATIENTS.length} patient profiles seeded`)
+  } else {
+    console.log(`= ${patientCount} patient profiles already present — skipping`)
   }
 }
 

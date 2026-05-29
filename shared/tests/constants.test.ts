@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { CHANNEL_STATUSES, type ChannelKey } from '../src/schemas/channels'
 import { CHANNEL_FORMAT_RULES, type ChannelFormatKey } from '../src/schemas/format'
-import { DataAvailableExpressions } from '../src/schemas/expressions'
 
 describe('CHANNEL_STATUSES', () => {
   it('lists email statuses without delivered ambiguity', () => {
@@ -32,10 +31,3 @@ describe('CHANNEL_FORMAT_RULES', () => {
   })
 })
 
-describe('DataAvailableExpressions', () => {
-  it('contains exactly the 4 patient fields', () => {
-    expect(DataAvailableExpressions).toEqual([
-      'patient.email', 'patient.phone', 'patient.whatsapp', 'patient.address'
-    ])
-  })
-})

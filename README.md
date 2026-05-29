@@ -2,7 +2,7 @@
 
 Mini-application web qui permet à un chef de laboratoire d'anatomopathologie de **dessiner**, **persister** et **simuler** un workflow de relance patient, avec axe temporel contraignant (X = jour d'exécution depuis l'examen).
 
-![](https://img.shields.io/badge/frontend-Vite_5_·_React_18_·_TS-blue) ![](https://img.shields.io/badge/backend-NestJS_10_·_Prisma_5-red) ![](https://img.shields.io/badge/shared-Zod_·_TypeScript-violet)
+![](https://img.shields.io/badge/frontend-Vite_5_·_React_18_·_TS-blue) ![](https://img.shields.io/badge/backend-NestJS_10_·_Prisma_6-red) ![](https://img.shields.io/badge/shared-Zod_·_TypeScript-violet)
 
 ---
 
@@ -40,19 +40,23 @@ pnpm dev
 
 ## Architecture
 
+> **Vue détaillée** : [docs/architecture.md](docs/architecture.md) — modules, contrat d'API, modèle de données, algorithmes partagés, boucle d'auto-save, décisions structurantes.
+
 ```
 rainpath-mini-project/
 ├── shared/              # Zod schemas, computeXPositions, computeReachability,
 │                        # validateGraph, simulate* (single source of truth)
 ├── frontend/            # Vite + React 18 + TS + React Flow + Zustand + TanStack Query
-├── backend/             # NestJS 10 + Prisma 5 + SQLite + Zod validation pipe
+├── backend/             # NestJS 10 + Prisma 6 + SQLite + Zod validation pipe
 ├── design-system/       # MASTER.md (tokens, components, a11y rules)
 └── docs/
-    ├── superpowers/
-    │   ├── specs/       # Design spec (single source for product decisions)
-    │   ├── plans/       # 8 implementation plans (Phase 0 → 3)
-    │   └── known-pitfalls.md
-    └── interview-prep.md
+    ├── architecture.md                    # Vue technique détaillée
+    ├── mini-projet-technique-rainpath.md  # Cadrage du brief (reformatté)
+    ├── interview-prep.md                  # Notes pour la discussion
+    └── superpowers/
+        ├── specs/       # Design spec (single source for product decisions)
+        ├── plans/       # 8 implementation plans (Phase 0 → 3)
+        └── known-pitfalls.md
 ```
 
 ## Choix techniques structurants

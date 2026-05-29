@@ -1,2 +1,23 @@
 .claude/settings.local.json
 backend/test/*.db
+
+# Dependencies (each package also has its own .gitignore for safety)
+node_modules/
+**/node_modules/
+
+# Build artifacts
+**/dist/
+**/coverage/
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# Logs
+*.log
+**/*.log
+
+# OS metadata
+.DS_Store
+**/.DS_Store
+
+# Local scratch files (working notes — not committed)
+modifs.txt

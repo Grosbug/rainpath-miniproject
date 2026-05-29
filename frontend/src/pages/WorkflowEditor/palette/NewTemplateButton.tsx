@@ -7,8 +7,7 @@ const OPTIONS: Array<{ kind: NodeKind; label: string; icon: IconName }> = [
   { kind: 'send_email', label: 'Email', icon: 'Mail' },
   { kind: 'send_sms', label: 'SMS', icon: 'MessageSquare' },
   { kind: 'send_whatsapp', label: 'WhatsApp', icon: 'MessageCircle' },
-  { kind: 'send_postal', label: 'Courrier', icon: 'Inbox' },
-  { kind: 'condition', label: 'Condition', icon: 'GitBranch' }
+  { kind: 'send_postal', label: 'Courrier', icon: 'Inbox' }
 ]
 
 export function NewTemplateButton() {

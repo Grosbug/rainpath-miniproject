@@ -8,8 +8,6 @@ export type NodeFamily =
   | 'sms'
   | 'whatsapp'
   | 'postal'
-  | 'cond-data'
-  | 'cond-result'
 
 interface NodeCardProps {
   family: NodeFamily
@@ -22,10 +20,10 @@ interface NodeCardProps {
   handles?: ReactNode
   /** Whether this node is currently selected (drawn with primary ring + elev-2). */
   selected?: boolean
-  /** Compact width override (used by start/end at 180 px). */
-  width?: 180 | 260
   /** Thicker outer border used by end node (DS §7.3 end variant). */
   thickBorder?: boolean
+  /** Cumulative delay from start in days. When defined, a "J+N" badge appears top-right. */
+  dayX?: number
 }
 
 /**
@@ -37,10 +35,9 @@ interface NodeCardProps {
  * arbitrary class names like `bg-[var(--node-${family}-bg)]`).
  */
 export function NodeCard({
-  family, icon, title, familyLabel, details, handles, selected, width = 260, thickBorder
+  family, icon, title, familyLabel, details, handles, selected, thickBorder, dayX
 }: NodeCardProps) {
   const ring = selected ? 'ring-2 ring-primary ring-offset-2 ring-offset-bg shadow-elev-2' : 'shadow-elev-1'
-  const widthCls = width === 180 ? 'w-[180px]' : 'w-[260px]'
   const borderWidth = thickBorder ? 'border-2' : 'border'
 
   const cardStyle: CSSProperties = {
@@ -52,10 +49,17 @@ export function NodeCard({
     background: `var(--node-${family}-accent)`
   }
 
+  const badgeStyle: CSSProperties | undefined = dayX !== undefined
+    ? { color: `var(--node-${family}-accent)`, borderColor: `var(--node-${family}-border)` }
+    : undefined
+
+  // Right padding bumps up when the badge is shown so the family label doesn't run under it.
+  const paddingRight = dayX !== undefined ? 'pr-12' : 'pr-3'
+
   return (
     <div
-      className={`relative ${widthCls} ${borderWidth} ${ring} rounded-md p-3 transition-shadow`}
-      style={cardStyle}
+      className={`relative w-[176px] ${borderWidth} ${ring} select-none rounded-md py-3 pl-[15px] ${paddingRight} transition-shadow`}
+      style={{ ...cardStyle, WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
       tabIndex={0}
     >
       {/* 3-px family strip on the left */}
@@ -64,14 +68,24 @@ export function NodeCard({
         style={accentStyle}
         aria-hidden="true"
       />
-      <div className="ml-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-fg-muted">
-        <Icon name={icon} size={16} />
-        <span>{familyLabel}</span>
+      {dayX !== undefined && (
+        <span
+          className="absolute right-2 top-2 rounded-full border bg-surface px-2 py-0.5 text-[10px] font-semibold tabular-nums leading-none shadow-elev-1"
+          style={badgeStyle}
+          aria-label={`Délai cumulé depuis le départ : ${dayX} jour${dayX > 1 ? 's' : ''}`}
+          data-rp-tooltip="Délai cumulé depuis le départ"
+        >
+          J+{dayX}
+        </span>
+      )}
+      <div className="flex min-w-0 items-center gap-2 text-xs font-medium uppercase tracking-wide text-fg-muted">
+        <Icon name={icon} size={16} className="shrink-0" />
+        <span className="truncate">{familyLabel}</span>
       </div>
-      <h3 className="mt-1 ml-1 text-sm font-semibold text-fg" title={title}>
+      <h3 className="mt-1 text-sm font-semibold text-fg" data-rp-tooltip={title}>
         <span className="line-clamp-1">{title}</span>
       </h3>
-      {details ? <div className="mt-2 ml-1 space-y-1 text-xs text-fg-muted">{details}</div> : null}
+      {details ? <div className="mt-2 space-y-1 text-xs text-fg-muted">{details}</div> : null}
       {handles}
     </div>
   )

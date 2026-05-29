@@ -2,7 +2,6 @@ import { Injectable, InternalServerErrorException, NotFoundException } from '@ne
 import {
   CHANNEL_STATUSES,
   CreateNodeTemplateDto,
-  DataAvailableExpressions,
   NodeTemplate,
   NodeTemplateBody,
   UpdateNodeTemplateDto
@@ -91,48 +90,31 @@ export class NodeTemplatesService {
   /**
    * Cross-channel rules that Zod alone cannot enforce (spec §5.5):
    * - statuses must belong to the channel
-   * - postal untracked must be single
-   * - data_available expression must be a known patient field
    * - multi outputs must not overlap on statuses
    */
   private validateChannelRules(body: ReturnType<NodeTemplatesService['parseBody']>) {
     const errors: GraphErrorItem[] = []
 
-    if (body.kind === 'condition') {
-      if (body.params.conditionType === 'data_available') {
-        if (!DataAvailableExpressions.includes(body.params.expression as any)) {
-          errors.push({
-            code: 'unknown_data_available_expression',
-            message: `expression must be one of ${DataAvailableExpressions.join(', ')}`
-          })
-        }
+    let channelKey: keyof typeof CHANNEL_STATUSES
+    if (body.kind === 'send_email') channelKey = 'email'
+    else if (body.kind === 'send_sms') channelKey = 'sms'
+    else if (body.kind === 'send_whatsapp') channelKey = 'whatsapp'
+    else channelKey = body.params.tracked ? 'postal_tracked' : 'postal_untracked'
+
+    const allowed = new Set<string>(CHANNEL_STATUSES[channelKey])
+
+    const output = body.params.output
+    if (output.mode === 'simple') {
+      for (const s of output.successCondition.statuses) {
+        if (!allowed.has(s)) errors.push({ code: 'status_not_in_channel', message: `status ${s} not in ${channelKey}` })
       }
-    } else {
-      let channelKey: keyof typeof CHANNEL_STATUSES
-      if (body.kind === 'send_email') channelKey = 'email'
-      else if (body.kind === 'send_sms') channelKey = 'sms'
-      else if (body.kind === 'send_whatsapp') channelKey = 'whatsapp'
-      else channelKey = body.params.tracked ? 'postal_tracked' : 'postal_untracked'
-
-      const allowed = new Set<string>(CHANNEL_STATUSES[channelKey])
-
-      if (body.kind === 'send_postal' && !body.params.tracked && body.params.output.mode !== 'single') {
-        errors.push({ code: 'postal_untracked_must_be_single', message: 'postal_untracked must use mode=single' })
-      }
-
-      const output = body.params.output
-      if (output.mode === 'simple') {
-        for (const s of output.successCondition.statuses) {
+    } else if (output.mode === 'multi') {
+      const seen = new Set<string>()
+      for (const out of output.outputs) {
+        for (const s of out.condition.statuses) {
           if (!allowed.has(s)) errors.push({ code: 'status_not_in_channel', message: `status ${s} not in ${channelKey}` })
-        }
-      } else if (output.mode === 'multi') {
-        const seen = new Set<string>()
-        for (const out of output.outputs) {
-          for (const s of out.condition.statuses) {
-            if (!allowed.has(s)) errors.push({ code: 'status_not_in_channel', message: `status ${s} not in ${channelKey}` })
-            if (seen.has(s)) errors.push({ code: 'status_overlap_in_multi', message: `status ${s} appears in more than one output` })
-            seen.add(s)
-          }
+          if (seen.has(s)) errors.push({ code: 'status_overlap_in_multi', message: `status ${s} appears in more than one output` })
+          seen.add(s)
         }
       }
     }

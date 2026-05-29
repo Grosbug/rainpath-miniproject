@@ -24,11 +24,14 @@ CREATE TABLE "NodeTemplate" (
 -- CreateTable
 CREATE TABLE "PatientProfile" (
     "id" TEXT NOT NULL PRIMARY KEY,
-    "name" TEXT NOT NULL,
+    "firstName" TEXT NOT NULL,
+    "lastName" TEXT NOT NULL,
+    "gender" TEXT NOT NULL,
     "email" TEXT,
     "phone" TEXT,
     "whatsapp" TEXT,
     "address" TEXT,
+    "postalCode" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "deletedAt" DATETIME
@@ -41,6 +44,7 @@ CREATE TABLE "PatientRun" (
     "patientId" TEXT NOT NULL,
     "currentNodeId" TEXT,
     "history" TEXT NOT NULL,
+    "startDate" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "deletedAt" DATETIME,

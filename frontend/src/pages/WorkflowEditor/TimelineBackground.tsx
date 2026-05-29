@@ -1,14 +1,24 @@
 import { useMemo } from 'react'
-import { Panel, useStore as useRFStore, useViewport } from '@xyflow/react'
+import { useStore as useRFStore, useViewport } from '@xyflow/react'
 
 /** Pixels between two adjacent days at zoom = 1. Calibrated to match the Canvas's PX_PER_DAY (28). */
 const PX_PER_DAY = 28
 const START_X_VIEW = 0
 
+/**
+ * Pick the gridline/label step in days so adjacent labels never overlap.
+ * Steps belong to a 1-2-5 progression (then ×10) — the standard ladder used by
+ * chart libraries for human-readable axes. The reserved width per label fits
+ * "J+999" with a small margin.
+ */
+const LABEL_MIN_PX = 44
+const STEP_LADDER = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000]
 function chooseStep(zoom: number): number {
-  if (zoom < 0.4) return 10
-  if (zoom < 0.8) return 5
-  return 1
+  const pxPerDay = PX_PER_DAY * zoom
+  for (const step of STEP_LADDER) {
+    if (pxPerDay * step >= LABEL_MIN_PX) return step
+  }
+  return STEP_LADDER[STEP_LADDER.length - 1]!
 }
 
 export function TimelineBackground() {
@@ -38,16 +48,19 @@ export function TimelineBackground() {
   const capped = ticks.length > 60 ? ticks.filter((_, i) => i % 2 === 0) : ticks
 
   return (
-    <Panel position='top-left' className='pointer-events-none m-0 p-0'>
+    <div className='pointer-events-none absolute inset-0 overflow-hidden' style={{ zIndex: 0 }}>
       <svg
         width={widthPx}
         height={heightPx}
         viewBox={`0 0 ${widthPx} ${heightPx}`}
-        className='block'
+        overflow='hidden'
+        className='pointer-events-none block'
       >
         {capped.map(d => {
           const screenX = d * pxPerDay + viewport.x + START_X_VIEW
-          if (screenX < -40 || screenX > widthPx + 40) return null
+          // Strict clipping at the canvas edges — gridlines must never bleed left of x=0
+          // (where the Palette sits) or right of widthPx.
+          if (screenX < 0 || screenX > widthPx) return null
           const isRail = d === 0
           return (
             <g key={d}>
@@ -60,12 +73,12 @@ export function TimelineBackground() {
                 strokeWidth={isRail ? 2 : 1}
               />
               <text
-                x={screenX}
+                x={isRail ? screenX + 4 : screenX}
                 y={18}
                 fontSize={11}
                 fontFamily='var(--font-sans)'
                 style={{ fontVariantNumeric: 'tabular-nums' }}
-                textAnchor='middle'
+                textAnchor={isRail ? 'start' : 'middle'}
                 fill='var(--fg-muted)'
               >
                 J+{d}
@@ -74,6 +87,6 @@ export function TimelineBackground() {
           )
         })}
       </svg>
-    </Panel>
+    </div>
   )
 }

@@ -12,11 +12,7 @@ const POSTAL = CHANNEL_FORMAT_RULES.postal.body
 
 export function PostalParamsForm({ value, onChange }: Props) {
   const setTracked = (tracked: boolean) => {
-    if (!tracked && value.output.mode !== 'single') {
-      onChange({ ...value, tracked, output: { mode: 'single' } })
-    } else {
-      onChange({ ...value, tracked })
-    }
+    onChange({ ...value, tracked })
   }
   return (
     <div className="space-y-3">

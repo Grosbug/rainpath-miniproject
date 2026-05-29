@@ -1,12 +1,13 @@
 import { Handle, NodeProps, Position } from '@xyflow/react'
 import { NodeCard } from './NodeCard'
 import { handleClass } from './handle-styles'
+import { SendNodeSourceHandles } from './SendNodeSourceHandles'
 import type { Graph } from '@rainpath/shared'
 
 type WhatsAppNodeData = Extract<Graph['nodes'][number]['data'], { kind: 'send_whatsapp' }>
 
 export function SendWhatsAppNode({ data, selected }: NodeProps) {
-  const d = data as WhatsAppNodeData
+  const d = data as WhatsAppNodeData & { _dayX?: number }
   return (
     <NodeCard
       family="whatsapp"
@@ -17,6 +18,7 @@ export function SendWhatsAppNode({ data, selected }: NodeProps) {
         <p className="line-clamp-1">{d.params.body || '(corps vide)'}</p>
       }
       selected={!!selected}
+      dayX={d._dayX}
       handles={
         <>
           <Handle
@@ -24,11 +26,7 @@ export function SendWhatsAppNode({ data, selected }: NodeProps) {
             position={Position.Left}
             className={`${handleClass} border-[var(--node-whatsapp-accent)]`}
           />
-          <Handle
-            type="source"
-            position={Position.Right}
-            className={`${handleClass} border-[var(--node-whatsapp-accent)]`}
-          />
+          <SendNodeSourceHandles output={d.params.output} />
         </>
       }
     />

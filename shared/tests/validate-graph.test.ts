@@ -4,7 +4,7 @@ import { START_Y } from '../src/constants'
 
 const startNode = { id: 's', position: { x: 0, y: START_Y }, data: { kind: 'start' as const } }
 const endNode = (id = 'e') => ({ id, position: { x: 1, y: START_Y }, data: { kind: 'end' as const } })
-const emailNode = (id: string, output: any = { mode: 'single' }) => ({
+const emailNode = (id: string, output: any = { mode: 'simple', successCondition: { statuses: ['delivered'] } }) => ({
   id, position: { x: 5, y: START_Y },
   data: { kind: 'send_email' as const, params: { subject: '', body: '', output } }
 })
@@ -94,31 +94,21 @@ describe('validateGraph — structural', () => {
     })
     expect(r.errors.some(e => e.code === 'duplicate_source_handle')).toBe(true)
   })
+
+  it('allows fan-out from a node without explicit handles (undefined sourceHandle)', () => {
+    // `start` has no output split — two outgoing edges with undefined sourceHandle is a valid parallel fan-out.
+    const r = validateGraph({
+      nodes: [startNode, endNode('e1'), endNode('e2')],
+      edges: [
+        edge('e_s_e1', 's', 'e1', 1),
+        edge('e_s_e2', 's', 'e2', 1)
+      ]
+    })
+    expect(r.errors.some(e => e.code === 'duplicate_source_handle')).toBe(false)
+  })
 })
 
 describe('validateGraph — send_* output rules', () => {
-  it('rejects send_postal tracked=false with multi mode', () => {
-    const node = {
-      id: 'p', position: { x: 5, y: 200 },
-      data: {
-        kind: 'send_postal' as const,
-        params: {
-          body: '',
-          tracked: false,
-          output: {
-            mode: 'multi' as const,
-            outputs: [{ id: 'sent', label: 'Envoyé', condition: { statuses: ['sent'] } }]
-          }
-        }
-      }
-    }
-    const r = validateGraph({
-      nodes: [startNode, node, endNode()],
-      edges: [edge('e1', 's', 'p', 1), edge('e2', 'p', 'e', 1, 'sent')]
-    })
-    expect(r.errors.some(e => e.code === 'postal_untracked_must_be_single')).toBe(true)
-  })
-
   it('rejects status outside CHANNEL_STATUSES', () => {
     const node = emailNode('a', {
       mode: 'simple',
@@ -160,15 +150,6 @@ describe('validateGraph — send_* output rules', () => {
       edges: [edge('e1', 's', 'a', 1), edge('e2', 'a', 'e', 1, 'weird_handle')]
     })
     expect(r.errors.some(e => e.code === 'invalid_source_handle_for_simple')).toBe(true)
-  })
-
-  it('rejects sourceHandle on single mode', () => {
-    const node = emailNode('a', { mode: 'single' })
-    const r = validateGraph({
-      nodes: [startNode, node, endNode()],
-      edges: [edge('e1', 's', 'a', 1), edge('e2', 'a', 'e', 1, 'unwanted')]
-    })
-    expect(r.errors.some(e => e.code === 'invalid_source_handle_for_single')).toBe(true)
   })
 
   it('rejects multi outputs with duplicate output.id', () => {
@@ -234,63 +215,6 @@ describe('validateGraph — send_* output rules', () => {
   })
 })
 
-describe('validateGraph — condition rules', () => {
-  it('accepts data_available with patient.email', () => {
-    const cond = {
-      id: 'c', position: { x: 5, y: 200 },
-      data: {
-        kind: 'condition' as const,
-        params: { conditionType: 'data_available' as const, expression: 'patient.email' }
-      }
-    }
-    const r = validateGraph({
-      nodes: [startNode, cond, endNode('et'), endNode('ef')],
-      edges: [
-        edge('e_sc', 's', 'c', 1),
-        edge('e_ct', 'c', 'et', 0, 'true'),
-        edge('e_cf', 'c', 'ef', 0, 'false')
-      ]
-    })
-    expect(r.errors).toHaveLength(0)
-  })
-
-  it('rejects data_available with unknown expression', () => {
-    const cond = {
-      id: 'c', position: { x: 5, y: 200 },
-      data: {
-        kind: 'condition' as const,
-        params: { conditionType: 'data_available' as const, expression: 'patient.unknown' }
-      }
-    }
-    const r = validateGraph({
-      nodes: [startNode, cond, endNode('et'), endNode('ef')],
-      edges: [
-        edge('e_sc', 's', 'c', 1),
-        edge('e_ct', 'c', 'et', 0, 'true'),
-        edge('e_cf', 'c', 'ef', 0, 'false')
-      ]
-    })
-    expect(r.errors.some(e => e.code === 'unknown_data_available_expression')).toBe(true)
-  })
-
-  it('rejects condition sourceHandle other than true/false', () => {
-    const cond = {
-      id: 'c', position: { x: 5, y: 200 },
-      data: {
-        kind: 'condition' as const,
-        params: { conditionType: 'data_available' as const, expression: 'patient.email' }
-      }
-    }
-    const r = validateGraph({
-      nodes: [startNode, cond, endNode()],
-      edges: [
-        edge('e_sc', 's', 'c', 1),
-        edge('e_ce', 'c', 'e', 0, 'maybe')
-      ]
-    })
-    expect(r.errors.some(e => e.code === 'invalid_source_handle_for_condition')).toBe(true)
-  })
-})
 
 describe('validateGraph — start position', () => {
   it('rejects start.position.x !== 0', () => {

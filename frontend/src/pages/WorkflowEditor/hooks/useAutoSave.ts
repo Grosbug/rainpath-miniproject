@@ -19,10 +19,7 @@ export function useAutoSave(): { saveNow: () => void } {
   const performSave = useCallback(async () => {
     const s = useEditorStore.getState()
     if (!s.workflowId) return
-    if (s.validationErrors.length > 0) {
-      s.setSaveStatus('invalid')
-      return
-    }
+    const isInvalid = s.validationErrors.length > 0
     const snap = s.snapshot()
     const hash = hashSnapshot(snap)
     if (hash === s.lastSavedSnapshotHash) {
@@ -42,7 +39,10 @@ export function useAutoSave(): { saveNow: () => void } {
         description: snap.description,
         graph: { nodes: snap.nodes, edges: snap.edges }
       })
+      // Backend accepts invalid workflows (validation is enforced only when activating
+      // a run). Reflect that nuance to the user via a distinct "saved with errors" state.
       s.markSaved(hash, new Date())
+      if (isInvalid) s.setSaveStatus('saved_invalid', new Date())
       retryIxRef.current = 0
       qc.invalidateQueries({ queryKey: queryKeys.workflows.list() })
     } catch (e) {
