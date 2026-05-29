@@ -12,6 +12,7 @@ import { queryKeys } from '@/api/query-keys'
 import { listNodeTemplates, deleteNodeTemplate } from '@/api/node-templates'
 import { useModalState, type NodeKind } from '../modal-state'
 import { NewTemplateButton } from './NewTemplateButton'
+import { nodeFamilyAccentColor, nodeFamilyChrome, SEND_KIND_FAMILY } from '../node-family'
 
 type PaletteKind = NodeKind
 const PALETTE_KINDS = ['send_email', 'send_sms', 'send_whatsapp', 'send_postal'] as const satisfies readonly PaletteKind[]
@@ -91,28 +92,42 @@ export function TemplatesSection() {
           {PALETTE_KINDS.map(kind => {
             const items = grouped[kind]
             if (items.length === 0) return null
+            const family = SEND_KIND_FAMILY[kind]
+            const chrome = nodeFamilyChrome(family)
             return (
               <Accordion.Item key={kind} value={kind} className="border-b border-border last:border-0">
                 <Accordion.Header>
                   <Accordion.Trigger className="flex w-full items-center justify-between py-2 text-xs font-medium text-fg [&[data-state=open]>svg]:rotate-180">
                     <span className="flex items-center gap-2">
-                      <Icon name={KIND_ICON[kind]} size={16} />
+                      <span
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border"
+                        style={chrome.card}
+                      >
+                        <Icon name={KIND_ICON[kind]} size={16} style={{ color: nodeFamilyAccentColor(family) }} />
+                      </span>
                       {KIND_LABEL[kind]} <span className="text-fg-muted">({items.length})</span>
                     </span>
                     <Icon name="ChevronDown" size={16} className="transition-transform" />
                   </Accordion.Trigger>
                 </Accordion.Header>
-                <Accordion.Content className="pb-2">
+                <Accordion.Content className="space-y-1 pb-2">
                   {items.map(t => (
                     <div
                       key={t.id}
                       draggable
                       onDragStart={e => onDragStart(e, t)}
                       onClick={() => open({ mode: 'template-edit', template: t })}
-                      className="group flex h-10 cursor-pointer items-center gap-2 rounded-md px-2 text-sm hover:bg-surface-muted active:cursor-grabbing"
+                      className="group relative flex h-10 cursor-pointer items-center gap-2 overflow-hidden rounded-md border py-0 pl-3 pr-1 text-sm shadow-elev-1 transition-shadow hover:shadow-elev-2 active:cursor-grabbing"
+                      style={chrome.card}
                     >
+                      <div
+                        className="absolute left-0 top-0 h-full w-[3px] rounded-l-md"
+                        style={chrome.accent}
+                        aria-hidden="true"
+                      />
                       <Icon name="GripVertical" size={16} className="text-fg-subtle" />
-                      <span className="flex-1 truncate font-medium text-fg">
+                      <Icon name={KIND_ICON[kind]} size={16} style={{ color: nodeFamilyAccentColor(family) }} />
+                      <span className="min-w-0 flex-1 truncate font-medium text-fg">
                         {t.name}
                       </span>
                       <DropdownMenu>

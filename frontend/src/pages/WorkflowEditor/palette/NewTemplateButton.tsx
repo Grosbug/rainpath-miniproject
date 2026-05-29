@@ -3,6 +3,7 @@ import * as Popover from '@radix-ui/react-popover'
 import { Icon, IconName } from '@/components/Icon'
 import { Button } from '@/components/ui/Button'
 import { useModalState, type NodeKind } from '../modal-state'
+import { nodeFamilyAccentColor, nodeFamilyChrome, SEND_KIND_FAMILY } from '../node-family'
 
 const OPTIONS: Array<{ kind: NodeKind; label: string; icon: IconName }> = [
   { kind: 'send_email', label: 'Email', icon: 'Mail' },
@@ -29,20 +30,30 @@ export function NewTemplateButton() {
           sideOffset={4}
           className="z-50 min-w-[200px] rounded-md border border-border bg-surface p-1 shadow-elev-2"
         >
-          {OPTIONS.map(o => (
-            <button
-              key={o.kind}
-              type="button"
-              onClick={() => {
-                openModal({ mode: 'template-create', kind: o.kind })
-                setOpen(false)
-              }}
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-fg outline-none hover:bg-surface-muted"
-            >
-              <Icon name={o.icon} size={16} />
-              {o.label}
-            </button>
-          ))}
+          {OPTIONS.map(o => {
+            const family = SEND_KIND_FAMILY[o.kind]
+            const chrome = nodeFamilyChrome(family)
+            return (
+              <button
+                key={o.kind}
+                type="button"
+                onClick={() => {
+                  openModal({ mode: 'template-create', kind: o.kind })
+                  setOpen(false)
+                }}
+                className="relative flex w-full items-center gap-2 overflow-hidden rounded-md border px-2 py-1.5 text-sm text-fg outline-none hover:brightness-[0.98]"
+                style={chrome.card}
+              >
+                <div
+                  className="absolute left-0 top-0 h-full w-[3px] rounded-l-md"
+                  style={chrome.accent}
+                  aria-hidden="true"
+                />
+                <Icon name={o.icon} size={16} style={{ color: nodeFamilyAccentColor(family) }} />
+                {o.label}
+              </button>
+            )
+          })}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
