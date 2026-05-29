@@ -19,6 +19,9 @@ function navClass({ isActive }: { isActive: boolean }, collapsed: boolean): stri
   return `${base} ${layout} ${tone}`
 }
 
+/** Aligné sur les libellés nav : px-3 (nav) + px-3 (lien) + icône 16px + gap-2.5 */
+const NAV_LABEL_LEFT = 'left-16' /* 64px */
+
 const LOGO = (
   <img
     src="/favicon.svg"
@@ -37,26 +40,44 @@ export function AppSidebar() {
     <aside
       className={
         'flex h-full shrink-0 flex-col border-r border-border bg-surface transition-[width] duration-200 ' +
-        (collapsed ? 'w-14' : 'w-52')
+        (collapsed ? 'w-14' : 'w-46')
       }
       aria-label="Navigation principale"
     >
-      <div
-        className={
-          'flex shrink-0 border-b border-border ' +
-          (collapsed
-            ? 'flex-col items-center justify-center gap-2 px-1.5 py-2'
-            : 'relative h-12 w-full flex-row items-center gap-2 px-3')
-        }
-      >
+      <div className="relative h-12 w-full shrink-0 border-b border-border">
+        {!collapsed ? (
+          <Link
+            to="/workflows"
+            className="absolute left-7 top-1/2 z-10 -translate-y-1/2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="RainPath"
+          >
+            {LOGO}
+          </Link>
+        ) : null}
+
+        {!collapsed ? (
+          <Link
+            to="/workflows"
+            className={
+              `absolute ${NAV_LABEL_LEFT} top-1/2 right-10 -translate-y-1/2 truncate ` +
+              'text-sm font-semibold tracking-tight text-fg hover:text-primary ' +
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm'
+            }
+          >
+            RainPath
+          </Link>
+        ) : null}
+
         <button
           type="button"
           onClick={toggle}
           className={
-            'relative z-10 inline-flex shrink-0 items-center justify-center rounded-md border border-border bg-surface-muted ' +
-            'text-fg transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 ' +
-            'focus-visible:ring-ring focus-visible:ring-offset-2 ' +
-            (collapsed ? 'h-9 w-9' : 'h-8 w-8')
+            'absolute top-1/2 z-10 inline-flex -translate-y-1/2 items-center justify-center rounded-md ' +
+            'border border-border bg-surface-muted text-fg transition-colors hover:bg-surface ' +
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ' +
+            (collapsed
+              ? 'left-1/2 h-9 w-9 -translate-x-1/2'
+              : 'right-2 h-8 w-8')
           }
           aria-label={collapsed ? 'Déplier le menu' : 'Réduire le menu'}
           aria-expanded={!collapsed}
@@ -64,37 +85,6 @@ export function AppSidebar() {
         >
           <Icon name={collapsed ? 'ChevronsRight' : 'ChevronsLeft'} size={16} />
         </button>
-
-        {collapsed ? (
-          <Link
-            to="/workflows"
-            className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="RainPath"
-            data-rp-tooltip="RainPath"
-          >
-            {LOGO}
-          </Link>
-        ) : (
-          <>
-            <Link
-              to="/workflows"
-              className={
-                'absolute left-1/2 max-w-[calc(100%-5.5rem)] -translate-x-1/2 truncate ' +
-                'text-sm font-semibold tracking-tight text-fg hover:text-primary ' +
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm px-1'
-              }
-            >
-              RainPath
-            </Link>
-            <Link
-              to="/workflows"
-              className="relative z-10 ml-auto shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="RainPath"
-            >
-              {LOGO}
-            </Link>
-          </>
-        )}
       </div>
 
       <nav className={`flex flex-1 flex-col gap-1 py-3 ${collapsed ? 'px-2' : 'px-3'}`}>

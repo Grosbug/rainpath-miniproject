@@ -50,6 +50,9 @@ export default {
         'elev-1': 'var(--elev-1)',
         'elev-2': 'var(--elev-2)',
         'elev-3': 'var(--elev-3)'
+      },
+      width: {
+        '46': '11.5rem'
       }
     }
   },
