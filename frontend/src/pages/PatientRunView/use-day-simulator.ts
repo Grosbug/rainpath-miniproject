@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { Graph } from '@rainpath/shared'
+import { runDayAtNode } from '@rainpath/shared'
 import {
   coerceOutcomeForAdvance,
   hasContactForSendNode,
@@ -11,7 +12,7 @@ import {
 import { advancePatientRun, resetPatientRun, stepBackPatientRun } from '@/api/patient-runs'
 import { queryKeys } from '@/api/query-keys'
 import { describeError } from '@/api/error-messages'
-import { dayAtNode, type PatientContactData } from './cumulative-days'
+import { type PatientContactData } from './cumulative-days'
 
 type HistoryEntry = { nodeId: string; outcome?: string }
 
@@ -67,8 +68,12 @@ export interface DaySimulator {
  * status on each current send_* card and clicks the top-bar "Prochain", which
  * fires `advanceAllPending`.
  *
- * The J+N cursor follows the focused node (`dayAtNode`), not the end of history,
- * so parallel branches and status picking stay aligned with the canvas card.
+ * The J+N cursor follows the focused node (`runDayAtNode` from shared), not
+ * the end of history, so parallel branches and status picking stay aligned
+ * with the canvas card. The shared helper computes the day as the max over
+ * routed-incoming edges with memoization — correct for multi-input joins
+ * and asymmetric paths where the naive frontend `dayOfHistory` walk would
+ * misattribute edges and land the cursor behind / ahead of the focused card.
  *
  * Multi-current readiness: the backend still tracks a single currentNodeId, so
  * `currentNodeIds` is a one-element array in practice. The pending-status map
@@ -81,7 +86,7 @@ export function useDaySimulator({
   const qc = useQueryClient()
 
   const currentNodeDay = useMemo(
-    () => (focusedNodeId ? dayAtNode(graph, history, focusedNodeId) : 0),
+    () => (focusedNodeId ? runDayAtNode(graph, history as Parameters<typeof runDayAtNode>[1], focusedNodeId) : 0),
     [graph, history, focusedNodeId]
   )
 
