@@ -164,6 +164,40 @@ describe('computeActiveFrontiers — runtime gating', () => {
     const f = computeActiveFrontiers(g, [{ nodeId: 's' }])
     expect(f).toEqual(['a'])
   })
+
+  it('does not open the not-taken branch of a routed send (no phantom J+0 frontier)', () => {
+    // A simple send whose success/failure handles point at two different ends.
+    // Once the send records a success outcome, ONLY the success end may open —
+    // the failure end is on a dead branch and must never appear as a frontier.
+    // Regression: it used to open the moment the send "exited", compute
+    // runDayAtNode = 0 (its incoming edge was never routed) and snap the chrono
+    // focus / J+N cursor back to day 0.
+    const g: Graph = {
+      nodes: [start, email('m', 5), end('end_ok', 20), end('end_ko', 20)],
+      edges: [
+        edge('e_s', 's', 'm', 5),
+        edge('e_ok', 'm', 'end_ok', 15, 'success'),
+        edge('e_ko', 'm', 'end_ko', 15, 'failure')
+      ]
+    }
+    const hist = [{ nodeId: 's' }, { nodeId: 'm', outcome: 'delivered' }]
+    const f = computeActiveFrontiers(g, hist)
+    expect(f).toEqual(['end_ok'])
+    expect(f).not.toContain('end_ko')
+  })
+
+  it('opens the failure end (not the success end) when the send failed', () => {
+    const g: Graph = {
+      nodes: [start, email('m', 5), end('end_ok', 20), end('end_ko', 20)],
+      edges: [
+        edge('e_s', 's', 'm', 5),
+        edge('e_ok', 'm', 'end_ok', 15, 'success'),
+        edge('e_ko', 'm', 'end_ko', 15, 'failure')
+      ]
+    }
+    const hist = [{ nodeId: 's' }, { nodeId: 'm', outcome: 'bounced' }]
+    expect(computeActiveFrontiers(g, hist)).toEqual(['end_ko'])
+  })
 })
 
 describe('chronoEarliestActionableNodeId', () => {

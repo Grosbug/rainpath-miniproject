@@ -1,10 +1,14 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Graph } from '@rainpath/shared'
-import { nodeDisplayTitle } from '@rainpath/shared'
+import { nodeDisplayTitle, prettifyLayout } from '@rainpath/shared'
 import { Button } from '@/components/ui/Button'
 import { Icon, type IconName } from '@/components/Icon'
+import { updateWorkflow } from '@/api/workflows'
+import { queryKeys } from '@/api/query-keys'
+import { describeError } from '@/api/error-messages'
 import type { DaySimulator } from './use-day-simulator'
 import {
   PATIENT_RUN_TOOLBAR_DIVIDER,
@@ -93,6 +97,18 @@ export function DayCursorControls({ sim, graph, activeFrontiers, workflowId, wor
   const [advancing, setAdvancing] = useState(false)
   const inFlight = advancing || autoAdvancing
 
+  const qc = useQueryClient()
+  const { runId } = useParams<{ runId: string }>()
+  const prettifyMut = useMutation({
+    mutationFn: () => updateWorkflow(workflowId, { graph: prettifyLayout(graph) }),
+    onSuccess: () => {
+      if (runId) qc.invalidateQueries({ queryKey: queryKeys.patientRuns.detail(runId) })
+      qc.invalidateQueries({ queryKey: queryKeys.workflows.detail(workflowId) })
+      toast.success('Schéma réorganisé')
+    },
+    onError: e => toast.error(describeError(e, 'Impossible de réorganiser le schéma.'))
+  })
+
   const canAdvance =
     pauseReason !== 'end' &&
     currentNodeIds.length > 0 &&
@@ -153,6 +169,18 @@ export function DayCursorControls({ sim, graph, activeFrontiers, workflowId, wor
           >
             <Icon name="RotateCw" size={16} />
             Réinitialiser
+          </Button>
+          <div className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+          <Button
+            type="button" variant="ghost" size="sm"
+            onClick={() => prettifyMut.mutate()}
+            loading={prettifyMut.isPending}
+            disabled={prettifyMut.isPending || graph.nodes.length === 0}
+            aria-label="Réorganiser le schéma"
+            data-rp-tooltip="Réorganiser le schéma (sans changer les délais)"
+          >
+            <Icon name="Wand" size={16} />
+            Réorganiser
           </Button>
           <div className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
           <Link

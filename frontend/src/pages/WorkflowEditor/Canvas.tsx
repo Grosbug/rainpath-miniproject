@@ -19,6 +19,13 @@ import { ConnectionPreview } from './ConnectionPreview'
 
 const PX_PER_DAY = 28
 
+// `maxZoom: 1` caps the opening fit: without it a small graph (a few nodes)
+// gets framed at maxZoom, which reads as "opened at full zoom". Larger graphs
+// still zoom out to fit. Feeds the <ReactFlow fitView /> prop, which owns the
+// mount-time framing; useLeftAnchoredZoom then only re-anchors viewport.x and
+// never re-fits.
+const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1 } as const
+
 function toRFNodes(
   nodes: ReturnType<typeof useEditorStore.getState>['nodes'],
   errors: ReturnType<typeof useEditorStore.getState>['validationErrors'],
@@ -98,7 +105,16 @@ function CanvasInner() {
   const addEdge = useEditorStore(s => s.addEdge)
   const openModal = useModalState(s => s.open)
   const modalOpen = useModalState(s => s.content !== null || s.overlayCount > 0)
-  const { screenToFlowPosition } = useReactFlow()
+  const { screenToFlowPosition, fitView } = useReactFlow()
+  const prettifyTick = useEditorStore(s => s.prettifyTick)
+  // Snap the viewport to the new layout right after the user clicks Réorganiser
+  // so they get an immediate "something happened" cue — without it, the rearrange
+  // happens off-screen if their viewport is panned away.
+  useEffect(() => {
+    if (prettifyTick === 0) return
+    const t = setTimeout(() => fitView({ duration: 350, padding: 0.15 }), 50)
+    return () => clearTimeout(t)
+  }, [prettifyTick, fitView])
   // 56 px of breathing room left of J+0 so the Start node and the timeline labels stay clear
 // of the canvas left edge at any zoom level — without it, deep-zoomed views clip the origin.
 useLeftAnchoredZoom(56)
@@ -316,6 +332,7 @@ useLeftAnchoredZoom(56)
         proOptions={{ hideAttribution: true }}
         translateExtent={[[-360, -Infinity], [Infinity, Infinity]]}
         fitView
+        fitViewOptions={FIT_VIEW_OPTIONS}
       >
         <TimelineBackground />
         <Controls

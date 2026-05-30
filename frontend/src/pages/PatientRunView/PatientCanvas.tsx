@@ -32,6 +32,12 @@ const PX_PER_DAY = 28
 const LANE_HEIGHT = 240
 const LANE_TOP_OFFSET = 40
 
+// `maxZoom: 1` stops short patient runs (few cards) from being framed at full
+// 2× zoom on load, which made the canvas look zoomed-in by default. Feeds the
+// <ReactFlow fitView /> prop, which owns the mount-time framing; useLeftAnchoredZoom
+// then only re-anchors viewport.x and never re-fits.
+const FIT_VIEW_OPTIONS = { padding: 0.05, maxZoom: 1 } as const
+
 const nodeTypes: NodeTypes = {
   start: PatientNode,
   end: PatientNode,
@@ -166,7 +172,13 @@ function CanvasInner({
         } as PatientNodeData,
         draggable: false,
         selectable: false,
-        focusable: canFocus
+        focusable: canFocus,
+        // React Flow v12 writes an inline z-index on every node wrapper. Without
+        // an explicit value the default stacking can let a neighbor's wrapper
+        // paint over a card that grew to host its inline status picker, hiding
+        // the picker's clickable area. Lift the focused node above everything,
+        // and any picker-enabled (grown) node above ordinary cards.
+        zIndex: isCurrent ? 1000 : pickerEnabled ? 100 : 1
       }
     })
   }, [graph, graph.nodes, focusedNodeId, activeFrontiers, actionableNodeIds, history, historyOutcomeByNode, yPositionFor, contactProfile, pendingByNode, onPendingChange, onFocusNode])
@@ -214,7 +226,7 @@ function CanvasInner({
         maxZoom={2}
         translateExtent={[[-48, -Infinity], [Infinity, Infinity]]}
         fitView
-        fitViewOptions={{ padding: 0.05 }}
+        fitViewOptions={FIT_VIEW_OPTIONS}
       >
         <TimelineBackground />
         <TodayCursor day={dayCursor} />

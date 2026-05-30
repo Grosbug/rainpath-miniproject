@@ -213,10 +213,13 @@ export function useDaySimulator({
   const advanceMut = useMutation({
     mutationFn: ({ nodeId, outcome }: { nodeId: string; outcome?: string }) =>
       advancePatientRun(runId, { nodeId, ...(outcome ? { outcome } : {}) }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.patientRuns.detail(runId) })
-      qc.invalidateQueries({ queryKey: queryKeys.patientRuns.listForWorkflow(workflowId) })
-    },
+    // No per-mutation invalidation: `advanceAllPending` may chain several
+    // advances in one "Prochain" click and drives itself off each mutation's
+    // returned `focusedNodeId`, so it doesn't need the refetched query mid-chain.
+    // Invalidating on every iteration fired a burst of concurrent refetches that
+    // resolved out of order and replaced React Flow's controlled `nodes` array
+    // with stale intermediate states — making previously-visited cards flicker
+    // out of the canvas. We invalidate ONCE after the chain settles instead.
     onError: e => {
       toast.error(describeError(e, 'Échec de l\'avancement.'))
     }
@@ -284,11 +287,15 @@ export function useDaySimulator({
         }
         return changed ? next : prev
       })
+      // Single refetch after the whole chain has run — one clean canvas update
+      // instead of one per advance (see advanceMut above).
+      qc.invalidateQueries({ queryKey: queryKeys.patientRuns.detail(runId) })
+      qc.invalidateQueries({ queryKey: queryKeys.patientRuns.listForWorkflow(workflowId) })
     }
     return consumed.size > 0
     // mutateAsync is a stable reference from react-query
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusedNodeId, nodesById, graph, profile])
+  }, [focusedNodeId, nodesById, graph, profile, qc, runId, workflowId])
 
   const canReset = history.length > 1
 

@@ -27,6 +27,8 @@ export function TopBar({ saveNow }: Props) {
   const setName = useEditorStore(s => s.setName)
   const setDescription = useEditorStore(s => s.setDescription)
   const { handleUndo, handleRedo, canUndo, canRedo, undoCount, redoCount } = useHistoryActions()
+  const prettifyLayout = useEditorStore(s => s.prettifyLayout)
+  const nodeCount = useEditorStore(s => s.nodes.length)
 
   const [editingName, setEditingName] = useState(false)
   const [draftName, setDraftName] = useState(name)
@@ -34,10 +36,21 @@ export function TopBar({ saveNow }: Props) {
   const [draftDesc, setDraftDesc] = useState(description)
   const [savePulse, setSavePulse] = useState(false)
   const savePulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [prettifyPulse, setPrettifyPulse] = useState(false)
+  const prettifyPulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => () => {
     if (savePulseTimer.current) clearTimeout(savePulseTimer.current)
+    if (prettifyPulseTimer.current) clearTimeout(prettifyPulseTimer.current)
   }, [])
+
+  const handlePrettifyClick = () => {
+    prettifyLayout()
+    toast.success('Schéma réorganisé')
+    setPrettifyPulse(true)
+    if (prettifyPulseTimer.current) clearTimeout(prettifyPulseTimer.current)
+    prettifyPulseTimer.current = setTimeout(() => setPrettifyPulse(false), 800)
+  }
 
   const handleSaveClick = () => {
     saveNow()
@@ -160,6 +173,14 @@ export function TopBar({ saveNow }: Props) {
           onClick={handleRedo}
           disabled={!canRedo}
           data-rp-tooltip={canRedo ? `Rétablir (${redoCount} action${redoCount > 1 ? 's' : ''} en avant)` : 'Rien à rétablir'}
+        />
+        <IconButton
+          icon='Wand'
+          aria-label='Réorganiser le schéma'
+          onClick={handlePrettifyClick}
+          disabled={nodeCount === 0}
+          className={prettifyPulse ? 'animate-pulse bg-primary/15 text-primary ring-2 ring-primary/40' : undefined}
+          data-rp-tooltip='Réorganiser le schéma (sans changer les délais)'
         />
         {/* Save status sits inline between the redo and save buttons so the "saved a few
             seconds ago" tooltip is right next to the action that triggered it. */}

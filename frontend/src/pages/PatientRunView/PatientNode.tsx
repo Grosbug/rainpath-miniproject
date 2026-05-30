@@ -397,9 +397,13 @@ function InlineStatusPicker({
               <Popover.Content
                 align="start"
                 sideOffset={4}
-                // Match the trigger width so the options column stays visually anchored.
-                style={{ width: 'var(--radix-popover-trigger-width)' }}
-                className="z-[1000] max-h-48 overflow-auto rounded-md border border-border bg-surface py-1 shadow-elev-2"
+                // Anchor on the trigger width, but never narrower than the option
+                // labels need — `--radix-popover-trigger-width` reports the SCALED
+                // trigger box, so at full zoom-out it shrinks to ~70px and clips
+                // "Sortie succès". `min-width` keeps the menu readable at any zoom
+                // while still letting it grow to fit longer labels.
+                style={{ minWidth: 'max(11rem, var(--radix-popover-trigger-width))' }}
+                className="z-[1000] max-h-48 w-max max-w-[16rem] overflow-y-auto overflow-x-hidden rounded-md border border-border bg-surface py-1 shadow-elev-2"
               >
                 <ul role="listbox" className="space-y-1">
                   {successStatuses.length > 0 ? (

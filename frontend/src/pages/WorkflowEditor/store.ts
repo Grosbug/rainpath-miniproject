@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { computeXPositions, validateGraph } from '@rainpath/shared'
+import { computeXPositions, prettifyLayout, validateGraph } from '@rainpath/shared'
 import { createId } from '@paralleldrive/cuid2'
 import type { GraphNode, GraphEdge, EditorSnapshot } from './snapshot'
 import { isValidDiscreteSourceHandle } from './source-handle'
@@ -31,6 +31,10 @@ type EditorState = {
 
   history: EditorSnapshot[]
   historyIndex: number
+
+  /** Incremented every time prettifyLayout runs — Canvas observes this to
+   *  trigger a fitView so the user sees the canvas snap to the new layout. */
+  prettifyTick: number
 }
 
 type EditorActions = {
@@ -46,6 +50,7 @@ type EditorActions = {
   removeNode(id: string): void
   removeEdge(id: string): void
   recomputeXPositions(): void
+  prettifyLayout(): void
   setSaveStatus(status: SaveStatus, savedAt?: Date | null): void
   setValidationErrors(errors: ValidationError[]): void
   markSaved(hash: string, savedAt: Date): void
@@ -75,7 +80,8 @@ const initialState: EditorState = {
   validationWarnings: [],
   pendingSave: false,
   history: [],
-  historyIndex: -1
+  historyIndex: -1,
+  prettifyTick: 0
 }
 
 const HISTORY_MAX = 50
@@ -451,6 +457,20 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
     }),
 
   recomputeXPositions: () => set(state => ({ ...state, nodes: recomputeAndApply(state.nodes, state.edges) })),
+
+  prettifyLayout: () =>
+    set(state => {
+      const pushed = pushHistory(state)
+      const { nodes } = prettifyLayout({ nodes: pushed.nodes, edges: pushed.edges })
+      const v = runValidation(nodes, pushed.edges)
+      return recordCurrentSnapshot({
+        ...pushed,
+        nodes,
+        validationErrors: v.errors,
+        validationWarnings: v.warnings,
+        prettifyTick: pushed.prettifyTick + 1
+      })
+    }),
 
   setSaveStatus: (saveStatus, savedAt) =>
     set(state => ({ ...state, saveStatus, lastSavedAt: savedAt ?? state.lastSavedAt })),

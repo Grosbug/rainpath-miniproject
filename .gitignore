@@ -22,3 +22,7 @@ node_modules/
 # Local scratch files (working notes — not committed)
 modifs.txt
 docs/interview-prep.md
+
+# Artefacts task-triage-dispatch (suivi de tâches — ne pas versionner)
+/TASKS.md
+/.task-triage/
