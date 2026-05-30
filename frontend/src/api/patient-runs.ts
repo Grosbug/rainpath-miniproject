@@ -152,11 +152,6 @@ export async function resetPatientRun(id: string): Promise<PatientRunFull> {
   return parseRun(raw)
 }
 
-export async function stepBackPatientRun(id: string): Promise<PatientRunFull> {
-  const raw = await apiFetch<unknown>(`/patient-runs/${id}/step-back`, { method: 'POST' })
-  return parseRun(raw)
-}
-
 export async function deletePatientRun(id: string): Promise<void> {
   await apiFetch<void>(`/patient-runs/${id}`, { method: 'DELETE' })
 }

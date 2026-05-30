@@ -3,8 +3,6 @@ import {
   chronoEarliestActionableNodeId,
   computeActiveFrontiers,
   nodeRunAction,
-  pickRoutedEdgeFromSource,
-  runDayAtNode,
   type RunHistoryEntry,
   visitedNodeIds
 } from './compute-run-frontiers'
@@ -152,71 +150,6 @@ function pickNextFocus(graph: Graph, nextHistory: RunHistoryEntry[]): string | n
   const node = graph.nodes.find(n => n.id === last.nodeId)
   if (node && node.data.kind !== 'end') return last.nodeId
   return null
-}
-
-/**
- * Pop the **temporally latest** history entry — not the latest in array
- * order. The array follows click order; in chain mode + asymmetric parallel
- * branches the two diverge (B's branch may resolve at J+6 while A's resolves
- * at J+10, but B was clicked after A so B's entry sits later in the array).
- * The user expects step-back to undo the most recent event in the patient's
- * simulated timeline, which is the entry with the largest `runDayAtNode`.
- *
- * When the popped entry was the routed target of a source visible in the
- * remaining history (i.e. fused leave+enter), we also clear that source's
- * outcome — otherwise the source would still be flagged as exited and the
- * target would re-open as a frontier immediately, defeating the rewind.
- *
- * Multi-source join targets entered via an explicit `enter` action don't
- * have a matching source-outcome to clear: their incoming sources already
- * had their outcomes recorded by their respective leave steps, which sit
- * upstream of the join target and remain valid after rewinding it.
- */
-export function rewindLastStep(
-  graph: Graph,
-  history: RunHistoryEntry[]
-): RunHistoryEntry[] {
-  if (history.length <= 1) return history
-
-  // Find the entry with the highest cumulative day. Start (idx 0) is the
-  // anchor — never popped. Tie-break favors the entry that appears later in
-  // the array so click-order still breaks day ties deterministically.
-  let bestIdx = -1
-  let bestDay = -Infinity
-  for (let i = 1; i < history.length; i++) {
-    const day = runDayAtNode(graph, history, history[i]!.nodeId)
-    if (day > bestDay || (day === bestDay && i > bestIdx)) {
-      bestDay = day
-      bestIdx = i
-    }
-  }
-  if (bestIdx < 0) return history
-
-  const popped = history[bestIdx]!
-  let trimmed: RunHistoryEntry[] = [
-    ...history.slice(0, bestIdx),
-    ...history.slice(bestIdx + 1)
-  ]
-
-  const incoming = graph.edges.filter(e => e.target === popped.nodeId)
-  for (const incomingEdge of incoming) {
-    let srcIdx = -1
-    for (let i = trimmed.length - 1; i >= 0; i--) {
-      if (trimmed[i]!.nodeId === incomingEdge.source) { srcIdx = i; break }
-    }
-    if (srcIdx < 0) continue
-    const srcEntry = trimmed[srcIdx]!
-    if (srcEntry.outcome === undefined) continue
-    const routed = pickRoutedEdgeFromSource(graph, trimmed, srcEntry, popped.nodeId)
-    if (!routed || routed.id !== incomingEdge.id) continue
-    const { outcome: _outcome, ...rest } = srcEntry
-    trimmed = [
-      ...trimmed.slice(0, srcIdx),
-      rest as RunHistoryEntry,
-      ...trimmed.slice(srcIdx + 1)
-    ]
-  }
-  return trimmed
 }
 
 /** Nodes the user may click to act on (enter or leave). */

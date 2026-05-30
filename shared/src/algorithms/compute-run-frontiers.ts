@@ -70,8 +70,7 @@ function effectiveSourceOutcome(
  * given the source's observed outcome. Returns null when no edge matches —
  * e.g. when a send_* hasn't recorded its outcome yet so the routing is not
  * yet decided. Used by `runDayAtNode` to attribute each edge to the source
- * that actually fired through it, and by `rewindLastStep` to know which
- * source contributed the popped target.
+ * that actually fired through it.
  */
 export function pickRoutedEdgeFromSource(
   graph: Graph,

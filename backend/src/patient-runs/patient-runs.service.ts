@@ -3,7 +3,7 @@ import type {
   AdvancePatientRunDto, CreatePatientRunDto, FocusPatientRunDto, Graph, PatientGender, PostalAddress,
   UpdatePatientRunDto
 } from '@rainpath/shared'
-import { AdvanceRunError, applyRunAdvance, rewindLastStep, validateGraph } from '@rainpath/shared'
+import { AdvanceRunError, applyRunAdvance, validateGraph } from '@rainpath/shared'
 import { PrismaService, buildSoftDeleteClient } from '../prisma/prisma.service'
 import { decodeGraph } from '../workflows/graph-codec'
 import { AdvanceError, resolveAdvance } from './advance'
@@ -346,45 +346,6 @@ export class PatientRunsService {
         currentNodeId: startNode.id,
         focusedNodeId: startNode.id,
         history: JSON.stringify(history)
-      }
-    })
-
-    return this.get(id)
-  }
-
-  /**
-   * Pop the last history entry and point `currentNodeId` back at the previous one.
-   * No-op when the run is already at start (history length ≤ 1). Symmetric with
-   * `advance` for one step — useful when the user wants to undo a wrongly-picked
-   * outcome without losing the rest of the run's progress.
-   */
-  async stepBack(id: string): Promise<PatientRunFull> {
-    const row = await this.db.patientRun.findUnique({ where: { id } })
-    if (!row) throw new NotFoundException(`PatientRun ${id} not found`)
-
-    const history: RunHistoryEntry[] = JSON.parse(row.history)
-    if (history.length <= 1) return this.get(id)
-
-    const wf = await this.prisma.workflow.findUnique({ where: { id: row.workflowId } })
-    if (!wf) throw new NotFoundException(`Workflow ${row.workflowId} not found`)
-    const graph = decodeGraph(wf.graph, wf.id)
-    const trimmed = rewindLastStep(graph, history)
-    // Pass null as stored focus so `resolveFocusedNodeId` picks the
-    // chrono-earliest actionable node — that's exactly the card the user
-    // logically rewound to (the source whose outcome got cleared for a fused
-    // leave, or the now-reopened frontier for a multi-input join). The
-    // previous trimmed-tail heuristic landed on the array-latest entry,
-    // which is wrong for the temporal pop in chain-mode + asymmetric
-    // parallel branches where B' sits later in the array than A' but A'
-    // happens later in simulated time.
-    const sim = buildRunSimulationState(graph, trimmed, null)
-
-    await this.prisma.patientRun.update({
-      where: { id },
-      data: {
-        currentNodeId: sim.focusedNodeId,
-        focusedNodeId: sim.focusedNodeId,
-        history: JSON.stringify(trimmed)
       }
     })
 

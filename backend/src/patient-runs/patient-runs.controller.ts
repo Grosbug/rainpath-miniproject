@@ -51,11 +51,6 @@ export class PatientRunsController {
     return this.service.reset(id)
   }
 
-  @Post('patient-runs/:id/step-back')
-  stepBack(@Param('id') id: string) {
-    return this.service.stepBack(id)
-  }
-
   @Delete('patient-runs/:id')
   @HttpCode(204)
   async remove(@Param('id') id: string) {

@@ -85,7 +85,7 @@ export function DayCursorControls({ sim, graph, activeFrontiers, workflowId, wor
     day, nextEventDay, autoAdvancing,
     allCurrentsHaveStatus, anyCurrentMissingStatus,
     advanceAllPending, currentNodeIds, pauseReason,
-    canStepBack, stepBack, resetRun
+    canReset, resetRun
   } = sim
   const daysUntilNext = nextEventDay !== null ? nextEventDay - day : null
 
@@ -112,15 +112,6 @@ export function DayCursorControls({ sim, graph, activeFrontiers, workflowId, wor
     }
   }
 
-  const onClickPrecedent = async () => {
-    if (!canStepBack || inFlight) return
-    setAdvancing(true)
-    try {
-      await stepBack()
-    } finally {
-      setAdvancing(false)
-    }
-  }
   const onClickReset = async () => {
     if (inFlight) return
     await resetRun()
@@ -137,16 +128,6 @@ export function DayCursorControls({ sim, graph, activeFrontiers, workflowId, wor
         <div className={PATIENT_RUN_TOOLBAR_DIVIDER} aria-hidden="true" />
 
         <div className="flex flex-wrap items-center gap-1">
-          <Button
-            type="button" variant="secondary" size="sm"
-            onClick={onClickPrecedent}
-            disabled={!canStepBack || inFlight}
-            aria-label="Revenir au nœud précédent"
-            data-rp-tooltip={canStepBack ? 'Revenir au nœud précédent (efface la dernière étape)' : 'Déjà au point de départ'}
-          >
-            <Icon name="ArrowLeft" size={16} />
-            Précédent
-          </Button>
           <Button
             type="button" variant="primary" size="sm"
             onClick={onClickProchain}
@@ -166,9 +147,9 @@ export function DayCursorControls({ sim, graph, activeFrontiers, workflowId, wor
           <Button
             type="button" variant="ghost" size="sm"
             onClick={onClickReset}
-            disabled={!canStepBack || inFlight}
+            disabled={!canReset || inFlight}
             aria-label="Réinitialiser le parcours au tout début"
-            data-rp-tooltip={canStepBack ? 'Réinitialiser le parcours au tout début' : 'Déjà au point de départ'}
+            data-rp-tooltip={canReset ? 'Réinitialiser le parcours au tout début' : 'Déjà au point de départ'}
           >
             <Icon name="RotateCw" size={16} />
             Réinitialiser

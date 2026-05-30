@@ -9,7 +9,7 @@ import {
   observableStatusesForSendNode,
   preferredSuccessOutcome
 } from './outcome-routing'
-import { advancePatientRun, resetPatientRun, stepBackPatientRun } from '@/api/patient-runs'
+import { advancePatientRun, resetPatientRun } from '@/api/patient-runs'
 import { queryKeys } from '@/api/query-keys'
 import { describeError } from '@/api/error-messages'
 import { type PatientContactData } from './cumulative-days'
@@ -54,10 +54,8 @@ export interface DaySimulator {
    * Returns true on full success.
    */
   advanceAllPending: () => Promise<boolean>
-  /** True when the run has visited at least one node beyond Start (i.e. step-back is meaningful). */
-  canStepBack: boolean
-  /** Pop the last history entry and rewind currentNodeId to the previous one. */
-  stepBack: () => Promise<boolean>
+  /** True when the run has visited at least one node beyond Start — used to gate Réinitialiser. */
+  canReset: boolean
   /** Wipe the run back to its Start node with an empty history. Always available. */
   resetRun: () => Promise<boolean>
 }
@@ -224,20 +222,6 @@ export function useDaySimulator({
     }
   })
 
-  const stepBackMut = useMutation({
-    mutationFn: () => stepBackPatientRun(runId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.patientRuns.detail(runId) })
-      qc.invalidateQueries({ queryKey: queryKeys.patientRuns.listForWorkflow(workflowId) })
-      // Don't wipe pendingByNode — the actionable/frontier pruning useEffect
-      // already drops picks that are no longer relevant, while keeping picks
-      // on sibling branches the user staged but hasn't burned yet. Wiping
-      // here was eating the user's pre-pick work each time they undid one
-      // step.
-    },
-    onError: e => toast.error(describeError(e, 'Échec du retour en arrière.'))
-  })
-
   const resetMut = useMutation({
     mutationFn: () => resetPatientRun(runId),
     onSuccess: () => {
@@ -306,20 +290,7 @@ export function useDaySimulator({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedNodeId, nodesById, graph, profile])
 
-  const canStepBack = history.length > 1
-  const stepBackBusy = useRef(false)
-  const stepBack = useCallback(async (): Promise<boolean> => {
-    if (!canStepBack || stepBackBusy.current || stepBackMut.isPending) return false
-    stepBackBusy.current = true
-    try {
-      await stepBackMut.mutateAsync()
-      return true
-    } finally {
-      stepBackBusy.current = false
-    }
-    // mutateAsync is stable from react-query
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canStepBack])
+  const canReset = history.length > 1
 
   const resetRun = useCallback(async (): Promise<boolean> => {
     await resetMut.mutateAsync()
@@ -332,7 +303,7 @@ export function useDaySimulator({
     day,
     currentNodeDay,
     nextEventDay,
-    autoAdvancing: advanceMut.isPending || stepBackMut.isPending || resetMut.isPending,
+    autoAdvancing: advanceMut.isPending || resetMut.isPending,
     pauseReason,
     currentNodeIds,
     pendingByNode,
@@ -340,8 +311,7 @@ export function useDaySimulator({
     allCurrentsHaveStatus,
     anyCurrentMissingStatus,
     advanceAllPending,
-    canStepBack,
-    stepBack,
+    canReset,
     resetRun
   }
 }
