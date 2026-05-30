@@ -310,7 +310,7 @@ useLeftAnchoredZoom(56)
         zoomOnDoubleClick={false}
         zoomOnScroll={!modalOpen && !popover}
         zoomOnPinch={!modalOpen && !popover}
-        panOnDrag={[1, 2]}
+        panOnDrag={[0, 1, 2]}
         selectionOnDrag={false}
         deleteKeyCode={null}
         proOptions={{ hideAttribution: true }}
