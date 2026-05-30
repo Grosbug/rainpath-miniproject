@@ -81,7 +81,7 @@ export function TemplatesSection() {
   }
 
   return (
-    <div className="border-t border-border px-4 pt-3 pb-6">
+    <div className="px-4 pt-3 pb-6">
       <div className="mb-2 flex items-center justify-between">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Modèles</h3>
         <NewTemplateButton />
@@ -195,25 +195,30 @@ function TemplateRow({
       <span className="min-w-0 flex-1 truncate font-medium text-fg">
         {template.name}
       </span>
-      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-        <DropdownTrigger asChild>
-          <IconButton
-            icon="EllipsisVertical"
-            aria-label={`Actions sur ${template.name}`}
-            size="sm"
-            onClick={e => e.stopPropagation()}
-          />
-        </DropdownTrigger>
-        <DropdownContent>
-          <DropdownItem icon="Pencil" onSelect={onOpenEdit}>
-            Éditer
-          </DropdownItem>
-          <DropdownSeparator />
-          <DropdownItem icon="Trash2" danger onSelect={onDelete}>
-            Supprimer
-          </DropdownItem>
-        </DropdownContent>
-      </DropdownMenu>
+      {/* React forwards synthetic events from portalised menu items up through
+          the *React* tree, so a click on "Supprimer" would otherwise bubble back
+          to the row's onClick and re-open the edit dialog. Stop the bubble at
+          the menu boundary. */}
+      <div onClick={e => e.stopPropagation()}>
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownTrigger asChild>
+            <IconButton
+              icon="EllipsisVertical"
+              aria-label={`Actions sur ${template.name}`}
+              size="sm"
+            />
+          </DropdownTrigger>
+          <DropdownContent>
+            <DropdownItem icon="Pencil" onSelect={onOpenEdit}>
+              Éditer
+            </DropdownItem>
+            <DropdownSeparator />
+            <DropdownItem icon="Trash2" danger onSelect={onDelete}>
+              Supprimer
+            </DropdownItem>
+          </DropdownContent>
+        </DropdownMenu>
+      </div>
     </div>
   )
 }

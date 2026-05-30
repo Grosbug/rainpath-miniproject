@@ -164,33 +164,48 @@ function isSendKind(kind: string): boolean {
   return kind.startsWith('send_')
 }
 
-/** Outcome that routed from `prev` to `curr` (backend may attach it on the target row). */
-function transitionOutcome(
-  graph: Graph,
-  prev: HistoryEntry,
-  curr: HistoryEntry
-): string | undefined {
-  if (prev.outcome !== undefined) return prev.outcome
-  const source = graph.nodes.find(n => n.id === prev.nodeId)
-  if (source && isSendKind(source.data.kind) && curr.outcome !== undefined) {
-    return curr.outcome
-  }
-  return undefined
-}
-
-/** Edge ids the patient has already followed, in history order. */
+/**
+ * Edge ids the patient has already followed. We walk each visited source and
+ * mark every outgoing edge the source actually routed through:
+ *   - **send_*** with a recorded outcome → mark the edge whose `sourceHandle`
+ *     matches the outcome's resolved handle (success / failure / multi-output
+ *     id). The edge colours the moment the source records its outcome —
+ *     including the case where the target is a multi-input join still
+ *     waiting on its other branches, so the canvas reflects the routing as
+ *     soon as the user makes the decision instead of waiting for the join
+ *     to finally open.
+ *   - **Start / non-send_*** sources have no observable outcome, so we fall
+ *     back to "edge is traversed once the target is in history" — Start's
+ *     parallel children each colour their incoming edge when the user
+ *     actually enters them, not when Start is visited.
+ */
 export function traversedEdgeIds(graph: Graph, history: HistoryEntry[]): Set<string> {
   const ids = new Set<string>()
-  for (let i = 1; i < history.length; i++) {
-    const prev = history[i - 1]!
-    const curr = history[i]!
-    const edge = pickEdge(
-      graph,
-      prev.nodeId,
-      curr.nodeId,
-      transitionOutcome(graph, prev, curr)
-    )
-    if (edge) ids.add(edge.id)
+  const visited = new Set(history.map(h => h.nodeId))
+  for (let i = 0; i < history.length; i++) {
+    const srcEntry = history[i]!
+    const source = graph.nodes.find(n => n.id === srcEntry.nodeId)
+    if (!source) continue
+    const sendKind = isSendKind(source.data.kind)
+    const outgoing = graph.edges.filter(e => e.source === source.id)
+    for (const e of outgoing) {
+      if (sendKind) {
+        // Back-compat: pre-refactor runs put the outcome on the target entry.
+        const targetEntry = history.slice(i + 1).find(h => h.nodeId === e.target)
+        const outcome = srcEntry.outcome ?? targetEntry?.outcome
+        if (outcome === undefined) continue
+        const resolved = resolveOutcomeHandle(source, outcome)
+        const expectedHandle = resolved.type === 'handle' ? resolved.handle : null
+        const edgeHandle = e.sourceHandle ?? null
+        if (edgeHandle === expectedHandle) ids.add(e.id)
+      } else {
+        // Start (or any single-handle source): colour the edge once the
+        // target is actually entered. Multiple outgoings from Start are all
+        // valid "single" handles, but they only count as traversed when the
+        // patient picks each one up.
+        if (visited.has(e.target)) ids.add(e.id)
+      }
+    }
   }
   return ids
 }

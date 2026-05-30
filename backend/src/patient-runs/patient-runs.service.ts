@@ -3,7 +3,7 @@ import type {
   AdvancePatientRunDto, CreatePatientRunDto, FocusPatientRunDto, Graph, PatientGender, PostalAddress,
   UpdatePatientRunDto
 } from '@rainpath/shared'
-import { AdvanceRunError, applyRunAdvance, validateGraph } from '@rainpath/shared'
+import { AdvanceRunError, applyRunAdvance, rewindLastStep, validateGraph } from '@rainpath/shared'
 import { PrismaService, buildSoftDeleteClient } from '../prisma/prisma.service'
 import { decodeGraph } from '../workflows/graph-codec'
 import { AdvanceError, resolveAdvance } from './advance'
@@ -365,11 +365,19 @@ export class PatientRunsService {
     const history: RunHistoryEntry[] = JSON.parse(row.history)
     if (history.length <= 1) return this.get(id)
 
-    const trimmed = history.slice(0, -1)
     const wf = await this.prisma.workflow.findUnique({ where: { id: row.workflowId } })
     if (!wf) throw new NotFoundException(`Workflow ${row.workflowId} not found`)
     const graph = decodeGraph(wf.graph, wf.id)
-    const sim = buildRunSimulationState(graph, trimmed, trimmed[trimmed.length - 1]?.nodeId ?? null)
+    const trimmed = rewindLastStep(graph, history)
+    // Pass null as stored focus so `resolveFocusedNodeId` picks the
+    // chrono-earliest actionable node — that's exactly the card the user
+    // logically rewound to (the source whose outcome got cleared for a fused
+    // leave, or the now-reopened frontier for a multi-input join). The
+    // previous trimmed-tail heuristic landed on the array-latest entry,
+    // which is wrong for the temporal pop in chain-mode + asymmetric
+    // parallel branches where B' sits later in the array than A' but A'
+    // happens later in simulated time.
+    const sim = buildRunSimulationState(graph, trimmed, null)
 
     await this.prisma.patientRun.update({
       where: { id },

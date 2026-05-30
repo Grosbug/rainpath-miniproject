@@ -99,18 +99,27 @@ export function useDaySimulator({
     return []
   }, [focusedNodeId, currentNode, activeFrontiers, actionableNodeIds])
 
-  // Pending per-node selections. Reset whenever the set of current ids changes
-  // (i.e. after an advance moves the run forward) so stale selections don't
-  // leak into the next node.
+  // Pending per-node selections. Kept across focus changes so a status the
+  // user already picked survives when they click another « À traiter » card
+  // and come back, AND so step-back restores the prior pick. Stale entries
+  // for nodes that have left the actionable set (advanced through, end of
+  // run) are dropped — without that pruning, the picker would replay an
+  // outcome after the user resumed a stepped-back branch.
   const [pendingByNode, setPendingByNode] = useState<Record<string, string | undefined>>({})
-  const lastCurrentKey = useRef<string>('')
   useEffect(() => {
-    const key = [...currentNodeIds].sort().join('|')
-    if (key !== lastCurrentKey.current) {
-      lastCurrentKey.current = key
-      setPendingByNode({})
-    }
-  }, [currentNodeIds])
+    setPendingByNode(prev => {
+      let changed = false
+      const next: Record<string, string | undefined> = {}
+      for (const [id, status] of Object.entries(prev)) {
+        if (actionableNodeIds.includes(id) || activeFrontiers.includes(id)) {
+          next[id] = status
+        } else {
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [actionableNodeIds, activeFrontiers])
 
   const nodesById = useMemo(() => new Map(graph.nodes.map(n => [n.id, n])), [graph.nodes])
 
@@ -215,7 +224,11 @@ export function useDaySimulator({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.patientRuns.detail(runId) })
       qc.invalidateQueries({ queryKey: queryKeys.patientRuns.listForWorkflow(workflowId) })
-      setPendingByNode({})
+      // Don't wipe pendingByNode — the actionable/frontier pruning useEffect
+      // already drops picks that are no longer relevant, while keeping picks
+      // on sibling branches the user staged but hasn't burned yet. Wiping
+      // here was eating the user's pre-pick work each time they undid one
+      // step.
     },
     onError: e => toast.error(describeError(e, 'Échec du retour en arrière.'))
   })
@@ -235,28 +248,58 @@ export function useDaySimulator({
     setPendingByNode(prev => ({ ...prev, [nodeId]: status }))
   }, [])
 
-  // Fire one /advance per current node sequentially. The backend's currentNodeId
-  // changes after each call, so the second mutation only makes sense once the
-  // first has settled — hence the await per call. `start` nodes advance with no
-  // outcome; send_* nodes use the staged pending status. Returns false (no-op)
-  // when any send_* node is missing a selection.
+  // Snapshot of the latest pending picks — the `advanceAllPending` chain reads
+  // from this ref so freshly-staged statuses are seen even between awaits.
+  const pendingByNodeRef = useRef(pendingByNode)
+  useEffect(() => { pendingByNodeRef.current = pendingByNode }, [pendingByNode])
+
+  // Chain advances until we hit a node whose status the user hasn't staged
+  // yet. Each iteration consults the **backend's** new `focusedNodeId` from
+  // the mutation result (not the stale props closure) so we walk branches in
+  // true chrono order, including jumping over to a sibling once the current
+  // branch is consumed. `start` and `end` nodes need no status, every other
+  // (send_*) node requires a pre-pick in `pendingByNode` to chain through.
   const advanceAllPending = useCallback(async (): Promise<boolean> => {
-    if (currentNodeIds.length === 0) return false
-    for (const id of currentNodeIds) {
-      if (needsStatus(id) && !pendingByNode[id]) return false
-    }
-    for (const id of currentNodeIds) {
-      const raw = needsStatus(id) ? pendingByNode[id] : undefined
-      const status = needsStatus(id)
-        ? coerceOutcomeForAdvance(graph, id, raw, profile)
+    if (!focusedNodeId) return false
+
+    let focus: string | null = focusedNodeId
+    const consumed = new Set<string>()
+
+    while (focus) {
+      const node = nodesById.get(focus)
+      if (!node) break
+      const kind = node.data.kind
+      if (kind === 'end') break
+      const requiresStatus = kind !== 'start'
+      const pick = pendingByNodeRef.current[focus]
+      if (requiresStatus && !pick) break
+
+      const status = requiresStatus
+        ? coerceOutcomeForAdvance(graph, focus, pick, profile)
         : undefined
-      await advanceMut.mutateAsync({ nodeId: id, outcome: status })
+      try {
+        const updated = await advanceMut.mutateAsync({ nodeId: focus, outcome: status })
+        consumed.add(focus)
+        focus = updated.focusedNodeId
+      } catch {
+        break
+      }
     }
-    setPendingByNode({})
-    return true
+
+    if (consumed.size > 0) {
+      setPendingByNode(prev => {
+        let changed = false
+        const next = { ...prev }
+        for (const id of consumed) {
+          if (id in next) { delete next[id]; changed = true }
+        }
+        return changed ? next : prev
+      })
+    }
+    return consumed.size > 0
     // mutateAsync is a stable reference from react-query
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentNodeIds, pendingByNode, needsStatus, graph, profile])
+  }, [focusedNodeId, nodesById, graph, profile])
 
   const canStepBack = history.length > 1
   const stepBackBusy = useRef(false)

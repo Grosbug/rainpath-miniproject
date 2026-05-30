@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Handle, NodeProps, Position } from '@xyflow/react'
 import * as Popover from '@radix-ui/react-popover'
 import {
-  describeAdvanceRoute,
   hasContactForSendNode,
   isChannelFailureStatus
 } from './outcome-routing'
@@ -142,11 +141,9 @@ export function PatientNode({ data }: NodeProps) {
           <ReachabilityBadge state={d.reachability} blockedReason={d.blockedReason} />
         </div>
 
-        {d.reachability === 'current' && d._onPickStatus && isSendData(d) ? (
+        {d._onPickStatus && isSendData(d) ? (
           <InlineStatusPicker
             data={d}
-            graph={d._graph}
-            nodeId={d._nodeId}
             graphNode={d._graphNode}
             profile={d._profile}
             statuses={d._observableStatuses ?? []}
@@ -276,28 +273,13 @@ function isSendData(data: PatientNodeData): data is PatientNodeData & SendNodeDa
  *
  * Filters statuses through `routableStatusesFor` so we never offer a status
  * that would crash the backend with `unhandled_outcome`. When the patient
- * lacks the channel's contact data, only failure statuses are offered (with
- * a small warning line above the select).
+ * lacks the channel's contact data, only failure statuses are offered (a
+ * warning icon next to the picker label explains why on hover).
  */
-function stepTitle(graph: Graph, nodeId: string): string {
-  const n = graph.nodes.find(x => x.id === nodeId)
-  if (!n) return nodeId
-  const d = n.data
-  if (d.kind === 'start') return 'Départ'
-  if (d.kind === 'end') return 'Fin'
-  if (d.kind === 'send_email') return `Email « ${nodeDisplayTitle(d)} »`
-  if (d.kind === 'send_sms') return `SMS « ${nodeDisplayTitle(d)} »`
-  if (d.kind === 'send_whatsapp') return `WhatsApp « ${nodeDisplayTitle(d)} »`
-  if (d.kind === 'send_postal') return `Courrier « ${nodeDisplayTitle(d)} »`
-  return nodeId
-}
-
 function InlineStatusPicker({
-  data, graph, nodeId, graphNode, profile, statuses, value, onChange
+  data, graphNode, profile, statuses, value, onChange
 }: {
   data: SendNodeData
-  graph?: Graph
-  nodeId?: string
   graphNode?: GraphNode
   profile?: PatientContactData
   statuses: readonly string[]
@@ -324,41 +306,72 @@ function InlineStatusPicker({
     value !== undefined &&
     isChannelFailureStatus(graphNode, value)
 
-  const routePreview = (() => {
-    if (!graph || !nodeId || !value) return null
-    const route = describeAdvanceRoute(graph, nodeId, value)
-    if (!route.targetNodeId) {
-      return 'Aucune arête pour ce statut — reliez la sortie correspondante dans l’éditeur (handle Succès ou Échec).'
+  const channelLabel =
+    data.kind === 'send_email' ? 'email' :
+    data.kind === 'send_sms' ? 'SMS' :
+    data.kind === 'send_whatsapp' ? 'WhatsApp' :
+    'postales'
+
+  const noticeIcon = (() => {
+    // `lacksContact` is checked first: when contact is missing, success statuses
+    // are filtered out upstream, so an empty `statuses` here is almost always
+    // caused by missing contact + no routed failure edge — not by a missing edge
+    // alone. Showing the "no routable status" message in that case would hide
+    // the real, actionable cause (fill in the profile).
+    if (lacksContact) {
+      const msg = statuses.length === 0
+        ? `Coordonnées ${channelLabel} absentes du profil — la sortie succès est inaccessible et aucune sortie échec n'est reliée. Complétez le profil ou reliez une sortie échec dans l'éditeur.`
+        : `Coordonnées ${channelLabel} absentes du profil — seule la sortie échec est possible. Complétez le profil pour emprunter la sortie succès.`
+      return (
+        <span
+          data-rp-tooltip={msg}
+          data-rp-tooltip-wrap="true"
+          className="inline-flex text-warning"
+        >
+          <Icon name="TriangleAlert" size={16} />
+        </span>
+      )
     }
-    const handleLabel =
-      route.handle === 'success' ? 'sortie succès' :
-      route.handle === 'failure' ? 'sortie échec' :
-      'sortie'
-    return `Prochaine étape via ${handleLabel} : ${stepTitle(graph, route.targetNodeId)}`
+    if (statuses.length === 0) {
+      return (
+        <span
+          data-rp-tooltip="Aucun statut routable — vérifiez dans l'éditeur que les sorties succès et/ou échec sont reliées."
+          data-rp-tooltip-wrap="true"
+          className="inline-flex text-warning"
+        >
+          <Icon name="TriangleAlert" size={16} />
+        </span>
+      )
+    }
+    if (pickedFailureWhileContactOk) {
+      return (
+        <span
+          data-rp-tooltip="Le contact est renseigné : choisissez un statut sous « Sortie succès » pour suivre la branche succès (sinon vous restez sur la sortie échec)."
+          data-rp-tooltip-wrap="true"
+          className="inline-flex text-info"
+        >
+          <Icon name="Info" size={16} />
+        </span>
+      )
+    }
+    return null
   })()
 
   return (
     <div className="nodrag nowheel nopan mt-2 space-y-1">
-      {statuses.length === 0 ? (
-        <p className="rounded border border-warning/60 bg-[#FFFBEB] px-1.5 py-1 text-[10px] leading-tight text-warning">
-          Aucun statut routable — vérifiez dans l&apos;éditeur que les sorties succès et/ou échec sont reliées.
+      {/* z-index lifts the icon's hover surface above the React Flow pane overlay
+          that otherwise swallows pointer events (same trick as the picker button). */}
+      <div
+        className="mb-1 flex items-center gap-1"
+        style={{ pointerEvents: 'auto', position: 'relative', zIndex: 100 }}
+      >
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
+          Statut observé
         </p>
-      ) : (
-        <div>
-          {lacksContact ? (
-            <p className="mb-1 rounded border border-warning/60 bg-[#FFFBEB] px-1.5 py-1 text-[10px] leading-tight text-warning">
-              Coordonnées {data.kind === 'send_email' ? 'email' : data.kind === 'send_sms' ? 'SMS' : data.kind === 'send_whatsapp' ? 'WhatsApp' : 'postales'} absentes du profil — seule la sortie échec est possible. Complétez le profil pour emprunter la sortie succès.
-            </p>
-          ) : null}
-          {pickedFailureWhileContactOk ? (
-            <p className="mb-1 rounded border border-info/40 bg-[#EFF6FF] px-1.5 py-1 text-[10px] leading-tight text-info">
-              Le contact est renseigné : choisissez un statut sous « Sortie succès » pour suivre la branche succès (sinon vous restez sur la sortie échec).
-            </p>
-          ) : null}
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
-            Statut observé
-          </p>
-          <Popover.Root open={open} onOpenChange={setOpen}>
+        {noticeIcon}
+      </div>
+      {statuses.length > 0 ? (
+        <Popover.Root open={open} onOpenChange={setOpen}>
             <Popover.Trigger asChild>
               <button
                 type="button"
@@ -409,11 +422,7 @@ function InlineStatusPicker({
               </Popover.Content>
             </Popover.Portal>
           </Popover.Root>
-          {routePreview ? (
-            <p className="mt-1 text-[10px] leading-tight text-fg-muted">{routePreview}</p>
-          ) : null}
-        </div>
-      )}
+      ) : null}
     </div>
   )
 }

@@ -35,9 +35,12 @@
   --node-email-border: #BFDBFE;
   --node-email-accent: #1D4ED8;
 
-  --node-sms-bg: #EEF2FF;
-  --node-sms-border: #C7D2FE;
-  --node-sms-accent: #4338CA;
+  /* SMS — purple, deliberately far from Email's blue so the two send channels
+     don't visually merge on the canvas (both used to sit in the blue/indigo
+     family and were routinely confused at a glance). */
+  --node-sms-bg: #FAF5FF;
+  --node-sms-border: #DDD6FE;
+  --node-sms-accent: #7C3AED;
 
   --node-whatsapp-bg: #F0FDF4;
   --node-whatsapp-border: #BBF7D0;

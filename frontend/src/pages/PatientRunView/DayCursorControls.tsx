@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import type { Graph } from '@rainpath/shared'
 import { nodeDisplayTitle } from '@rainpath/shared'
@@ -14,6 +15,8 @@ interface Props {
   sim: DaySimulator
   graph: Graph
   activeFrontiers: readonly string[]
+  workflowId: string
+  workflowName: string
 }
 
 /** Short, in-sentence label for a node id ("Email « Relance 1 »"). */
@@ -77,7 +80,7 @@ const TONE_CLASS: Record<BannerTone, string> = {
   success: 'border-success/40 bg-[#DCFCE7] text-success'
 }
 
-export function DayCursorControls({ sim, graph, activeFrontiers }: Props) {
+export function DayCursorControls({ sim, graph, activeFrontiers, workflowId, workflowName }: Props) {
   const {
     day, nextEventDay, autoAdvancing,
     allCurrentsHaveStatus, anyCurrentMissingStatus,
@@ -170,6 +173,15 @@ export function DayCursorControls({ sim, graph, activeFrontiers }: Props) {
             <Icon name="RotateCw" size={16} />
             Réinitialiser
           </Button>
+          <div className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+          <Link
+            to={`/workflows/${workflowId}`}
+            className="ml-2 inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-fg hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            data-rp-tooltip={`Ouvrir « ${workflowName} » dans l'éditeur`}
+          >
+            <Icon name="Pencil" size={16} />
+            Éditer le workflow
+          </Link>
         </div>
       </div>
 

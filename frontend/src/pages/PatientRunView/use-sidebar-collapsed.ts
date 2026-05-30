@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-type Section = 'profile' | 'history'
+type Section = 'profile' | 'history' | 'panel'
 
 const STORAGE_KEY = (section: Section) => `rainpath:patient-run:sidebar-collapsed:${section}`
 
