@@ -112,6 +112,13 @@ export default function Documentation() {
             <em>parcours patients</em> qui matérialisent l&apos;exécution d&apos;un workflow pour un
             profil donné.
           </p>
+          <p className='text-fg-muted'>
+            Le seed de démo charge 5 workflows-types (relance simple, cascade multi-canal,
+            segmentation par engagement, suivi postal long terme, ping WhatsApp express), 10
+            profils patients avec des combinaisons variées de canaux (du « tout disponible » au
+            « zéro canal »), et 10 parcours pré-créés associant les deux pour explorer chaque
+            cas de figure sans setup.
+          </p>
         </Section>
 
         <Section id='editor' icon='Workflow' title='Éditeur de workflows'>
@@ -173,9 +180,12 @@ export default function Documentation() {
               <Icon name='Mailbox' size={16} className='mr-1 inline align-middle' />
               <strong>Postal</strong>{' '}
               <Helper
-                tip={"Le courrier postal accepte des paramètres supplémentaires : couleur, recto/verso, type d'enveloppe."}
+                tip={"Le courrier postal a un drapeau « suivi » : un courrier suivi expose les statuts delivered/returned, un non-suivi reste à sent (pas d'accusé)."}
               />{' '}
-              — envoi d&apos;un courrier papier physique avec paramètres d&apos;impression.
+              — envoi d&apos;un courrier papier physique. Drapeau{' '}
+              <code className='rounded bg-surface-muted px-1 py-0.5 text-xs'>tracked</code>{' '}
+              pour distinguer suivi (statuts delivered / returned observables) et non suivi
+              (statut sent uniquement).
             </li>
           </ul>
           <p className='text-fg-muted'>
@@ -186,27 +196,40 @@ export default function Documentation() {
 
         <Section id='profiles' icon='Users' title='Profils patients'>
           <p>
-            Un profil patient regroupe les données nécessaires à la personnalisation et au routage
-            des messages.
+            Un profil patient regroupe les données d&apos;identité et les{' '}
+            <strong>coordonnées par canal</strong>. La présence (ou non) de chaque coordonnée
+            détermine quelles branches d&apos;un workflow sont jouables&nbsp;: sans email, un
+            nœud d&apos;envoi email ne propose que sa sortie échec.
           </p>
           <ul className='list-disc space-y-2 pl-5'>
             <li>
-              <code className='rounded bg-surface-muted px-1 py-0.5 text-xs'>firstName</code> —
-              prénom.
+              <code className='rounded bg-surface-muted px-1 py-0.5 text-xs'>firstName</code>
+              {' / '}
+              <code className='rounded bg-surface-muted px-1 py-0.5 text-xs'>lastName</code> —
+              prénom et nom (obligatoires).
             </li>
             <li>
-              <code className='rounded bg-surface-muted px-1 py-0.5 text-xs'>lastName</code> — nom
-              de famille.
+              <code className='rounded bg-surface-muted px-1 py-0.5 text-xs'>gender</code>{' '}
+              <Helper tip='Champ male / female, utilisé pour les accords dans les messages personnalisés.' />{' '}
+              — accords dans les messages personnalisés.
             </li>
             <li>
-              <code className='rounded bg-surface-muted px-1 py-0.5 text-xs'>genre</code>{' '}
-              <Helper tip='Utilisé pour adapter automatiquement les accords (Cher / Chère) dans les messages.' />{' '}
-              — utilisé pour personnaliser les formules d&apos;accord.
+              <code className='rounded bg-surface-muted px-1 py-0.5 text-xs'>email</code> —
+              coordonnée pour les nœuds <strong>email</strong>.
             </li>
             <li>
-              <code className='rounded bg-surface-muted px-1 py-0.5 text-xs'>postalCode</code>{' '}
-              <Helper tip='Code postal pour le routage des envois postaux.' />{' '}
-              — code postal pour les envois physiques.
+              <code className='rounded bg-surface-muted px-1 py-0.5 text-xs'>phone</code> —
+              numéro mobile pour les nœuds <strong>SMS</strong>.
+            </li>
+            <li>
+              <code className='rounded bg-surface-muted px-1 py-0.5 text-xs'>whatsapp</code> —
+              numéro WhatsApp (peut être identique à <code>phone</code>, ou différent).
+            </li>
+            <li>
+              <code className='rounded bg-surface-muted px-1 py-0.5 text-xs'>address</code>{' '}
+              <Helper tip={"Adresse structurée { street, postalCode, city, country? }. Le code postal vit dans cet objet — il n'y a plus de champ postalCode séparé."} />{' '}
+              — adresse postale structurée pour les nœuds <strong>courrier</strong>{' '}
+              ({'{ street, postalCode, city, country? }'}).
             </li>
           </ul>
         </Section>
@@ -220,17 +243,42 @@ export default function Documentation() {
             <li>
               <strong>Date de début (J+0)</strong>{' '}
               <Helper tip='Le J+0 est la date de référence à partir de laquelle tous les délais daysAfter sont calculés.' />{' '}
-              — sert d&apos;origine pour calculer les dates planifiées des noeuds.
+              — sert d&apos;origine pour calculer les dates planifiées des nœuds.
             </li>
             <li>
-              <strong>Simulation pas-à-pas</strong>{' '}
-              <Helper tip='Avancez manuellement le parcours, étape par étape, pour vérifier la séquence et les branchements.' />{' '}
-              — vous pouvez faire avancer le parcours pour vérifier la séquence et le routage
-              selon le statut observé sur chaque envoi.
+              <strong>Curseur J+N temporel</strong>{' '}
+              <Helper tip='Ligne pointillée verticale + pill J+N qui se cale sur le nœud focalisé. Visible dès J+0.' />{' '}
+              — une ligne pointillée verticale traverse le canvas à la hauteur du nœud
+              focalisé, repérée par une pill J+N.
             </li>
             <li>
-              <strong>Historique</strong> — chaque action exécutée est tracée (date effective,
-              statut observé, payload résolu) et consultable.
+              <strong>Sélecteur de statut inline</strong>{' '}
+              <Helper tip={"Sur chaque nœud d'envoi actionnable, choisissez le statut observé (delivered, opened, bounced...) avant de cliquer « Prochain ». Le statut détermine la branche empruntée."} />{' '}
+              — sur le nœud courant (et chaque frontière parallèle), un sélecteur propose les
+              statuts routables, groupés en sortie succès / sortie échec.
+            </li>
+            <li>
+              <strong>Avertissements coordonnées</strong>{' '}
+              <Helper tip='Une icône warning à côté du label « Statut observé » signale que les coordonnées du canal manquent ou que les sorties ne sont pas reliées. Survolez pour le détail.' />{' '}
+              — quand les coordonnées du canal manquent au profil ou qu&apos;aucune sortie
+              n&apos;est routable, une icône signale la cause exacte (tooltip au survol).
+            </li>
+            <li>
+              <strong>Branches parallèles</strong>{' '}
+              <Helper tip='Les workflows multi-output peuvent avoir plusieurs nœuds actionnables simultanément ; cliquez sur une carte pour focaliser cette branche.' />{' '}
+              — les workflows multi-sortie ouvrent plusieurs frontières simultanées. Cliquer
+              sur une carte focalise sa branche, le J+N suit.
+            </li>
+            <li>
+              <strong>Auto-pilote chronologique</strong>{' '}
+              <Helper tip={"« Prochain » chaîne tous les nœuds dont le statut a déjà été pré-pioché, dans l'ordre chronologique, jusqu'à atteindre un nœud sans choix."} />{' '}
+              — « Prochain » avance automatiquement tant que les nœuds actionnables ont un
+              statut pré-sélectionné, puis s&apos;arrête au premier qui demande une décision.
+            </li>
+            <li>
+              <strong>Panneau latéral repliable</strong> — profil patient + historique daté
+              (date effective, statut observé) côté droit, repliable via le chevron pour
+              maximiser le canvas.
             </li>
           </ul>
         </Section>
@@ -244,15 +292,17 @@ export default function Documentation() {
           <ul className='list-disc space-y-2 pl-5'>
             <li>
               <strong>Simple</strong>{' '}
-              <Helper tip='Mode par défaut : une seule arête sortante vers le noeud suivant.' />{' '}
-              — une seule arête sortante. Le parcours continue de façon linéaire vers le noeud
-              suivant.
+              <Helper tip={"Deux handles implicites : « success » et « failure ». Vous listez les statuts qui comptent comme succès — les statuts d'échec du canal (bounced, failed, returned…) routent automatiquement sur failure."} />{' '}
+              — deux sorties implicites <em>succès</em> et <em>échec</em>. Vous définissez les
+              statuts qui comptent comme succès ; les statuts d&apos;échec propres au canal
+              (bounced, failed, returned…) routent automatiquement sur l&apos;échec.
             </li>
             <li>
               <strong>Multi</strong>{' '}
-              <Helper tip='Plusieurs sorties différenciées (ex. ouvert / non ouvert pour un email) pour brancher selon le résultat.' />{' '}
-              — plusieurs sorties différenciées (par exemple, branche selon le statut de
-              l&apos;envoi). Chaque arête sortante porte un identifiant de sortie distinct.
+              <Helper tip='Plusieurs sorties nommées (ex. engagé / pas engagé / échec), chacune avec son propre identifiant et son jeu de statuts déclencheurs.' />{' '}
+              — plusieurs sorties nommées (par exemple <em>engagé</em> / <em>pas engagé</em>{' '}
+              / <em>échec</em>). Chaque sortie a son propre identifiant et un jeu de statuts
+              qui la déclenchent ; un statut ne peut appartenir qu&apos;à une seule sortie.
             </li>
           </ul>
         </Section>
