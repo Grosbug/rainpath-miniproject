@@ -8,7 +8,17 @@ Mini-application web qui permet à un chef de laboratoire d'anatomopathologie de
 
 ## 🚀 Démarrage rapide
 
-**Prérequis** : Node.js ≥ 20 (LTS) et pnpm ≥ 9 (`corepack enable && corepack prepare pnpm@9.0.0 --activate`).
+**Prérequis** : Node.js ≥ 20 (LTS). `pnpm` est détecté s'il est déjà installé, sinon bootstrappé via Corepack — sinon le Makefile imprime les options d'install.
+
+### Avec `make` (recommandé)
+
+```bash
+make up
+```
+
+Enchaîne : check Node + pnpm → `pnpm install` → `cp backend/.env.example backend/.env` → `prisma generate` / `migrate` / `seed` → `pnpm dev`. Toutes les étapes sont idempotentes : `make up` re-tourne en toute sécurité. Voir `make help` pour les targets granulaires (`setup`, `dev`, `seed`, `reset`, …).
+
+### Manuellement
 
 ```bash
 # 1. Installer les dépendances du monorepo
