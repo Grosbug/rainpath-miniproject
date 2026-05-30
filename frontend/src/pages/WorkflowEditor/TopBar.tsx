@@ -84,6 +84,8 @@ export function TopBar({ saveNow }: Props) {
     mutationFn: () => deleteWorkflow(id!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.workflows.list() })
+      qc.invalidateQueries({ queryKey: queryKeys.patientProfiles.list() })
+      qc.invalidateQueries({ queryKey: queryKeys.patientRuns.all })
       toast.success('Workflow supprimé')
       navigate('/workflows')
     },
@@ -151,8 +153,13 @@ export function TopBar({ saveNow }: Props) {
         </div>
       </div>
 
-      {/* Validation badge — geometric center of the full bar width. */}
-      <div className='pointer-events-none absolute inset-0 flex items-center justify-center'>
+      {/* Validation badge — geometric center of the full bar width. `z-[2]`
+          lifts it above the right-hand action group (`z-[1] flex-1`), whose
+          empty left half overlaps the badge's right edge — without it, that
+          transparent overlay swallowed clicks on the badge's expand chevron.
+          The wrapper stays `pointer-events-none` (only the badge itself is
+          interactive), so raising the z-index doesn't block the buttons. */}
+      <div className='pointer-events-none absolute inset-0 z-[2] flex items-center justify-center'>
         <div className='pointer-events-auto'>
           <ValidationStatusBadge />
         </div>

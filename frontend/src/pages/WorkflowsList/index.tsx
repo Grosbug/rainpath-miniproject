@@ -95,6 +95,8 @@ export default function WorkflowsList() {
     mutationFn: (id: string) => deleteWorkflow(id),
     onSuccess: (_, id) => {
       qc.invalidateQueries({ queryKey: queryKeys.workflows.list() })
+      qc.invalidateQueries({ queryKey: queryKeys.patientProfiles.list() })
+      qc.invalidateQueries({ queryKey: queryKeys.patientRuns.all })
       const name = data?.find(w => w.id === id)?.name ?? 'le workflow'
       toast.success(`« ${name} » supprimé`)
       setToDelete(null)

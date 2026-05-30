@@ -36,6 +36,15 @@ describe('validateGraph — structural', () => {
     expect(r.errors.some(e => e.code === 'no_end')).toBe(true)
   })
 
+  it('rejects multiple ends', () => {
+    const second = endNode('e2')
+    const r = validateGraph({
+      nodes: [startNode, endNode(), second],
+      edges: [edge('e1', 's', 'e', 1), edge('e2', 's', 'e2', 1)]
+    })
+    expect(r.errors.some(e => e.code === 'multiple_ends')).toBe(true)
+  })
+
   it('rejects edge to non-existent node', () => {
     const r = validateGraph({ nodes: [startNode, endNode()], edges: [edge('e1', 's', 'ghost', 1)] })
     expect(r.errors.some(e => e.code === 'edge_dangling')).toBe(true)

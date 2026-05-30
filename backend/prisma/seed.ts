@@ -4,7 +4,8 @@ import {
   type EmailParams, type SmsParams, type WhatsAppParams, type PostalParams,
   type PostalAddress, type PatientGender,
   type RunHistoryEntry,
-  START_Y
+  START_Y,
+  prettifyLayout
 } from '@rainpath/shared'
 
 const prisma = new PrismaClient()
@@ -103,17 +104,16 @@ function buildCascadeMultiCanal(): SeededWorkflow {
         { id: 'email',  position: { x: 5,  y: START_Y },                  data: { kind: 'send_email',  params: emailRelance } },
         { id: 'sms',    position: { x: 8,  y: START_Y + LANE_DELTA },     data: { kind: 'send_sms',    params: smsCourt } },
         { id: 'postal', position: { x: 13, y: START_Y + LANE_DELTA * 2 }, data: { kind: 'send_postal', params: postalSuivi } },
-        { id: 'end_ok', position: { x: 20, y: START_Y },                  data: { kind: 'end' } },
-        { id: 'end_ko', position: { x: 20, y: START_Y + LANE_DELTA * 2 }, data: { kind: 'end' } }
+        { id: 'end',    position: { x: 20, y: START_Y },                  data: { kind: 'end' } }
       ],
       edges: [
         { id: 'e_s_email',    source: 'start',  target: 'email',  daysAfter: 5 },
-        { id: 'e_email_ok',   source: 'email',  target: 'end_ok', daysAfter: 15, sourceHandle: 'success' },
+        { id: 'e_email_ok',   source: 'email',  target: 'end',    daysAfter: 15, sourceHandle: 'success' },
         { id: 'e_email_sms',  source: 'email',  target: 'sms',    daysAfter: 3,  sourceHandle: 'failure' },
-        { id: 'e_sms_ok',     source: 'sms',    target: 'end_ok', daysAfter: 12, sourceHandle: 'success' },
+        { id: 'e_sms_ok',     source: 'sms',    target: 'end',    daysAfter: 12, sourceHandle: 'success' },
         { id: 'e_sms_postal', source: 'sms',    target: 'postal', daysAfter: 5,  sourceHandle: 'failure' },
-        { id: 'e_postal_ok',  source: 'postal', target: 'end_ok', daysAfter: 7,  sourceHandle: 'success' },
-        { id: 'e_postal_ko',  source: 'postal', target: 'end_ko', daysAfter: 7,  sourceHandle: 'failure' }
+        { id: 'e_postal_ok',  source: 'postal', target: 'end',    daysAfter: 7,  sourceHandle: 'success' },
+        { id: 'e_postal_ko',  source: 'postal', target: 'end',    daysAfter: 7,  sourceHandle: 'failure' }
       ]
     }
   }
@@ -130,17 +130,15 @@ function buildEngagementSegmentation(): SeededWorkflow {
         { id: 'email_seg',  position: { x: 3,  y: START_Y },                  data: { kind: 'send_email',  params: emailFerme } },
         { id: 'sms_rappel', position: { x: 10, y: START_Y + LANE_DELTA },     data: { kind: 'send_sms',    params: smsCourt } },
         { id: 'postal_alt', position: { x: 8,  y: START_Y + LANE_DELTA * 2 }, data: { kind: 'send_postal', params: postalNonSuivi } },
-        { id: 'end_eng',    position: { x: 20, y: START_Y },                  data: { kind: 'end' } },
-        { id: 'end_passif', position: { x: 20, y: START_Y + LANE_DELTA },     data: { kind: 'end' } },
-        { id: 'end_alt',    position: { x: 20, y: START_Y + LANE_DELTA * 2 }, data: { kind: 'end' } }
+        { id: 'end',        position: { x: 20, y: START_Y },                  data: { kind: 'end' } }
       ],
       edges: [
         { id: 'e_s_email',    source: 'start',      target: 'email_seg',  daysAfter: 3 },
-        { id: 'e_eng',        source: 'email_seg',  target: 'end_eng',    daysAfter: 17, sourceHandle: 'eng' },
+        { id: 'e_eng',        source: 'email_seg',  target: 'end',        daysAfter: 17, sourceHandle: 'eng' },
         { id: 'e_no_eng',     source: 'email_seg',  target: 'sms_rappel', daysAfter: 7,  sourceHandle: 'no_eng' },
         { id: 'e_fail',       source: 'email_seg',  target: 'postal_alt', daysAfter: 5,  sourceHandle: 'fail' },
-        { id: 'e_sms_end',    source: 'sms_rappel', target: 'end_passif', daysAfter: 10, sourceHandle: 'success' },
-        { id: 'e_postal_end', source: 'postal_alt', target: 'end_alt',    daysAfter: 12, sourceHandle: 'success' }
+        { id: 'e_sms_end',    source: 'sms_rappel', target: 'end',        daysAfter: 10, sourceHandle: 'success' },
+        { id: 'e_postal_end', source: 'postal_alt', target: 'end',        daysAfter: 12, sourceHandle: 'success' }
       ]
     }
   }
@@ -389,8 +387,13 @@ async function main() {
   for (const w of WORKFLOWS) {
     const existing = await prisma.workflow.findFirst({ where: { name: w.name } })
     if (existing) continue
+    // Run the same prettify pass the in-app "Réorganiser" button uses, so
+    // freshly-seeded workflows open with the same clean layout as one the user
+    // would produce by clicking the button. Pure-fn on the graph — no side
+    // effects on the source-of-truth seed object.
+    const prettified = prettifyLayout(w.graph)
     await prisma.workflow.create({
-      data: { name: w.name, description: w.description, graph: JSON.stringify(w.graph) }
+      data: { name: w.name, description: w.description, graph: JSON.stringify(prettified) }
     })
     insertedWorkflows++
   }

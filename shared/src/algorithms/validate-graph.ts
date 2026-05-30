@@ -44,7 +44,8 @@ export function validateGraph(graph: Graph): ValidationResult {
   // Structural — start / end counts
   if (starts.length === 0) errors.push({ code: 'no_start', message: 'Le workflow doit avoir un nœud de départ' })
   if (starts.length > 1) errors.push({ code: 'multiple_starts', message: 'Un seul nœud de départ autorisé' })
-  if (ends.length === 0) errors.push({ code: 'no_end', message: 'Le workflow doit avoir au moins un nœud de fin' })
+  if (ends.length === 0) errors.push({ code: 'no_end', message: 'Le workflow doit avoir un nœud de fin' })
+  if (ends.length > 1) errors.push({ code: 'multiple_ends', message: 'Un seul nœud de fin autorisé' })
 
   // Start position
   for (const s of starts) {

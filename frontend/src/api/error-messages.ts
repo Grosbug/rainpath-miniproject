@@ -24,7 +24,8 @@ const MESSAGES: Record<string, string> = {
   //    here so toasts surfaced outside the editor stay translated too) ────
   no_start: 'Le workflow doit avoir un nœud de départ.',
   multiple_starts: 'Il ne peut y avoir qu\'un seul nœud de départ.',
-  no_end: 'Le workflow doit avoir au moins un nœud de fin.',
+  no_end: 'Le workflow doit avoir un nœud de fin.',
+  multiple_ends: 'Il ne peut y avoir qu\'un seul nœud de fin.',
   start_position_x_must_be_zero: 'Le nœud Départ doit rester à la première colonne.',
   start_position_y_must_be_default: 'Le nœud Départ doit rester sur la ligne par défaut.',
   edge_dangling: 'Une connexion pointe vers un nœud qui n\'existe plus.',
