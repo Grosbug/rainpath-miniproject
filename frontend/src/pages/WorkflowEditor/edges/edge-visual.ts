@@ -35,6 +35,13 @@ export function edgePathClass(handle: string | undefined, routeRevealed?: boolea
   if (handle === 'success') return 'rp-edge--success'
   if (handle === 'failure') return 'rp-edge--failure'
   if (handle) return 'rp-edge--multi'
+  // No handle = Start's single-handle outgoing edges. Success / failure /
+  // multi already pop in their own saturated tone when traversed, but the
+  // Start branches stay muted (`rp-edge--plain` = var(--fg-subtle)) which
+  // made the very first hop of the run feel un-highlighted next to the
+  // colored downstream branches. Promote to the foreground colour when the
+  // patient run has actually walked through it.
+  if (routeRevealed === true) return 'rp-edge--plain-revealed'
   return 'rp-edge--plain'
 }
 

@@ -86,6 +86,9 @@
 .react-flow__edge-path.rp-edge--plain {
   stroke: var(--fg-subtle) !important;
 }
+.react-flow__edge-path.rp-edge--plain-revealed {
+  stroke: var(--fg) !important;
+}
 .react-flow__edge-path.rp-edge--neutral {
   stroke: #cbd5e1 !important;
   opacity: 0.7;
