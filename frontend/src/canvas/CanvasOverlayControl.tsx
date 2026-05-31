@@ -11,8 +11,8 @@ import { TimeScaleControl } from './TimeScaleControl'
  */
 export function CanvasOverlayControl() {
   return (
-    <div className='pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center'>
-      <div className='pointer-events-auto rounded-md border border-border/60 bg-surface/90 px-2 py-1 shadow-elev-1 backdrop-blur-md'>
+    <div className='pointer-events-none absolute inset-x-0 top-6 z-20 flex justify-center'>
+      <div className='pointer-events-auto origin-top scale-[0.82] rounded-md border border-border/60 bg-surface/90 px-1.5 py-0.5 shadow-elev-1 backdrop-blur-md'>
         <TimeScaleControl />
       </div>
     </div>
