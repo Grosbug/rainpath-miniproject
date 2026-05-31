@@ -17,7 +17,7 @@ export function TimeScaleControl() {
   const pct = Math.round(timeScale * 100)
 
   return (
-    <div className='flex items-center gap-1' aria-label="Densité de l'axe temporel">
+    <div role='group' aria-label="Densité de l'axe temporel" className='flex items-center gap-1'>
       <IconButton
         icon='Minus'
         aria-label="Resserrer l'axe temporel"

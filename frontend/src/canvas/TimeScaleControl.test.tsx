@@ -36,6 +36,12 @@ describe('TimeScaleControl', () => {
     expect(useTimeScale.getState().timeScale).toBe(1)
   })
 
+  it('affiche le pourcentage courant', () => {
+    useTimeScale.setState({ timeScale: 2 })
+    render(<TimeScaleControl />)
+    expect(screen.getByLabelText('Réinitialiser la densité')).toHaveTextContent('200%')
+  })
+
   it('désactive − au minimum et + au maximum', () => {
     useTimeScale.setState({ timeScale: MIN_SCALE })
     const { rerender } = render(<TimeScaleControl />)
