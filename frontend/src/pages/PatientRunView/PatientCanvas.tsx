@@ -232,8 +232,8 @@ function CanvasInner({
         <TodayCursor day={dayCursor} />
         <Controls
           className="!bg-surface !border-border"
-          position="bottom-center"
-          orientation="horizontal"
+          position="bottom-left"
+          orientation="vertical"
           showInteractive={false}
         />
       </ReactFlow>

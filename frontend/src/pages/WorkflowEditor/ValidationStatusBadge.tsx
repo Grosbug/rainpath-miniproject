@@ -90,7 +90,7 @@ export function ValidationStatusBadge() {
         <div
           role='dialog'
           aria-label="Détail de l'état du workflow"
-          className='absolute right-0 top-full z-50 mt-2 w-80 rounded-md border border-border bg-surface p-3 shadow-elev-2'
+          className='absolute left-1/2 top-full z-50 mt-2 w-80 -translate-x-1/2 rounded-md border border-border bg-surface p-3 shadow-elev-2'
         >
           {!hasErrors && !hasWarnings ? (
             <div className='space-y-2 text-xs'>

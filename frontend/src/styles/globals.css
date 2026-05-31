@@ -67,10 +67,18 @@
 .react-flow__controls {
   border-radius: 0.5rem; /* rounded-lg */
   overflow: hidden;
-  bottom: 2rem !important; /* lift zoom bar slightly above default pane inset */
+  bottom: 3.5rem !important; /* lift zoom bar above default pane inset */
 }
 .react-flow__controls-button {
   border-radius: 0.375rem; /* rounded-md */
+  width: 30px;
+  height: 30px;
+}
+.react-flow__controls-button svg {
+  width: 13px;
+  height: 13px;
+  max-width: 13px;
+  max-height: 13px;
 }
 
 /* React Flow's actual class for the EdgeLabelRenderer portal is

@@ -16,6 +16,7 @@ import { useModalState, type NodeKind } from './modal-state'
 import { useLeftAnchoredZoom } from './hooks/useLeftAnchoredZoom'
 import { useClickConnection } from './hooks/useClickConnection'
 import { ConnectionPreview } from './ConnectionPreview'
+import { useEdgeHover } from './edges/edge-hover-state'
 
 const PX_PER_DAY = 28
 
@@ -105,7 +106,7 @@ function CanvasInner() {
   const addEdge = useEditorStore(s => s.addEdge)
   const openModal = useModalState(s => s.open)
   const modalOpen = useModalState(s => s.content !== null || s.overlayCount > 0)
-  const { screenToFlowPosition, fitView } = useReactFlow()
+  const { screenToFlowPosition, fitView, getInternalNode } = useReactFlow()
   const prettifyTick = useEditorStore(s => s.prettifyTick)
   // Snap the viewport to the new layout right after the user clicks Réorganiser
   // so they get an immediate "something happened" cue — without it, the rearrange
@@ -245,9 +246,13 @@ useLeftAnchoredZoom(56)
     try { payload = JSON.parse(raw) } catch { return }
 
     const flowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY })
-    // Convert drop pixels → store units. X is day-index (1 day = PX_PER_DAY), Y is raw pixels.
-    const atX = flowPos.x / PX_PER_DAY
-    const atY = flowPos.y
+    // The drop point should become the node's CENTER, not its top-left. NodeCard width is
+    // a constant 176px; height is content-driven so we use a best-effort estimate, then snap
+    // to the exact center once React Flow has measured the freshly-mounted DOM (below).
+    const NODE_WIDTH_PX = 176
+    const ESTIMATED_HEIGHT_PX = 90
+    const atX = (flowPos.x - NODE_WIDTH_PX / 2) / PX_PER_DAY
+    const atY = flowPos.y - ESTIMATED_HEIGHT_PX / 2
 
     if (payload.kind === 'template') {
       const tmplRaw = e.dataTransfer.getData('application/x-rainpath-template')
@@ -261,17 +266,35 @@ useLeftAnchoredZoom(56)
         if (tmpl.name && typeof params === 'object' && params !== null && !('displayName' in params && (params as Record<string, unknown>).displayName)) {
           (params as Record<string, unknown>).displayName = tmpl.name
         }
-        addNode({
+        const newId = addNode({
           kind: tmpl.kind,
           data: { kind: tmpl.kind, params } as any,
           atX,
           atY
         })
+
+        // Correction phase: ResizeObserver populates `measured` shortly after mount. Retry
+        // a few RAFs in case the first one fires before measurement lands; bail silently if
+        // it never does (the estimate already placed the node close enough).
+        let attempts = 0
+        const snapToMeasuredCenter = () => {
+          const internal = getInternalNode(newId)
+          const w = internal?.measured?.width
+          const h = internal?.measured?.height
+          if (w != null && h != null) {
+            const exactX = Math.max(0, (flowPos.x - w / 2) / PX_PER_DAY)
+            const exactY = flowPos.y - h / 2
+            updateNodePositionDrag(newId, exactX, exactY)
+            return
+          }
+          if (attempts++ < 5) requestAnimationFrame(snapToMeasuredCenter)
+        }
+        requestAnimationFrame(snapToMeasuredCenter)
       } catch {
         showAnchoredToast({ message: 'Modèle invalide', type: 'error', x: e.clientX, y: e.clientY })
       }
     }
-  }, [addNode, screenToFlowPosition])
+  }, [addNode, screenToFlowPosition, getInternalNode, updateNodePositionDrag])
 
   const onNodeDoubleClick = useCallback((_e: MouseEvent, rfNode: RFNode) => {
     const node = nodes.find(n => n.id === rfNode.id)
@@ -288,6 +311,14 @@ useLeftAnchoredZoom(56)
   const onEdgeClick = useCallback((_e: MouseEvent, edge: RFEdge) => {
     pinPopoverForEdge(edge.id)
   }, [pinPopoverForEdge])
+
+  const setHoveredEdge = useEdgeHover(s => s.setHoveredEdge)
+  const onEdgeMouseEnter = useCallback((_e: MouseEvent, edge: RFEdge) => {
+    setHoveredEdge(edge.id)
+  }, [setHoveredEdge])
+  const onEdgeMouseLeave = useCallback(() => {
+    setHoveredEdge(null)
+  }, [setHoveredEdge])
 
   const onCanvasClick = useCallback((e: MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement
@@ -320,6 +351,8 @@ useLeftAnchoredZoom(56)
         onConnect={onConnect}
         onNodeDoubleClick={onNodeDoubleClick}
         onEdgeClick={onEdgeClick}
+        onEdgeMouseEnter={onEdgeMouseEnter}
+        onEdgeMouseLeave={onEdgeMouseLeave}
         nodesConnectable
         connectOnClick={false}
         isValidConnection={isValidConnection}
@@ -337,8 +370,8 @@ useLeftAnchoredZoom(56)
         <TimelineBackground />
         <Controls
           className='!bg-surface !border-border'
-          position='bottom-center'
-          orientation='horizontal'
+          position='bottom-left'
+          orientation='vertical'
           showInteractive={false}
         />
       </ReactFlow>
