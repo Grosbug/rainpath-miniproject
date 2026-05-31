@@ -40,6 +40,17 @@ Ouvrir [http://localhost:5173](http://localhost:5173) — l'API tourne sur [http
 
 > **Astuce** : pour lancer un seul package, utiliser `pnpm dev:shared`, `pnpm dev:backend` ou `pnpm dev:frontend`.
 
+### Avec Docker
+
+Pour démarrer la stack complète dans deux conteneurs (sans installer Node ni pnpm) :
+
+```bash
+docker compose up --build
+# → http://localhost:8080
+```
+
+Voir la section [🐳 Docker](#-docker-recommandé-pour-démo--prod) plus bas pour les détails (variables d'env, seed, déploiement).
+
 ---
 
 ## 🎬 Aperçu fonctionnel
@@ -88,9 +99,13 @@ rainpath-mini-project/
 
 ### Backend — `backend/.env`
 
-| Variable | Obligatoire | Exemple | Description |
+| Variable | Obligatoire | Défaut | Description |
 |---|---|---|---|
-| `DATABASE_URL` | oui | `file:./dev.db` | URL Prisma. En SQLite, chemin **relatif au répertoire backend**. |
+| `DATABASE_URL` | oui | — | URL Prisma. En SQLite, chemin **relatif au répertoire backend** (ex : `file:./dev.db`). |
+| `PORT` | non | `3000` | Port HTTP du serveur Nest. |
+| `CORS_ORIGIN` | non | `http://localhost:5173` | Origines autorisées, séparées par des virgules (ex : `https://app.example.com,https://staging.example.com`). |
+| `LOG_LEVEL` | non | `info` | Niveau Pino : `fatal`, `error`, `warn`, `info`, `debug`, `trace`, ou `silent`. |
+| `LOG_PRETTY` | non | `false` | `true` pour activer `pino-pretty` (dev). Laisser `false` en prod pour des logs JSON parsables. |
 
 ### Frontend — build (optionnel)
 
@@ -102,7 +117,64 @@ En **dev**, le proxy Vite redirige `/api` vers `http://localhost:3000` — aucun
 
 ---
 
-## 🏗 Build & déploiement
+## 🐳 Docker (recommandé pour démo / prod)
+
+Stack 2 conteneurs orchestrée par `docker-compose.yml` — un backend NestJS (Node 20 + Prisma) et un nginx 1.27 qui sert le SPA buildé *et* reverse-proxy `/api/*` vers le backend. Seul nginx est exposé à l'hôte ; le backend reste sur un réseau privé. La base SQLite vit sur un volume nommé qui survit aux redémarrages.
+
+### Démarrage
+
+```bash
+docker compose up --build      # build + démarrage
+open http://localhost:8080     # frontend (SPA + /api proxyé)
+docker compose logs -f backend # logs Pino structurés (JSON)
+docker compose down            # stop (volume préservé)
+docker compose down -v         # stop + reset complet de la DB
+```
+
+L'image backend applique automatiquement `prisma migrate deploy` à chaque boot (idempotent), donc une DB vide est seedée au schéma courant sans étape manuelle.
+
+### Composition
+
+| Service | Image | Port hôte | Notes |
+|---|---|---|---|
+| `backend` | build `backend/Dockerfile` (multi-stage Node 20-alpine) | — (interne uniquement) | `tini` PID 1, user `app` non-root, healthcheck `GET /api/health` (10s/5s/5 retries). |
+| `frontend` | build `frontend/Dockerfile` (nginx 1.27-alpine) | `${FRONTEND_PORT:-8080}:80` | SPA fallback `try_files`, reverse-proxy `/api/* → http://backend:3000/api/`, cache long sur `/assets/`. |
+
+Tailles compressées : **backend ~280 MB**, **frontend ~23 MB**.
+
+### Variables d'environnement (compose)
+
+| Variable | Service | Défaut | Usage |
+|---|---|---|---|
+| `CORS_ORIGIN` | backend | `http://localhost:8080` | Origines autorisées (cohérent avec le port frontend exposé). |
+| `LOG_LEVEL` | backend | `info` | Niveau Pino. |
+| `LOG_PRETTY` | backend | `false` | Garder `false` en prod pour les logs JSON. |
+| `FRONTEND_PORT` | frontend | `8080` | Port hôte sur lequel nginx est exposé. |
+| `VITE_API_BASE_URL` | frontend (build arg) | `/api` | À surcharger via `--build-arg` pour un déploiement split origin/CDN. |
+
+### Seeder le jeu de démo
+
+`prisma migrate deploy` applique le schéma mais ne lance pas le seed. Pour peupler la stack démarrée :
+
+```bash
+# Méthode hôte (rapide) — exécute le seed local contre le volume du conteneur
+DATABASE_URL=file:./dev.db pnpm --filter @rainpath/backend prisma:seed
+docker compose cp backend/prisma/dev.db backend:/data/dev.db
+docker compose restart backend
+```
+
+### Déploiement distant
+
+- **CORS** : exporter `CORS_ORIGIN=https://app.example.com[,https://staging.example.com]` avant `docker compose up`.
+- **Frontend pointant vers un domaine API séparé** : rebuilder avec `docker compose build --build-arg VITE_API_BASE_URL=https://api.example.com/api frontend`.
+- **Persistence** : le volume nommé `rainpath_data` contient le fichier SQLite — à sauvegarder régulièrement (`docker run --rm -v rainpath-mini-project_rainpath_data:/data -v $(pwd):/backup alpine tar czf /backup/dev.db.tgz /data`).
+- **SQLite → PostgreSQL** : basculer `provider = "postgresql"` dans `backend/prisma/schema.prisma`, ajouter un service `postgres` au compose, remplacer `DATABASE_URL` par une URL PG.
+
+---
+
+## 🏗 Build & déploiement manuel (sans Docker)
+
+Pour un déploiement bare-metal ou conteneur custom :
 
 ```bash
 # 1. Installer + générer le client Prisma + builder
@@ -114,8 +186,8 @@ pnpm build
 # 2. Appliquer les migrations sur la DB cible
 pnpm --filter @rainpath/backend exec prisma migrate deploy
 
-# 3. Démarrer l'API (port 3000)
-pnpm --filter @rainpath/backend start:prod
+# 3. Démarrer l'API (port 3000 par défaut)
+CORS_ORIGIN=https://app.example.com pnpm --filter @rainpath/backend start:prod
 
 # 4. Servir frontend/dist/ derrière un reverse-proxy qui route /api vers le backend
 ```
@@ -130,7 +202,7 @@ location /     { root /chemin/vers/frontend/dist; try_files $uri $uri/ /index.ht
 ```
 
 **Notes** :
-- **CORS** : le backend n'autorise que `http://localhost:5173` par défaut (`backend/src/main.ts`) — adapter `enableCors({ origin: ... })` pour la prod.
+- **CORS** : configurable via la variable d'env `CORS_ORIGIN` (cf. tableau ci-dessus), pas besoin de toucher au code.
 - **SQLite en prod** : OK pour une démo mono-instance avec volume persistant ; pour la haute dispo, basculer en PostgreSQL via le `provider` Prisma.
 - Ne **jamais** utiliser `prisma migrate dev` en prod (interactif, peut créer des migrations).
 

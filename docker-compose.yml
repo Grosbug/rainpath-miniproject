@@ -1,0 +1,69 @@
+# Local + demo deployment for RainPath. Two services on a private network,
+# only the frontend's port is exposed on the host. Backend's SQLite file lives
+# on a named volume so data survives `docker compose down`.
+#
+# Quick start:
+#   docker compose up --build           # build and run
+#   open http://localhost:8080          # frontend (nginx serves SPA + /api)
+#   docker compose logs -f backend      # tail backend logs (pino JSON)
+#   docker compose down                 # stop (volume preserved)
+#   docker compose down -v              # stop AND wipe DB volume
+#
+# Seeding a fresh stack with the demo dataset (one-shot):
+#   docker compose run --rm --entrypoint sh backend \
+#     -c "cd backend && ./node_modules/.bin/prisma db seed"
+#   (requires tsx + seed.ts in the image — seed.ts ships in backend/prisma/
+#   thanks to the runtime COPY, but tsx is a dev dep so seeding works from
+#   the build stage; see README for production seeding strategy.)
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: file:/data/dev.db
+      # Comma-separated list of allowed origins. Default matches the frontend
+      # service exposed on :8080 — override for a real deploy.
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Pretty logs hurt in production aggregation pipelines; keep JSON default.
+      LOG_PRETTY: ${LOG_PRETTY:-false}
+    volumes:
+      - rainpath_data:/data
+    # No host port mapping — only the frontend's nginx reaches /api/* via the
+    # internal compose network. Uncomment the next two lines if you want to
+    # hit the backend directly from the host (debugging, curl).
+    # ports:
+    #   - "3000:3000"
+    healthcheck:
+      # /api/health is implemented by HealthController and exercises a SELECT 1
+      # against SQLite, so this catches both process-up and DB-up failures.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        # Same-origin /api works because nginx reverse-proxies inside this
+        # container. Override at build time for a CDN/origin-split layout.
+        VITE_API_BASE_URL: /api
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  # Named volume so `docker compose down` doesn't wipe the DB. Use
+  # `docker compose down -v` to start fully clean.
+  rainpath_data:

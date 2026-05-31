@@ -1,0 +1,45 @@
+# Shared across both backend and frontend Docker builds (which use the repo
+# root as build context so they can read pnpm-workspace.yaml + shared/).
+
+# Build artefacts and IDE
+**/node_modules
+**/dist
+**/.turbo
+**/.next
+**/coverage
+**/.vite
+**/.cache
+.DS_Store
+.vscode
+.idea
+.claude
+
+# Local SQLite databases and seed leftovers — never ship to an image
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+backend/test/*.db
+backend/test/*.db-journal
+
+# Local environment overrides (per-developer; image gets its env from compose)
+**/.env
+**/.env.local
+**/.env.*.local
+
+# VCS + docs not needed at runtime
+.git
+.gitignore
+.github
+docs
+design-system
+
+# Test helpers irrelevant at runtime
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/tests
+**/test
+
+# Existing artefacts shouldn't leak into the image
+backend/dist
+frontend/dist
+shared/dist
