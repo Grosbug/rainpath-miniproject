@@ -73,13 +73,14 @@
   border-radius: 0.375rem; /* rounded-md */
 }
 
-/* React Flow assigns dynamic z-index (1000+i) to each node, so by default a
-   tight workflow (where card widths exceed the X gap between adjacent nodes)
-   draws the node cards on top of edge labels — the label's left/right tips
-   land inside the neighbouring card and get visually clipped. Lift the entire
-   edge-label-renderer layer above the node layer so the +N j chip stays
-   fully readable. */
-.react-flow__edge-label-renderer {
+/* React Flow's actual class for the EdgeLabelRenderer portal is
+   `.react-flow__edgelabel-renderer` — single word, NOT `edge-label-renderer`.
+   By default this layer sits below node cards, so on tight workflows (card
+   width > X gap) the label's left/right tips fall inside neighbouring cards
+   and get clipped. Patient view amplifies this because PatientCanvas writes
+   inline `zIndex: 1000` on its "current" cards. Lift the label layer above
+   any node z-index so the +N j chip stays fully readable. */
+.react-flow__edgelabel-renderer {
   z-index: 1500;
 }
 

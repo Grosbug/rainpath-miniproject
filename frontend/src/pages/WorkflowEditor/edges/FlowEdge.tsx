@@ -64,12 +64,7 @@ export function FlowEdge(props: EdgeProps) {
       <EdgeLabelRenderer>
         <div
           className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-md border px-2 py-0.5 text-xs font-medium tabular-nums text-fg ${labelBorder}`}
-          // React Flow's default stacking puts node cards above edge labels.
-          // When cards are wider than the X-gap between adjacent nodes, the
-          // label's left/right tips fall inside the cards' bounding boxes and
-          // get hidden behind them. Lift the label above the node layer so
-          // its full width stays readable.
-          style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`, zIndex: 10 }}
+          style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
           data-edge-label-id={id}
         >
           {routeLabel ? (
