@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  BASE_PX_PER_DAY, MIN_SCALE, MAX_SCALE, STORAGE_KEY,
+  BASE_PX_PER_DAY, MIN_SCALE, MAX_SCALE, STEP_RATIO, STORAGE_KEY,
   clampScale, readInitialScale, useTimeScale
 } from './time-scale'
 
@@ -48,13 +48,15 @@ describe('useTimeScale', () => {
     expect(useTimeScale.getState().timeScale).toBe(MAX_SCALE)
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe(String(MAX_SCALE))
   })
-  it('stretch multiplie par le ratio', () => {
+  it('stretch multiplie par le ratio et persiste', () => {
     useTimeScale.getState().stretch()
-    expect(useTimeScale.getState().timeScale).toBeCloseTo(1.2, 5)
+    expect(useTimeScale.getState().timeScale).toBeCloseTo(STEP_RATIO, 5)
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(String(useTimeScale.getState().timeScale))
   })
-  it('compress divise par le ratio', () => {
+  it('compress divise par le ratio et persiste', () => {
     useTimeScale.getState().compress()
-    expect(useTimeScale.getState().timeScale).toBeCloseTo(1 / 1.2, 5)
+    expect(useTimeScale.getState().timeScale).toBeCloseTo(1 / STEP_RATIO, 5)
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe(String(useTimeScale.getState().timeScale))
   })
   it('reset revient à 1 et persiste', () => {
     useTimeScale.getState().setScale(2)
