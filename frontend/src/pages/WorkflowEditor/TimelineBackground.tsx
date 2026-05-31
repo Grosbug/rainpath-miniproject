@@ -1,22 +1,19 @@
 import { useMemo } from 'react'
 import { useStore as useRFStore, useViewport } from '@xyflow/react'
+import { usePxPerDay } from '@/canvas/time-scale'
 
-/** Pixels between two adjacent days at zoom = 1. Calibrated to match the Canvas's PX_PER_DAY (28). */
-const PX_PER_DAY = 28
 const START_X_VIEW = 0
 
-/**
- * Pick the gridline/label step in days so adjacent labels never overlap.
- * Steps belong to a 1-2-5 progression (then ×10) — the standard ladder used by
- * chart libraries for human-readable axes. The reserved width per label fits
- * "J+999" with a small margin.
- */
 const LABEL_MIN_PX = 44
 const STEP_LADDER = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000]
-function chooseStep(zoom: number): number {
-  const pxPerDay = PX_PER_DAY * zoom
+/**
+ * Choisit le pas (en jours) entre deux graduations pour que les labels ne se
+ * chevauchent jamais. `pxPerDayOnScreen` = pixels par jour réellement affichés
+ * (densité × zoom). Échelle 1-2-5 standard.
+ */
+export function chooseStep(pxPerDayOnScreen: number): number {
   for (const step of STEP_LADDER) {
-    if (pxPerDay * step >= LABEL_MIN_PX) return step
+    if (pxPerDayOnScreen * step >= LABEL_MIN_PX) return step
   }
   return STEP_LADDER[STEP_LADDER.length - 1]!
 }
@@ -25,20 +22,22 @@ export function TimelineBackground() {
   const viewport = useViewport()
   const widthPx = useRFStore(s => s.width)
   const heightPx = useRFStore(s => s.height)
+  // px par jour : densité « monde » (usePxPerDay) × zoom RF = px écran.
+  const worldPxPerDay = usePxPerDay()
 
   // Convert viewport bounds into "day" units.
-  const stepDays = chooseStep(viewport.zoom)
-  const pxPerDay = PX_PER_DAY * viewport.zoom
+  const screenPxPerDay = worldPxPerDay * viewport.zoom
+  const stepDays = chooseStep(screenPxPerDay)
 
   const { leftDay, rightDay } = useMemo(() => {
     // X = (worldX * zoom) + viewport.x  → solve for worldX given screenX in [0, widthPx]
     const worldLeftX = -viewport.x / Math.max(viewport.zoom, 1e-6)
     const worldRightX = (widthPx - viewport.x) / Math.max(viewport.zoom, 1e-6)
     return {
-      leftDay: Math.floor(worldLeftX / PX_PER_DAY) - 2,
-      rightDay: Math.ceil(worldRightX / PX_PER_DAY) + 2
+      leftDay: Math.floor(worldLeftX / worldPxPerDay) - 2,
+      rightDay: Math.ceil(worldRightX / worldPxPerDay) + 2
     }
-  }, [viewport, widthPx])
+  }, [viewport, widthPx, worldPxPerDay])
 
   const ticks: number[] = []
   for (let d = Math.max(0, leftDay - (leftDay % stepDays)); d <= rightDay; d += stepDays) {
@@ -57,7 +56,7 @@ export function TimelineBackground() {
         className='pointer-events-none block'
       >
         {capped.map(d => {
-          const screenX = d * pxPerDay + viewport.x + START_X_VIEW
+          const screenX = d * screenPxPerDay + viewport.x + START_X_VIEW
           // Strict clipping at the canvas edges — gridlines must never bleed left of x=0
           // (where the Palette sits) or right of widthPx.
           if (screenX < 0 || screenX > widthPx) return null

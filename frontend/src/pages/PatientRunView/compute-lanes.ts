@@ -1,4 +1,5 @@
 import type { Graph } from '@rainpath/shared'
+import { BASE_PX_PER_DAY } from '@/canvas/time-scale'
 
 /**
  * Sort key for outgoing edges so the "main" branch keeps the parent lane:
@@ -18,9 +19,12 @@ function handleRank(h: string | undefined): number {
  * lane never overlap, even if their X positions are within node-width of each
  * other. Bumped +1 over the bare width-in-days for a small visual gap.
  *
- * Stays in sync with PatientNode `w-[176px]` and PatientCanvas `PX_PER_DAY = 28`.
+ * Stays in sync with PatientNode `w-[176px]` and `BASE_PX_PER_DAY` (time-scale.ts).
+ * Deliberately uses the BASE factor (not the live stretched pxPerDay): lanes are
+ * scale-independent so the vertical layout never shifts when the user stretches
+ * the temporal axis.
  */
-const NODE_WIDTH_DAYS = Math.ceil(176 / 28) + 1 // 7 day-columns
+const NODE_WIDTH_DAYS = Math.ceil(176 / BASE_PX_PER_DAY) + 1 // 7 day-columns
 
 /**
  * Assign each node to a horizontal lane (0 = top rail) so the patient canvas

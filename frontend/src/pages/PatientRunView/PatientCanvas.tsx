@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   ReactFlow, ReactFlowProvider, Controls,
   useStore as useRFStore, useViewport,
@@ -20,8 +20,8 @@ import { PatientNode, type PatientNodeData, type ReachabilityState } from './Pat
 import { Icon } from '@/components/Icon'
 import { computeLanes } from './compute-lanes'
 import { canvasDayForNode, traversedEdgeIds, type PatientContactData } from './cumulative-days'
-
-const PX_PER_DAY = 28
+import { usePxPerDay } from '@/canvas/time-scale'
+import { useTimeStretchGesture } from '@/canvas/useTimeStretchGesture'
 // LANE_HEIGHT / LANE_TOP_OFFSET only kick in as a FALLBACK for nodes whose
 // editor position.y was never set (legacy graphs, orphans that bypassed the
 // editor's drag flow). For every node where the editor stored a real Y, we
@@ -96,6 +96,10 @@ function CanvasInner({
   // at any zoom level — mirrors the editor's left-anchored zoom behavior.
   useLeftAnchoredZoom(40)
 
+  const pxPerDay = usePxPerDay()
+  const paneRef = useRef<HTMLDivElement>(null)
+  useTimeStretchGesture(paneRef)
+
   const lanes = useMemo(() => computeLanes(graph), [graph])
 
   // Honor the editor's `position.y` straight through so the patient view
@@ -153,7 +157,7 @@ function CanvasInner({
         id: n.id,
         type: n.data.kind,
         position: {
-          x: canvasDay * PX_PER_DAY,
+          x: canvasDay * pxPerDay,
           y: yPositionFor(n)
         },
         data: {
@@ -185,7 +189,7 @@ function CanvasInner({
         zIndex: isCurrent ? 1000 : pickerEnabled ? 100 : 1
       }
     })
-  }, [graph, graph.nodes, focusedNodeId, activeFrontiers, actionableNodeIds, history, historyOutcomeByNode, yPositionFor, contactProfile, pendingByNode, onPendingChange, onFocusNode])
+  }, [graph, graph.nodes, focusedNodeId, activeFrontiers, actionableNodeIds, history, historyOutcomeByNode, yPositionFor, contactProfile, pendingByNode, pxPerDay, onPendingChange, onFocusNode])
 
   const traversedEdges = useMemo(() => traversedEdgeIds(graph, history), [graph, history])
 
@@ -216,7 +220,7 @@ function CanvasInner({
   )
 
   return (
-    <div className="rp-patient-canvas relative h-full w-full">
+    <div ref={paneRef} className="rp-patient-canvas relative h-full w-full">
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
@@ -228,6 +232,9 @@ function CanvasInner({
         proOptions={{ hideAttribution: true }}
         minZoom={0.4}
         maxZoom={2}
+        zoomOnScroll={false}
+        zoomOnPinch={false}
+        panOnScroll
         translateExtent={[[-48, -Infinity], [Infinity, Infinity]]}
         fitView
         fitViewOptions={FIT_VIEW_OPTIONS}
@@ -250,8 +257,9 @@ function TodayCursor({ day }: { day: number }) {
   const viewport = useViewport()
   const widthPx = useRFStore(s => s.width)
   const heightPx = useRFStore(s => s.height)
+  const pxPerDay = usePxPerDay()
   if (day < 0) return null
-  const screenX = day * PX_PER_DAY * viewport.zoom + viewport.x
+  const screenX = day * pxPerDay * viewport.zoom + viewport.x
   if (screenX < 0 || screenX > widthPx) return null
   // Two layers: the dashed line sits UNDER the edges (z=0) so it can't paint
   // over the traversed-edge ink, the J+N pill stays at z=3 above the line so
