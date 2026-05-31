@@ -77,7 +77,11 @@ export function FlowEdge(props: EdgeProps) {
     opacity: isDimmed ? DIMMED_OPACITY : 1,
     transition: 'opacity 180ms ease, transform 180ms ease, box-shadow 180ms ease',
     boxShadow: isHovered ? '0 4px 14px rgba(0,0,0,0.18)' : undefined,
-    zIndex: isHovered ? 5 : undefined
+    // Hovered: 10 (top of the EdgeLabelRenderer portal). Dimmed siblings
+    // explicitly drop to 1 so DOM order can't put a later-rendered chip on
+    // top of the hovered one. Idle baseline 2 → no relative shuffle when
+    // nothing's hovered.
+    zIndex: isHovered ? 10 : isDimmed ? 1 : 2
   }
 
   return (
@@ -109,7 +113,10 @@ export function FlowEdge(props: EdgeProps) {
         {isHovered ? (
           <svg
             className="absolute left-0 top-0"
-            style={{ overflow: 'visible', pointerEvents: 'none' }}
+            // z-index 5 sits above the dimmed/idle sibling labels in this
+            // portal (1 and 2 respectively) but below the hovered label's
+            // own chip (10) so the chip stays readable on top of its line.
+            style={{ overflow: 'visible', pointerEvents: 'none', zIndex: 5 }}
             aria-hidden="true"
           >
             {halo ? (
