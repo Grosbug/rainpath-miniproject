@@ -17,8 +17,8 @@ import { useLeftAnchoredZoom } from './hooks/useLeftAnchoredZoom'
 import { useClickConnection } from './hooks/useClickConnection'
 import { ConnectionPreview } from './ConnectionPreview'
 import { useEdgeHover } from './edges/edge-hover-state'
-
-const PX_PER_DAY = 28
+import { usePxPerDay } from '@/canvas/time-scale'
+import { useTimeStretchGesture } from '@/canvas/useTimeStretchGesture'
 
 // `maxZoom: 1` caps the opening fit: without it a small graph (a few nodes)
 // gets framed at maxZoom, which reads as "opened at full zoom". Larger graphs
@@ -37,7 +37,8 @@ function toRFNodes(
   nodes: ReturnType<typeof useEditorStore.getState>['nodes'],
   errors: ReturnType<typeof useEditorStore.getState>['validationErrors'],
   warnings: ReturnType<typeof useEditorStore.getState>['validationWarnings'],
-  liftedNodeIds: ReadonlySet<string> | null
+  liftedNodeIds: ReadonlySet<string> | null,
+  pxPerDay: number
 ): RFNode[] {
   // Index validation issues by nodeId so the node renderer can show a small alert badge
   // on the affected card. Counts (not just booleans) so the tooltip can say "3 erreurs".
@@ -52,7 +53,7 @@ function toRFNodes(
   return nodes.map(n => ({
     id: n.id,
     type: n.data.kind,
-    position: { x: n.position.x * PX_PER_DAY, y: n.position.y },
+    position: { x: n.position.x * pxPerDay, y: n.position.y },
     // Inject _dayX (cumulative delay from start, in days) + _errorCount / _warningCount
     // so node renderers can show a "J+N" badge and an alert pip. Non-store fields — not
     // persisted (toRFNodes is read-only mapping).
@@ -116,6 +117,9 @@ function CanvasInner() {
   const modalOpen = useModalState(s => s.content !== null || s.overlayCount > 0)
   const { screenToFlowPosition, fitView, getInternalNode } = useReactFlow()
   const prettifyTick = useEditorStore(s => s.prettifyTick)
+  const pxPerDay = usePxPerDay()
+  const paneRef = useRef<HTMLDivElement>(null)
+  useTimeStretchGesture(paneRef)
   // Snap the viewport to the new layout right after the user clicks Réorganiser
   // so they get an immediate "something happened" cue — without it, the rearrange
   // happens off-screen if their viewport is panned away.
@@ -154,8 +158,8 @@ useLeftAnchoredZoom(56)
   }, [hoveredEdgeId, edges])
 
   const rfNodes = useMemo(
-    () => toRFNodes(nodes, validationErrors, validationWarnings, liftedNodeIds),
-    [nodes, validationErrors, validationWarnings, liftedNodeIds]
+    () => toRFNodes(nodes, validationErrors, validationWarnings, liftedNodeIds, pxPerDay),
+    [nodes, validationErrors, validationWarnings, liftedNodeIds, pxPerDay]
   )
   const rfEdges = useMemo(() => toRFEdges(edges), [edges])
 
@@ -193,7 +197,7 @@ useLeftAnchoredZoom(56)
           const node = nodes.find(n => n.id === id)
           if (!node || node.data.kind === 'start') continue
           // React Flow gives position in canvas pixels; X is day-units in the store.
-          const dayX = ch.position.x / PX_PER_DAY
+          const dayX = ch.position.x / pxPerDay
           if (ch.dragging) {
             updateNodePositionDrag(id, dayX, ch.position.y)
           } else {
@@ -203,7 +207,7 @@ useLeftAnchoredZoom(56)
         }
       }
     },
-    [nodes, setSelectedNode, updateNodePositionDrag, commitNodePositionDrag]
+    [nodes, setSelectedNode, updateNodePositionDrag, commitNodePositionDrag, pxPerDay]
   )
 
   const onEdgesChange = useCallback(
@@ -271,7 +275,7 @@ useLeftAnchoredZoom(56)
     // to the exact center once React Flow has measured the freshly-mounted DOM (below).
     const NODE_WIDTH_PX = 176
     const ESTIMATED_HEIGHT_PX = 90
-    const atX = (flowPos.x - NODE_WIDTH_PX / 2) / PX_PER_DAY
+    const atX = (flowPos.x - NODE_WIDTH_PX / 2) / pxPerDay
     const atY = flowPos.y - ESTIMATED_HEIGHT_PX / 2
 
     if (payload.kind === 'template') {
@@ -302,7 +306,7 @@ useLeftAnchoredZoom(56)
           const w = internal?.measured?.width
           const h = internal?.measured?.height
           if (w != null && h != null) {
-            const exactX = Math.max(0, (flowPos.x - w / 2) / PX_PER_DAY)
+            const exactX = Math.max(0, (flowPos.x - w / 2) / pxPerDay)
             const exactY = flowPos.y - h / 2
             updateNodePositionDrag(newId, exactX, exactY)
             return
@@ -314,7 +318,7 @@ useLeftAnchoredZoom(56)
         showAnchoredToast({ message: 'Modèle invalide', type: 'error', x: e.clientX, y: e.clientY })
       }
     }
-  }, [addNode, screenToFlowPosition, getInternalNode, updateNodePositionDrag])
+  }, [addNode, screenToFlowPosition, getInternalNode, updateNodePositionDrag, pxPerDay])
 
   const onNodeDoubleClick = useCallback((_e: MouseEvent, rfNode: RFNode) => {
     const node = nodes.find(n => n.id === rfNode.id)
@@ -356,6 +360,7 @@ useLeftAnchoredZoom(56)
 
   return (
     <div
+      ref={paneRef}
       className='relative h-full w-full'
       onClick={onCanvasClick}
       onDragOver={onDragOver}
@@ -377,8 +382,9 @@ useLeftAnchoredZoom(56)
         connectOnClick={false}
         isValidConnection={isValidConnection}
         zoomOnDoubleClick={false}
-        zoomOnScroll={!modalOpen && !popover}
-        zoomOnPinch={!modalOpen && !popover}
+        zoomOnScroll={false}
+        zoomOnPinch={false}
+        panOnScroll={!modalOpen && !popover}
         panOnDrag={[0, 1, 2]}
         selectionOnDrag={false}
         deleteKeyCode={null}
