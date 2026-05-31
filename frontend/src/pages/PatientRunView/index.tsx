@@ -16,7 +16,6 @@ import { PatientProfilePanel } from './PatientProfilePanel'
 import { PatientHistoryList } from './PatientHistoryList'
 import { DayCursorControls } from './DayCursorControls'
 import { useDaySimulator } from './use-day-simulator'
-import { TimeScaleControl } from '@/canvas/TimeScaleControl'
 import { useSidebarCollapsed } from './use-sidebar-collapsed'
 import {
   PATIENT_RUN_TOOLBAR_DIVIDER,
@@ -193,7 +192,7 @@ function LoadedView({ run, workflowId }: { run: import('@/api/patient-runs').Pat
         (panelCollapsed ? 'grid-cols-1' : 'grid-cols-[1fr_360px]')
       }>
         <div className="relative flex flex-col">
-          <div className="flex items-center border-b border-border bg-surface px-4 py-2">
+          <div className="border-b border-border bg-surface px-4 py-2">
             <DayCursorControls
               sim={sim}
               graph={run.workflow.graph}
@@ -201,9 +200,6 @@ function LoadedView({ run, workflowId }: { run: import('@/api/patient-runs').Pat
               workflowId={run.workflowId}
               workflowName={run.workflow.name}
             />
-            <div className="ml-auto pl-3">
-              <TimeScaleControl />
-            </div>
           </div>
           <div className="relative flex-1">
             <PatientCanvas
