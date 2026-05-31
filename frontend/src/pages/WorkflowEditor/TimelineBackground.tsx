@@ -26,8 +26,8 @@ export function TimelineBackground() {
   const worldPxPerDay = usePxPerDay()
 
   // Convert viewport bounds into "day" units.
-  const pxPerDay = worldPxPerDay * viewport.zoom
-  const stepDays = chooseStep(pxPerDay)
+  const screenPxPerDay = worldPxPerDay * viewport.zoom
+  const stepDays = chooseStep(screenPxPerDay)
 
   const { leftDay, rightDay } = useMemo(() => {
     // X = (worldX * zoom) + viewport.x  → solve for worldX given screenX in [0, widthPx]
@@ -56,7 +56,7 @@ export function TimelineBackground() {
         className='pointer-events-none block'
       >
         {capped.map(d => {
-          const screenX = d * pxPerDay + viewport.x + START_X_VIEW
+          const screenX = d * screenPxPerDay + viewport.x + START_X_VIEW
           // Strict clipping at the canvas edges — gridlines must never bleed left of x=0
           // (where the Palette sits) or right of widthPx.
           if (screenX < 0 || screenX > widthPx) return null

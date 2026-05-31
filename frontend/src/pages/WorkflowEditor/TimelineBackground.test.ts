@@ -10,6 +10,9 @@ describe('chooseStep', () => {
     expect(chooseStep(28)).toBe(2)
   })
   it("monte plus haut dans l'échelle quand très serré", () => {
-    expect(chooseStep(5)).toBeGreaterThanOrEqual(10)
+    expect(chooseStep(5)).toBe(10)
+  })
+  it('retombe sur le dernier pas du ladder si extrêmement serré', () => {
+    expect(chooseStep(0)).toBe(1000)
   })
 })
