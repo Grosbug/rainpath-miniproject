@@ -22,6 +22,7 @@ import { computeLanes } from './compute-lanes'
 import { canvasDayForNode, traversedEdgeIds, type PatientContactData } from './cumulative-days'
 import { usePxPerDay } from '@/canvas/time-scale'
 import { useTimeStretchGesture } from '@/canvas/useTimeStretchGesture'
+import { CanvasOverlayControl } from '@/canvas/CanvasOverlayControl'
 // LANE_HEIGHT / LANE_TOP_OFFSET only kick in as a FALLBACK for nodes whose
 // editor position.y was never set (legacy graphs, orphans that bypassed the
 // editor's drag flow). For every node where the editor stored a real Y, we
@@ -248,6 +249,7 @@ function CanvasInner({
           showInteractive={false}
         />
       </ReactFlow>
+      <CanvasOverlayControl />
       <Legend />
     </div>
   )

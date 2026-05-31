@@ -19,6 +19,7 @@ import { ConnectionPreview } from './ConnectionPreview'
 import { useEdgeHover } from './edges/edge-hover-state'
 import { usePxPerDay } from '@/canvas/time-scale'
 import { useTimeStretchGesture } from '@/canvas/useTimeStretchGesture'
+import { CanvasOverlayControl } from '@/canvas/CanvasOverlayControl'
 
 // `maxZoom: 1` caps the opening fit: without it a small graph (a few nodes)
 // gets framed at maxZoom, which reads as "opened at full zoom". Larger graphs
@@ -401,6 +402,8 @@ useLeftAnchoredZoom(56)
           showInteractive={false}
         />
       </ReactFlow>
+
+      <CanvasOverlayControl />
 
       <DaysAfterPopover
         open={!!popover && !!popoverEdge}
