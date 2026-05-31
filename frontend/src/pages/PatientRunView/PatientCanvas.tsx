@@ -19,7 +19,7 @@ import { useLeftAnchoredZoom } from '@/pages/WorkflowEditor/hooks/useLeftAnchore
 import { PatientNode, type PatientNodeData, type ReachabilityState } from './PatientNode'
 import { Icon } from '@/components/Icon'
 import { computeLanes } from './compute-lanes'
-import { traversedEdgeIds, type PatientContactData } from './cumulative-days'
+import { canvasDayForNode, traversedEdgeIds, type PatientContactData } from './cumulative-days'
 
 const PX_PER_DAY = 28
 // LANE_HEIGHT / LANE_TOP_OFFSET only kick in as a FALLBACK for nodes whose
@@ -145,18 +145,22 @@ function CanvasInner({
       // through them in chrono order, processing each pre-pick automatically
       // until it hits a node without a staged status.
       const pickerEnabled = isSend && actionableNodeIds.includes(n.id)
+      // X follows the patient's REAL run day for cards on the actual path (so
+      // the J+N cursor — same basis — lands on the focused card), falling back
+      // to the static layout X for not-yet-reached nodes. See canvasDayForNode.
+      const canvasDay = canvasDayForNode(graph, history, focusedNodeId, activeFrontiers, n)
       return {
         id: n.id,
         type: n.data.kind,
         position: {
-          x: n.position.x * PX_PER_DAY,
+          x: canvasDay * PX_PER_DAY,
           y: yPositionFor(n)
         },
         data: {
           ...n.data,
           reachability,
           blockedReason,
-          _dayX: n.data.kind === 'start' ? undefined : Math.max(0, Math.round(n.position.x)),
+          _dayX: n.data.kind === 'start' ? undefined : Math.max(0, Math.round(canvasDay)),
           _profile: contactProfile,
           _pendingStatus: pickerEnabled
             ? (pendingByNode[n.id] ?? historyOutcomeByNode.get(n.id))

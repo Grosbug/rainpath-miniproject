@@ -1,5 +1,5 @@
 import type { Graph } from '@rainpath/shared'
-import { CHANNEL_FAILURE_STATUSES } from '@rainpath/shared'
+import { CHANNEL_FAILURE_STATUSES, runDayAtNode } from '@rainpath/shared'
 import { findOutgoingEdge, resolveOutcomeHandle } from './outcome-routing'
 
 type HistoryEntry = { nodeId: string; outcome?: string }
@@ -81,6 +81,49 @@ export function dayOfHistory(graph: Graph, history: HistoryEntry[]): number {
     day += edge?.daysAfter ?? 0
   }
   return day
+}
+
+/**
+ * Day at which a node's card sits on the patient canvas — and the value its
+ * J+N badge shows.
+ *
+ * Cards on the patient's ACTUAL path use their real run day (`runDayAtNode`,
+ * the same value that drives the J+N cursor) so the cursor lands exactly on
+ * the focused card. "On the actual path" means: Start, a visited node, the
+ * focused node, or an open frontier. `runDayAtNode` is reliable for all of
+ * these — `computeActiveFrontiers` only opens a frontier once its routed
+ * predecessor has exited, so the projection one hop out is well-defined.
+ *
+ * Every other node (a future step the run hasn't committed to yet) keeps the
+ * static editor layout X — the longest-path day from `computeXPositions`.
+ * `runDayAtNode` would return 0 for those (their predecessor has no history
+ * entry, so no incoming edge is routed), which would otherwise collapse every
+ * unreached card onto J+0.
+ *
+ * This is what fixes the "barre temporelle se met avant le nœud Fin" bug: the
+ * end card used to render at the worst-case layout X (e.g. J+35, via a long
+ * not-taken failure branch) while the cursor sat at the real arrival day
+ * (e.g. J+10 on a quick success) — so the bar landed to the left of the card.
+ */
+export function canvasDayForNode(
+  graph: Graph,
+  history: HistoryEntry[],
+  focusedNodeId: string | null,
+  activeFrontiers: readonly string[],
+  node: Graph['nodes'][number]
+): number {
+  const onActualPath =
+    node.data.kind === 'start' ||
+    history.some(h => h.nodeId === node.id) ||
+    node.id === focusedNodeId ||
+    activeFrontiers.includes(node.id)
+  if (onActualPath) {
+    // `runDayAtNode` types history as the shared RunHistoryEntry (with
+    // `enteredAt`), which it never reads — the canvas only carries
+    // { nodeId, outcome }. Same structural cast as use-day-simulator.
+    return runDayAtNode(graph, history as Parameters<typeof runDayAtNode>[1], node.id)
+  }
+  return Math.max(0, Math.round(node.position.x))
 }
 
 /** Layout J+N for a node (matches the badge on the canvas card). */
