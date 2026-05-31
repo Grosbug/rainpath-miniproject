@@ -82,6 +82,12 @@ COPY --from=build /app/shared/dist ./shared/dist
 COPY --from=build /app/backend/dist ./backend/dist
 COPY --from=build /app/backend/prisma ./backend/prisma
 COPY backend/prisma.config.ts ./backend/prisma.config.ts
+# `tsx` (used by `prisma db seed` → `prisma/seed.ts`) walks up looking for a
+# tsconfig.json so its TypeScript `paths` resolver can map `@rainpath/shared`.
+# Without these, the seed crashes with ERR_PACKAGE_PATH_NOT_EXPORTED — tsx
+# falls back to ambiguous resolution and trips Node's exports gate.
+COPY backend/tsconfig.json ./backend/tsconfig.json
+COPY tsconfig.base.json ./tsconfig.base.json
 
 # Materialise the Prisma client + query-engine binary inside this image so the
 # runtime container doesn't need to re-download or re-generate on every boot.

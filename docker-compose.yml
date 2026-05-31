@@ -9,18 +9,22 @@
 #   docker compose down                 # stop (volume preserved)
 #   docker compose down -v              # stop AND wipe DB volume
 #
-# Seeding a fresh stack with the demo dataset (one-shot):
-#   docker compose run --rm --entrypoint sh backend \
-#     -c "cd backend && ./node_modules/.bin/prisma db seed"
-#   (requires tsx + seed.ts in the image — seed.ts ships in backend/prisma/
-#   thanks to the runtime COPY, but tsx is a dev dep so seeding works from
-#   the build stage; see README for production seeding strategy.)
+# Seeding the demo dataset (idempotent — re-running skips rows that already exist):
+#   docker compose --profile seed run --rm seed
+
+# Shared build directive so the `backend` and `seed` services compile + reuse the
+# exact same image — anchored so changing the Dockerfile path is a one-liner.
+x-backend-build: &backend-build
+  context: .
+  dockerfile: backend/Dockerfile
 
 services:
   backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
+    # Explicit `image:` ensures the `seed` service below reuses the EXACT same
+    # built image — without it, compose tags each service's build separately
+    # (`<project>-<service>`) and they can drift out of sync.
+    image: rainpath/backend:local
+    build: *backend-build
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -62,6 +66,33 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+  # One-shot seeder. Reuses the backend image so the workspace tsx + seed.ts +
+  # Prisma client are all already on disk. `profiles: [seed]` keeps it out of
+  # the default `docker compose up` set — invoke explicitly with:
+  #   docker compose --profile seed run --rm seed
+  # The seed script (backend/prisma/seed.ts) is idempotent: existing rows are
+  # left alone, so running it on a populated DB is a safe no-op.
+  seed:
+    image: rainpath/backend:local
+    build: *backend-build
+    environment:
+      DATABASE_URL: file:/data/dev.db
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - rainpath_data:/data
+    # Override the backend's entrypoint+CMD (which would start the API) to run
+    # the seed task instead. `prisma migrate deploy` keeps the schema in sync
+    # in case `seed` runs before the backend service has ever started.
+    entrypoint: ["/sbin/tini", "--"]
+    command:
+      - sh
+      - -c
+      - |
+        cd backend && \
+        ./node_modules/.bin/prisma migrate deploy && \
+        ./node_modules/.bin/tsx prisma/seed.ts
+    profiles: ["seed"]
 
 volumes:
   # Named volume so `docker compose down` doesn't wipe the DB. Use

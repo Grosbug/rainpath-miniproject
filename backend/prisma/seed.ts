@@ -42,6 +42,21 @@ const whatsappCourt: WhatsAppParams = {
   output: { mode: 'simple', successCondition: { statuses: ['delivered', 'read'] } }
 }
 
+// Multi-output WhatsApp: segments on read-receipt depth. Every channel status
+// (sent, delivered, read, failed) is routed, so the editor shows no coverage
+// warning.
+const whatsappSegmente: WhatsAppParams = {
+  body: 'Bonjour, votre examen est en attente de règlement. Merci de régulariser dès que possible.',
+  output: {
+    mode: 'multi',
+    outputs: [
+      { id: 'read',      label: 'Lu',                 condition: { statuses: ['read'] } },
+      { id: 'delivered', label: 'Distribué (non lu)', condition: { statuses: ['delivered', 'sent'] } },
+      { id: 'failed',    label: 'Échec',              condition: { statuses: ['failed'] } }
+    ]
+  }
+}
+
 const postalSuivi: PostalParams = {
   body: 'Courrier postal de rappel.',
   tracked: true,
@@ -187,12 +202,127 @@ function buildExpressWhatsApp(): SeededWorkflow {
   }
 }
 
+/**
+ * Fan-out from the start node: three channels fire in parallel straight off the
+ * départ (Email + SMS at J+1, WhatsApp at J+2), each a simple-output node whose
+ * success AND failure both converge on the single end. Showcases multiple
+ * branches leaving the start node — the patient simulator opens each as its own
+ * frontier in temporal order.
+ */
+function buildLancementParallele(): SeededWorkflow {
+  return {
+    name: 'Lancement parallèle — Email · SMS · WhatsApp simultanés',
+    description: 'Trois canaux partent en parallèle du départ (Email & SMS à J+1, WhatsApp à J+2). Chaque branche conclut en succès ou échec.',
+    graph: {
+      nodes: [
+        { id: 'start',    position: { x: 0,  y: START_Y },                  data: { kind: 'start' } },
+        { id: 'email',    position: { x: 1,  y: START_Y },                  data: { kind: 'send_email',    params: emailRelance } },
+        { id: 'sms',      position: { x: 1,  y: START_Y + LANE_DELTA },     data: { kind: 'send_sms',      params: smsCourt } },
+        { id: 'whatsapp', position: { x: 2,  y: START_Y + LANE_DELTA * 2 }, data: { kind: 'send_whatsapp', params: whatsappCourt } },
+        { id: 'end',      position: { x: 12, y: START_Y },                  data: { kind: 'end' } }
+      ],
+      edges: [
+        { id: 'e_s_email',  source: 'start',    target: 'email',    daysAfter: 1 },
+        { id: 'e_s_sms',    source: 'start',    target: 'sms',      daysAfter: 1 },
+        { id: 'e_s_wa',     source: 'start',    target: 'whatsapp', daysAfter: 2 },
+        { id: 'e_email_ok', source: 'email',    target: 'end', daysAfter: 11, sourceHandle: 'success' },
+        { id: 'e_email_ko', source: 'email',    target: 'end', daysAfter: 11, sourceHandle: 'failure' },
+        { id: 'e_sms_ok',   source: 'sms',      target: 'end', daysAfter: 11, sourceHandle: 'success' },
+        { id: 'e_sms_ko',   source: 'sms',      target: 'end', daysAfter: 11, sourceHandle: 'failure' },
+        { id: 'e_wa_ok',    source: 'whatsapp', target: 'end', daysAfter: 10, sourceHandle: 'success' },
+        { id: 'e_wa_ko',    source: 'whatsapp', target: 'end', daysAfter: 10, sourceHandle: 'failure' }
+      ]
+    }
+  }
+}
+
+/** Multi-output WhatsApp segmented on read-receipt depth — a multi-output example on a channel other than email. */
+function buildWhatsAppSegmente(): SeededWorkflow {
+  return {
+    name: 'WhatsApp segmenté — Lu · Distribué · Échec',
+    description: "Message WhatsApp à J+2 à sorties multiples : lu (fin), distribué non lu (relance SMS), échec d'envoi (courrier).",
+    graph: {
+      nodes: [
+        { id: 'start',  position: { x: 0,  y: START_Y },                  data: { kind: 'start' } },
+        { id: 'wa',     position: { x: 2,  y: START_Y },                  data: { kind: 'send_whatsapp', params: whatsappSegmente } },
+        { id: 'sms',    position: { x: 8,  y: START_Y + LANE_DELTA },     data: { kind: 'send_sms',      params: smsCourt } },
+        { id: 'postal', position: { x: 6,  y: START_Y + LANE_DELTA * 2 }, data: { kind: 'send_postal',   params: postalNonSuivi } },
+        { id: 'end',    position: { x: 18, y: START_Y },                  data: { kind: 'end' } }
+      ],
+      edges: [
+        { id: 'e_s_wa',       source: 'start',  target: 'wa',     daysAfter: 2 },
+        { id: 'e_wa_read',    source: 'wa',     target: 'end',    daysAfter: 16, sourceHandle: 'read' },
+        { id: 'e_wa_deliv',   source: 'wa',     target: 'sms',    daysAfter: 4,  sourceHandle: 'delivered' },
+        { id: 'e_wa_fail',    source: 'wa',     target: 'postal', daysAfter: 3,  sourceHandle: 'failed' },
+        { id: 'e_sms_end',    source: 'sms',    target: 'end',    daysAfter: 8,  sourceHandle: 'success' },
+        { id: 'e_postal_end', source: 'postal', target: 'end',    daysAfter: 10, sourceHandle: 'success' }
+      ]
+    }
+  }
+}
+
+/** Simple-output email whose success/failure handles each take a distinct path: success ends, failure retries by SMS. */
+function buildRelanceReessai(): SeededWorkflow {
+  return {
+    name: 'Relance avec réessai — Email puis SMS de secours',
+    description: "Email à J+5 : succès → fin ; échec d'envoi → réessai par SMS à J+4, qui conclut la relance.",
+    graph: {
+      nodes: [
+        { id: 'start', position: { x: 0,  y: START_Y },              data: { kind: 'start' } },
+        { id: 'email', position: { x: 5,  y: START_Y },              data: { kind: 'send_email', params: emailRelance } },
+        { id: 'sms',   position: { x: 9,  y: START_Y + LANE_DELTA }, data: { kind: 'send_sms',   params: smsCourt } },
+        { id: 'end',   position: { x: 20, y: START_Y },              data: { kind: 'end' } }
+      ],
+      edges: [
+        { id: 'e_s_email',  source: 'start', target: 'email', daysAfter: 5 },
+        { id: 'e_email_ok', source: 'email', target: 'end',   daysAfter: 15, sourceHandle: 'success' },
+        { id: 'e_email_ko', source: 'email', target: 'sms',   daysAfter: 4,  sourceHandle: 'failure' },
+        { id: 'e_sms_ok',   source: 'sms',   target: 'end',   daysAfter: 11, sourceHandle: 'success' },
+        { id: 'e_sms_ko',   source: 'sms',   target: 'end',   daysAfter: 11, sourceHandle: 'failure' }
+      ]
+    }
+  }
+}
+
+/** Start splits into two strategies: a multi-output segmented email and a simple success/failure SMS, in parallel. Combines fan-out + multi + simple. */
+function buildCarrefourStrategies(): SeededWorkflow {
+  return {
+    name: 'Carrefour départ — Email segmenté & SMS en parallèle',
+    description: 'Deux stratégies partent du départ : un email segmenté (engagé/passif/échec) et un SMS simple, chacun avec son propre dénouement.',
+    graph: {
+      nodes: [
+        { id: 'start',          position: { x: 0,  y: START_Y },                  data: { kind: 'start' } },
+        { id: 'email_seg',      position: { x: 3,  y: START_Y },                  data: { kind: 'send_email',  params: emailFerme } },
+        { id: 'postal_relance', position: { x: 10, y: START_Y + LANE_DELTA },     data: { kind: 'send_postal', params: postalSuivi } },
+        { id: 'postal_alt',     position: { x: 8,  y: START_Y + LANE_DELTA * 2 }, data: { kind: 'send_postal', params: postalNonSuivi } },
+        { id: 'sms',            position: { x: 2,  y: START_Y + LANE_DELTA * 3 }, data: { kind: 'send_sms',     params: smsCourt } },
+        { id: 'end',            position: { x: 22, y: START_Y },                  data: { kind: 'end' } }
+      ],
+      edges: [
+        { id: 'e_s_email', source: 'start',          target: 'email_seg',      daysAfter: 3 },
+        { id: 'e_s_sms',   source: 'start',          target: 'sms',            daysAfter: 2 },
+        { id: 'e_eng',     source: 'email_seg',      target: 'end',            daysAfter: 17, sourceHandle: 'eng' },
+        { id: 'e_no_eng',  source: 'email_seg',      target: 'postal_relance', daysAfter: 7,  sourceHandle: 'no_eng' },
+        { id: 'e_fail',    source: 'email_seg',      target: 'postal_alt',     daysAfter: 5,  sourceHandle: 'fail' },
+        { id: 'e_pr_end',  source: 'postal_relance', target: 'end',            daysAfter: 12, sourceHandle: 'success' },
+        { id: 'e_pa_end',  source: 'postal_alt',     target: 'end',            daysAfter: 12, sourceHandle: 'success' },
+        { id: 'e_sms_ok',  source: 'sms',            target: 'end',            daysAfter: 10, sourceHandle: 'success' },
+        { id: 'e_sms_ko',  source: 'sms',            target: 'end',            daysAfter: 10, sourceHandle: 'failure' }
+      ]
+    }
+  }
+}
+
 const WORKFLOWS: SeededWorkflow[] = [
   buildSimpleRelance(),
   buildCascadeMultiCanal(),
   buildEngagementSegmentation(),
   buildPostalSuiviLongTerme(),
-  buildExpressWhatsApp()
+  buildExpressWhatsApp(),
+  buildLancementParallele(),
+  buildWhatsAppSegmente(),
+  buildRelanceReessai(),
+  buildCarrefourStrategies()
 ]
 
 // ---------- Patient profiles ----------
@@ -277,6 +407,12 @@ const SAMPLE_PATIENTS: SeededPatient[] = [
     firstName: 'Julien', lastName: 'Lambert', gender: 'male',
     email: null, phone: '+33 6 67 89 01 23',
     whatsapp: '+33 6 67 89 01 23', address: null
+  },
+  // All four channels — second fully-equipped profile, for the parallel/carrefour demos.
+  {
+    firstName: 'Karim', lastName: 'Benali', gender: 'male',
+    email: 'karim.benali@example.com', phone: '+33 6 78 90 12 34',
+    whatsapp: '+33 6 78 90 12 34', address: addr('15 cours Mirabeau', '13100', 'Aix-en-Provence')
   }
 ]
 
@@ -351,6 +487,30 @@ const SAMPLE_RUNS: SeededRun[] = [
     patient: { firstName: 'Julien', lastName: 'Lambert' },
     workflowName: 'Express WhatsApp — Rappel rapide',
     title: 'Julien — WhatsApp mobile-only'
+  },
+  // Alice (all four channels) walks the parallel fan-out — every branch off the start fires.
+  {
+    patient: { firstName: 'Alice', lastName: 'Durand' },
+    workflowName: 'Lancement parallèle — Email · SMS · WhatsApp simultanés',
+    title: 'Alice — Lancement parallèle', startOffsetDays: 2
+  },
+  // Camille has WhatsApp + SMS + postal — exactly the channels the segmented WhatsApp routes to.
+  {
+    patient: { firstName: 'Camille', lastName: 'Rousseau' },
+    workflowName: 'WhatsApp segmenté — Lu · Distribué · Échec',
+    title: 'Camille — WhatsApp segmenté', startOffsetDays: 2
+  },
+  // Bruno has email + SMS — email success/failure, SMS as the retry path.
+  {
+    patient: { firstName: 'Bruno', lastName: 'Martin' },
+    workflowName: 'Relance avec réessai — Email puis SMS de secours',
+    title: 'Bruno — Relance avec réessai', startOffsetDays: 5
+  },
+  // Karim (all four channels) exercises the carrefour: segmented email branch + parallel SMS branch.
+  {
+    patient: { firstName: 'Karim', lastName: 'Benali' },
+    workflowName: 'Carrefour départ — Email segmenté & SMS en parallèle',
+    title: 'Karim — Carrefour stratégies', startOffsetDays: 3
   }
 ]
 

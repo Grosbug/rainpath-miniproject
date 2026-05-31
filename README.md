@@ -129,16 +129,19 @@ open http://localhost:8080     # frontend (SPA + /api proxyé)
 docker compose logs -f backend # logs Pino structurés (JSON)
 docker compose down            # stop (volume préservé)
 docker compose down -v         # stop + reset complet de la DB
+
+docker compose --profile seed run --rm seed   # peupler le jeu de démo
 ```
 
-L'image backend applique automatiquement `prisma migrate deploy` à chaque boot (idempotent), donc une DB vide est seedée au schéma courant sans étape manuelle.
+L'image backend applique automatiquement `prisma migrate deploy` à chaque boot (idempotent), donc une DB vide est seedée au schéma courant sans étape manuelle. Le seed des données (workflows, patients, runs) est optionnel et géré par le service `seed` — voir [Seeder le jeu de démo](#seeder-le-jeu-de-démo).
 
 ### Composition
 
 | Service | Image | Port hôte | Notes |
 |---|---|---|---|
-| `backend` | build `backend/Dockerfile` (multi-stage Node 20-alpine) | — (interne uniquement) | `tini` PID 1, user `app` non-root, healthcheck `GET /api/health` (10s/5s/5 retries). |
+| `backend` | `rainpath/backend:local` (build `backend/Dockerfile`, multi-stage Node 20-alpine) | — (interne uniquement) | `tini` PID 1, user `app` non-root, healthcheck `GET /api/health` (10s/5s/5 retries). |
 | `frontend` | build `frontend/Dockerfile` (nginx 1.27-alpine) | `${FRONTEND_PORT:-8080}:80` | SPA fallback `try_files`, reverse-proxy `/api/* → http://backend:3000/api/`, cache long sur `/assets/`. |
+| `seed` | `rainpath/backend:local` (réutilisée — pas de second build) | — (one-shot) | Profil `seed` → ne démarre pas avec `up`. Override CMD vers `prisma migrate deploy && tsx prisma/seed.ts`. |
 
 Tailles compressées : **backend ~280 MB**, **frontend ~23 MB**.
 
@@ -154,14 +157,13 @@ Tailles compressées : **backend ~280 MB**, **frontend ~23 MB**.
 
 ### Seeder le jeu de démo
 
-`prisma migrate deploy` applique le schéma mais ne lance pas le seed. Pour peupler la stack démarrée :
+`prisma migrate deploy` applique le schéma à chaque boot mais ne lance pas le seed. Un service `seed` dédié (profil `seed`, ne démarre pas avec `up`) peuple la stack avec 6 templates de nœuds, 9 workflows de démonstration, 11 profils patients et 14 parcours :
 
 ```bash
-# Méthode hôte (rapide) — exécute le seed local contre le volume du conteneur
-DATABASE_URL=file:./dev.db pnpm --filter @rainpath/backend prisma:seed
-docker compose cp backend/prisma/dev.db backend:/data/dev.db
-docker compose restart backend
+docker compose --profile seed run --rm seed
 ```
+
+Le script ([backend/prisma/seed.ts](backend/prisma/seed.ts)) est **idempotent** — re-lancer sur une base déjà peuplée saute les lignes existantes (`+0 new, N already present` pour chaque entité). Pratique pour rajouter un workflow au seed sans repartir de zéro : `down -v` + `up` + `seed`.
 
 ### Déploiement distant
 
