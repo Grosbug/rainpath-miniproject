@@ -15,6 +15,7 @@ import { useHistoryActions } from './hooks/useHistoryActions'
 import { SaveStatusBadge } from './SaveStatusBadge'
 import { ValidationStatusBadge } from './ValidationStatusBadge'
 import { TOOLBAR_DIVIDER, TOOLBAR_LEADING_GRID } from '@/lib/toolbar-layout'
+import { TimeScaleControl } from '@/canvas/TimeScaleControl'
 
 interface Props {
   saveNow: () => void
@@ -156,6 +157,7 @@ export function TopBar({ saveNow }: Props) {
       <div className='flex flex-1 items-center justify-end gap-2'>
         <div className='flex items-center gap-1'>
         <ValidationStatusBadge />
+        <TimeScaleControl />
         <IconButton
           icon='Undo2'
           aria-label='Annuler'
