@@ -17,14 +17,35 @@ function mockFetchOnce(response: { status: number; body: unknown; headers?: Reco
 describe('workflows api client', () => {
   beforeEach(() => { globalThis.fetch = originalFetch })
 
-  it('listWorkflows() parses the array response', async () => {
+  it('listWorkflows() parses the paginated envelope', async () => {
     mockFetchOnce({
       status: 200,
-      body: [{ id: 'w1', name: 'A', description: null, updatedAt: '2026-05-28T10:00:00.000Z' }]
+      body: {
+        items: [{ id: 'w1', name: 'A', description: null, updatedAt: '2026-05-28T10:00:00.000Z', isValid: true }],
+        total: 1,
+        limit: 50,
+        offset: 0
+      }
     })
     const list = await listWorkflows()
-    expect(list).toHaveLength(1)
-    expect(list[0]).toMatchObject({ id: 'w1', name: 'A' })
+    expect(list.items).toHaveLength(1)
+    expect(list.total).toBe(1)
+    expect(list.items[0]).toMatchObject({ id: 'w1', name: 'A', isValid: true })
+  })
+
+  it('listWorkflows({ limit, offset, search }) forwards as query string', async () => {
+    const spy = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ items: [], total: 0, limit: 10, offset: 20 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    )
+    globalThis.fetch = spy as unknown as typeof fetch
+    await listWorkflows({ limit: 10, offset: 20, search: 'relance' })
+    const url = String(spy.mock.calls[0]?.[0])
+    expect(url).toContain('limit=10')
+    expect(url).toContain('offset=20')
+    expect(url).toContain('search=relance')
   })
 
   it('getWorkflow(id) parses the full workflow including graph', async () => {

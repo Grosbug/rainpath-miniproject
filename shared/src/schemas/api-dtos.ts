@@ -22,6 +22,38 @@ export const DuplicateWorkflowDto = z.object({
 })
 export type DuplicateWorkflowDto = z.infer<typeof DuplicateWorkflowDto>
 
+/**
+ * Query params for `GET /api/workflows`. Coerced from strings (Express query
+ * is always string-typed). Bounded so a runaway `?limit=1e9` can't OOM the
+ * server or force a multi-MB JSON payload over the wire.
+ */
+export const WorkflowListQueryDto = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+  /** Optional name/description substring filter (case-insensitive). */
+  search: z.string().trim().min(1).max(120).optional()
+})
+export type WorkflowListQueryDto = z.infer<typeof WorkflowListQueryDto>
+
+/**
+ * Shape returned by the paginated workflow list endpoint. Always wrap the
+ * collection so the client knows the total count without a second request.
+ */
+export type WorkflowListResponse = {
+  items: WorkflowListItem[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export type WorkflowListItem = {
+  id: string
+  name: string
+  description: string | null
+  updatedAt: string
+  isValid: boolean
+}
+
 // Node templates
 export const CreateNodeTemplateDto = z.intersection(
   NodeTemplateBody,

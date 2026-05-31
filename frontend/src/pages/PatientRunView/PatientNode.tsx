@@ -9,6 +9,15 @@ import type { Graph, GraphNode, OutputConfig } from '@rainpath/shared'
 import { nodeDisplayTitle } from '@rainpath/shared'
 import { Icon, IconName } from '@/components/Icon'
 import { frStatus } from '@/pages/WorkflowEditor/modal/status-labels'
+import {
+  DayBadge,
+  FamilyHeader,
+  FamilyStrip,
+  NODE_CARD_BASE_CLASS,
+  NodeTitle,
+  dayBadgePadding,
+  type NodeFamily
+} from '@/pages/WorkflowEditor/nodes/node-chrome'
 import type { PatientContactData } from './cumulative-days'
 
 /** Read-only mirror of the editor's handle styling — smaller, no hover/interaction. */
@@ -40,7 +49,7 @@ export type PatientNodeData = NodeData & {
 type SendNodeData = Extract<NodeData, { kind: 'send_email' | 'send_sms' | 'send_whatsapp' | 'send_postal' }>
 
 const KIND_META: Record<NodeData['kind'], {
-  family: string
+  family: NodeFamily
   icon: IconName
   label: string
 }> = {
@@ -92,11 +101,9 @@ export function PatientNode({ data }: NodeProps) {
     borderWidth: d.reachability === 'current' ? 2 : 1
   } as const
 
-  const stripStyle = { background: `var(--node-${meta.family}-accent)` } as const
   const ring = d.reachability === 'current'
     ? 'ring-2 ring-primary ring-offset-2 ring-offset-bg shadow-elev-2'
     : 'shadow-elev-1'
-  const paddingRight = d._dayX !== undefined ? 'pr-12' : 'pr-3'
 
   const focusable = !!d._onFocus
 
@@ -112,31 +119,19 @@ export function PatientNode({ data }: NodeProps) {
             d._onFocus?.()
           }
         } : undefined}
-        className={`relative w-[176px] ${ring} rounded-md py-3 pl-[15px] ${paddingRight} ${
+        className={`${NODE_CARD_BASE_CLASS} ${ring} ${dayBadgePadding(d._dayX)} ${
           focusable ? 'cursor-pointer hover:shadow-elev-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2' : ''
         }`}
         style={cardStyle}
         data-rp-tooltip={focusable ? 'Cliquer pour traiter cette branche' : undefined}
       >
-        <div className="absolute left-0 top-0 h-full w-[3px] rounded-l-md" style={stripStyle} aria-hidden="true" />
+        <FamilyStrip family={meta.family} />
 
-        {d._dayX !== undefined && (
-          <span
-            className="absolute right-2 top-2 rounded-full border bg-surface px-2 py-0.5 text-[10px] font-semibold tabular-nums leading-none shadow-elev-1"
-            style={{ color: `var(--node-${meta.family}-accent)`, borderColor: `var(--node-${meta.family}-border)` }}
-            aria-label={`Délai cumulé depuis le départ : ${d._dayX} jour${d._dayX > 1 ? 's' : ''}`}
-          >
-            J+{d._dayX}
-          </span>
-        )}
+        {d._dayX !== undefined && <DayBadge family={meta.family} dayX={d._dayX} />}
 
-        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-fg-muted">
-          <Icon name={meta.icon} size={16} className="shrink-0" />
-          <span className="truncate">{meta.label}</span>
-        </div>
-        <h3 className="mt-1 text-sm font-semibold text-fg" data-rp-tooltip={title}>
-          <span className="line-clamp-1">{title}</span>
-        </h3>
+        <FamilyHeader icon={meta.icon} label={meta.label} />
+        <NodeTitle title={title} />
+
         <div className="mt-2">
           <ReachabilityBadge state={d.reachability} blockedReason={d.blockedReason} />
         </div>

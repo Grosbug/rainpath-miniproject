@@ -1,18 +1,18 @@
 export type GraphErrorItem = {
-  code: string
-  message: string
-  nodeId?: string
-  edgeId?: string
-  path?: (string | number)[]
-}
+  code: string;
+  message: string;
+  nodeId?: string;
+  edgeId?: string;
+  path?: (string | number)[];
+};
 
 export type GraphWarning = {
-  code: string
-  message: string
-  nodeId?: string
-  edgeId?: string
-  missingStatuses?: string[]
-}
+  code: string;
+  message: string;
+  nodeId?: string;
+  edgeId?: string;
+  missingStatuses?: string[];
+};
 
 /**
  * Thrown by services when `validateGraph` reports errors. Caught by ZodExceptionFilter
@@ -21,9 +21,9 @@ export type GraphWarning = {
 export class GraphValidationError extends Error {
   constructor(
     public readonly errors: GraphErrorItem[],
-    public readonly warnings: GraphWarning[] = []
+    public readonly warnings: GraphWarning[] = [],
   ) {
-    super('Graph validation failed')
-    this.name = 'GraphValidationError'
+    super('Graph validation failed');
+    this.name = 'GraphValidationError';
   }
 }

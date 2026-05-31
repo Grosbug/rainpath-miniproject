@@ -5,7 +5,8 @@ import {
   type PostalAddress, type PatientGender,
   type RunHistoryEntry,
   START_Y,
-  prettifyLayout
+  prettifyLayout,
+  validateGraph
 } from '@rainpath/shared'
 
 const prisma = new PrismaClient()
@@ -392,8 +393,14 @@ async function main() {
     // would produce by clicking the button. Pure-fn on the graph — no side
     // effects on the source-of-truth seed object.
     const prettified = prettifyLayout(w.graph)
+    const isValid = validateGraph(prettified).errors.length === 0
     await prisma.workflow.create({
-      data: { name: w.name, description: w.description, graph: JSON.stringify(prettified) }
+      data: {
+        name: w.name,
+        description: w.description,
+        graph: JSON.stringify(prettified),
+        isValid
+      }
     })
     insertedWorkflows++
   }

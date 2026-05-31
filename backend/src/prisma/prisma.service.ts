@@ -1,25 +1,28 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
-import { PrismaClient } from '@prisma/client'
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
   async onModuleInit() {
-    await this.$connect()
+    await this.$connect();
   }
 
   async onModuleDestroy() {
-    await this.$disconnect()
+    await this.$disconnect();
   }
 }
 
 type SoftDeleteQueryCtx = {
-  args: { where?: Record<string, unknown> }
-  query: (args: { where?: Record<string, unknown> }) => Promise<unknown>
-}
+  args: { where?: Record<string, unknown> };
+  query: (args: { where?: Record<string, unknown> }) => Promise<unknown>;
+};
 
 function withSoftDeleteWhere({ args, query }: SoftDeleteQueryCtx) {
-  args.where = { ...args.where, deletedAt: null }
-  return query(args)
+  args.where = { ...args.where, deletedAt: null };
+  return query(args);
 }
 
 /**
@@ -35,8 +38,8 @@ export function buildSoftDeleteClient(base: PrismaService): PrismaService {
       $allModels: {
         findMany: withSoftDeleteWhere,
         findFirst: withSoftDeleteWhere,
-        findUnique: withSoftDeleteWhere
-      }
-    }
-  }) as unknown as PrismaService
+        findUnique: withSoftDeleteWhere,
+      },
+    },
+  }) as unknown as PrismaService;
 }

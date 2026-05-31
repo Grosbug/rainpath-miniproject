@@ -27,16 +27,21 @@ describe('WorkflowsList', () => {
   beforeEach(() => { globalThis.fetch = originalFetch })
 
   it('renders the empty state when the list is empty', async () => {
-    mockFetch(200, [])
+    mockFetch(200, { items: [], total: 0, limit: 50, offset: 0 })
     renderPage()
     expect(await screen.findByText(/Aucun workflow/i)).toBeInTheDocument()
   })
 
   it('renders a row per workflow', async () => {
-    mockFetch(200, [
-      { id: 'w1', name: 'Relance standard', description: 'desc', updatedAt: new Date().toISOString() },
-      { id: 'w2', name: 'Suivi rapide', description: null, updatedAt: new Date().toISOString() }
-    ])
+    mockFetch(200, {
+      items: [
+        { id: 'w1', name: 'Relance standard', description: 'desc', updatedAt: new Date().toISOString(), isValid: true },
+        { id: 'w2', name: 'Suivi rapide', description: null, updatedAt: new Date().toISOString(), isValid: false }
+      ],
+      total: 2,
+      limit: 50,
+      offset: 0
+    })
     renderPage()
     expect(await screen.findByText('Relance standard')).toBeInTheDocument()
     expect(screen.getByText('Suivi rapide')).toBeInTheDocument()

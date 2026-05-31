@@ -61,12 +61,17 @@ export default function WorkflowsList() {
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.workflows.list(),
-    queryFn: listWorkflows
+    queryFn: () => listWorkflows()
   })
 
+  // Memoize the items array so its identity is stable across renders when the
+  // query response hasn't actually changed — otherwise the `useMemo` below
+  // would re-run on every render via the `data?.items ?? []` fallback always
+  // producing a new array.
+  const rowsRaw = useMemo(() => data?.items ?? [], [data])
+
   const filtered = useMemo(() => {
-    if (!data) return []
-    let rows = data
+    let rows = rowsRaw
     const q = search.trim().toLowerCase()
     if (q) {
       rows = rows.filter(w =>
@@ -77,7 +82,7 @@ export default function WorkflowsList() {
     if (validityFilter === 'valid')   rows = rows.filter(w => w.isValid === true)
     if (validityFilter === 'invalid') rows = rows.filter(w => w.isValid === false)
     return [...rows].sort(sortFn(sortBy))
-  }, [data, search, sortBy, validityFilter])
+  }, [rowsRaw, search, sortBy, validityFilter])
 
   const activeFilters = validityFilter !== 'all' ? 1 : 0
   const hasAnyControl = search.trim() !== '' || activeFilters > 0 || sortBy !== DEFAULT_SORT
@@ -97,7 +102,7 @@ export default function WorkflowsList() {
       qc.invalidateQueries({ queryKey: queryKeys.workflows.list() })
       qc.invalidateQueries({ queryKey: queryKeys.patientProfiles.list() })
       qc.invalidateQueries({ queryKey: queryKeys.patientRuns.all })
-      const name = data?.find(w => w.id === id)?.name ?? 'le workflow'
+      const name = rowsRaw.find(w => w.id === id)?.name ?? 'le workflow'
       toast.success(`« ${name} » supprimé`)
       setToDelete(null)
     },
@@ -118,7 +123,7 @@ export default function WorkflowsList() {
             Workflows
             {data ? (
               <span className='ml-2 text-base font-normal text-fg-muted tabular-nums'>
-                ({filtered.length}{filtered.length !== data.length ? ` / ${data.length}` : ''})
+                ({filtered.length}{filtered.length !== rowsRaw.length ? ` / ${rowsRaw.length}` : ''})
               </span>
             ) : null}
           </h1>
@@ -131,7 +136,7 @@ export default function WorkflowsList() {
         }
       />
 
-      {data && data.length > 0 ? (
+      {data && rowsRaw.length > 0 ? (
         <div className='mt-6 flex flex-wrap items-center gap-2'>
           <div className='relative min-w-[260px] flex-1 max-w-md'>
             <Icon
@@ -230,7 +235,7 @@ export default function WorkflowsList() {
               Réessayer
             </Button>
           </div>
-        ) : !data || data.length === 0 ? (
+        ) : !data || rowsRaw.length === 0 ? (
           <div className='mx-auto max-w-md rounded-lg border border-border bg-surface p-8 text-center'>
             <Icon name='ListPlus' size={24} className='mx-auto text-fg-muted' />
             <p className='mt-4 text-sm text-fg'>Aucun workflow créé pour le moment.</p>

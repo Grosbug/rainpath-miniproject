@@ -20,6 +20,20 @@ const WorkflowSummary = z.object({
 })
 export type WorkflowSummary = z.infer<typeof WorkflowSummary>
 
+const WorkflowListEnvelope = z.object({
+  items: z.array(WorkflowSummary),
+  total: z.number().int().nonnegative(),
+  limit: z.number().int().positive(),
+  offset: z.number().int().nonnegative()
+})
+export type WorkflowList = z.infer<typeof WorkflowListEnvelope>
+
+export type WorkflowListParams = {
+  limit?: number
+  offset?: number
+  search?: string
+}
+
 const Warning = z.object({
   code: z.string(),
   message: z.string(),
@@ -63,16 +77,21 @@ function parseWorkflowDetail(raw: unknown): WorkflowDetail {
   return { ...envR.data, graph: graphR.data }
 }
 
-function parseList(raw: unknown): WorkflowSummary[] {
-  const r = z.array(WorkflowSummary).safeParse(raw)
+function parseList(raw: unknown): WorkflowList {
+  const r = WorkflowListEnvelope.safeParse(raw)
   if (!r.success) throwDrift(r.error.issues)
   return r.data
 }
 
 // ---- Methods ----
 
-export async function listWorkflows(): Promise<WorkflowSummary[]> {
-  const raw = await apiFetch<unknown>('/workflows')
+export async function listWorkflows(params: WorkflowListParams = {}): Promise<WorkflowList> {
+  const qs = new URLSearchParams()
+  if (params.limit !== undefined) qs.set('limit', String(params.limit))
+  if (params.offset !== undefined) qs.set('offset', String(params.offset))
+  if (params.search) qs.set('search', params.search)
+  const suffix = qs.toString() ? `?${qs.toString()}` : ''
+  const raw = await apiFetch<unknown>(`/workflows${suffix}`)
   return parseList(raw)
 }
 

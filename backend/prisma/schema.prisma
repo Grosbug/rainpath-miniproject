@@ -12,12 +12,16 @@ model Workflow {
   name        String
   description String?
   graph       String   // JSON-encoded Graph (SQLite has no native Json)
+  // Cached `validateGraph(graph).errors.length === 0`, written at every mutation.
+  // Lets list() page over thousands of rows without re-decoding/re-validating each graph.
+  isValid     Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   deletedAt   DateTime?
   patientRuns PatientRun[]
 
   @@index([deletedAt])
+  @@index([updatedAt])
 }
 
 model NodeTemplate {

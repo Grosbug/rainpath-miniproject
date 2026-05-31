@@ -56,11 +56,12 @@ export function CreateRunDialog({ open, onOpenChange, workflowId, patientId }: P
     enabled: open && !lockedPatient
   })
 
-  const { data: workflows } = useQuery({
+  const { data: workflowList } = useQuery({
     queryKey: queryKeys.workflows.list(),
-    queryFn: listWorkflows,
+    queryFn: () => listWorkflows(),
     enabled: open && !lockedWorkflow
   })
+  const workflows = workflowList?.items
 
   // Eagerly fetch the chosen workflow's graph so we can block run creation when the
   // workflow is invalid — backend enforces the same rule, but surfacing it pre-submit
