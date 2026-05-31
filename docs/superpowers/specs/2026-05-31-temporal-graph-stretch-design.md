@@ -42,7 +42,7 @@ export const BASE_PX_PER_DAY = 28
 export const MIN_SCALE = 0.5   // → 14 px/jour (compact)
 export const MAX_SCALE = 4     // → 112 px/jour (très aéré)
 export const STEP_RATIO = 1.2  // facteur multiplicatif par cran
-export const STORAGE_KEY = 'rainpath.timeScale'
+export const STORAGE_KEY = 'rainpath:time-scale'
 ```
 
 Remplace les 3 occurrences dupliquées de `PX_PER_DAY` :
@@ -66,7 +66,7 @@ useTimeScale() → {
 }
 ```
 
-- Clé localStorage unique partagée `rainpath.timeScale` : les deux vues lisent/écrivent la même valeur. Lecture au montage ; les deux vues étant sur des routes distinctes, la synchro inter-vues se fait via localStorage au montage (un listener `storage` optionnel pour la synchro multi-onglets).
+- Clé localStorage unique partagée `rainpath:time-scale` : les deux vues lisent/écrivent la même valeur. Lecture au montage ; les deux vues étant sur des routes distinctes, la synchro inter-vues se fait via localStorage au montage (un listener `storage` optionnel pour la synchro multi-onglets).
 - Toutes les valeurs bornées à `[MIN_SCALE, MAX_SCALE]`.
 - `setScale` valide/clampe l'entrée (slider) ; valeurs non numériques ou hors-bornes ramenées dans l'intervalle.
 
