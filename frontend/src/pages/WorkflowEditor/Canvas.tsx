@@ -27,10 +27,17 @@ const PX_PER_DAY = 28
 // never re-fits.
 const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1 } as const
 
+// Stacks above the default node z-index (0) so the source/target nodes of a
+// hovered edge lift their handles + card above neighbours. Stays below the
+// EdgeLabelRenderer portal (z-index 1500) so the hovered edge's overlay path
+// still sits cleanly on top of the lifted handles.
+const HOVERED_EDGE_NODE_Z = 1000
+
 function toRFNodes(
   nodes: ReturnType<typeof useEditorStore.getState>['nodes'],
   errors: ReturnType<typeof useEditorStore.getState>['validationErrors'],
-  warnings: ReturnType<typeof useEditorStore.getState>['validationWarnings']
+  warnings: ReturnType<typeof useEditorStore.getState>['validationWarnings'],
+  liftedNodeIds: ReadonlySet<string> | null
 ): RFNode[] {
   // Index validation issues by nodeId so the node renderer can show a small alert badge
   // on the affected card. Counts (not just booleans) so the tooltip can say "3 erreurs".
@@ -55,7 +62,8 @@ function toRFNodes(
       _errorCount: errorByNode.get(n.id) ?? 0,
       _warningCount: warningByNode.get(n.id) ?? 0
     },
-    draggable: n.data.kind !== 'start'
+    draggable: n.data.kind !== 'start',
+    ...(liftedNodeIds?.has(n.id) ? { zIndex: HOVERED_EDGE_NODE_Z } : null)
   }))
 }
 
@@ -133,9 +141,21 @@ useLeftAnchoredZoom(56)
     return () => document.removeEventListener('mousemove', onMove)
   }, [])
 
+  // Source + target of the currently hovered edge — lifted above neighbouring
+  // nodes so their handles are visible under the hovered edge's overlay path
+  // (which already sits above nodes via the EdgeLabelRenderer portal). Kept
+  // as a Set so toRFNodes can do an O(1) lookup per node.
+  const hoveredEdgeId = useEdgeHover(s => s.hoveredEdgeId)
+  const liftedNodeIds = useMemo<ReadonlySet<string> | null>(() => {
+    if (!hoveredEdgeId) return null
+    const edge = edges.find(e => e.id === hoveredEdgeId)
+    if (!edge) return null
+    return new Set([edge.source, edge.target])
+  }, [hoveredEdgeId, edges])
+
   const rfNodes = useMemo(
-    () => toRFNodes(nodes, validationErrors, validationWarnings),
-    [nodes, validationErrors, validationWarnings]
+    () => toRFNodes(nodes, validationErrors, validationWarnings, liftedNodeIds),
+    [nodes, validationErrors, validationWarnings, liftedNodeIds]
   )
   const rfEdges = useMemo(() => toRFEdges(edges), [edges])
 

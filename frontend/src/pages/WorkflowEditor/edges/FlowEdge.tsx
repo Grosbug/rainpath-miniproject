@@ -99,6 +99,35 @@ export function FlowEdge(props: EdgeProps) {
         interactionWidth={20}
       />
       <EdgeLabelRenderer>
+        {/* Hover overlay — duplicate the path (and its halo) inside the label
+            portal so the stroke lifts above any node it crosses. The portal's
+            container sits at z-index 1500 (globals.css), which beats every
+            node's z-index. SVG is `overflow: visible` so a 0×0 viewbox doesn't
+            clip the absolute path coordinates, and `pointer-events: none`
+            keeps the overlay from stealing the underlying edge's hit area
+            (the original BaseEdge still handles interaction). */}
+        {isHovered ? (
+          <svg
+            className="absolute left-0 top-0"
+            style={{ overflow: 'visible', pointerEvents: 'none' }}
+            aria-hidden="true"
+          >
+            {halo ? (
+              <path
+                d={path}
+                fill="none"
+                className={`react-flow__edge-path ${pathClass} rp-edge__halo`}
+                style={haloStyle}
+              />
+            ) : null}
+            <path
+              d={path}
+              fill="none"
+              className={`react-flow__edge-path ${pathClass}`}
+              style={pathStyle}
+            />
+          </svg>
+        ) : null}
         <div
           className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-md border px-2 py-0.5 text-xs font-medium tabular-nums text-fg ${labelBorder}`}
           style={labelStyle}
