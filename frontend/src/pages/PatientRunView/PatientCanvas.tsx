@@ -216,7 +216,7 @@ function CanvasInner({
   )
 
   return (
-    <div className="relative h-full w-full">
+    <div className="rp-patient-canvas relative h-full w-full">
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}

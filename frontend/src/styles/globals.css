@@ -85,11 +85,19 @@
    `.react-flow__edgelabel-renderer` — single word, NOT `edge-label-renderer`.
    By default this layer sits below node cards, so on tight workflows (card
    width > X gap) the label's left/right tips fall inside neighbouring cards
-   and get clipped. Patient view amplifies this because PatientCanvas writes
-   inline `zIndex: 1000` on its "current" cards. Lift the label layer above
-   any node z-index so the +N j chip stays fully readable. */
+   and get clipped. Lift the label layer above any node z-index in the editor
+   so the +N j chip stays fully readable. */
 .react-flow__edgelabel-renderer {
   z-index: 1500;
+}
+
+/* Patient view override: the focused card writes inline `zIndex: 1000` and is
+   meant to be the most prominent thing on screen — its labels must NOT sit
+   above it. Drop the portal to 999 so the focused card always paints on top,
+   while ordinary cards (z-index 1) and picker-enabled cards (100) stay below
+   the label layer (chip still readable on top of them). */
+.rp-patient-canvas .react-flow__edgelabel-renderer {
+  z-index: 999;
 }
 
 /* Edge route tones — saturated strokes + halo so succès/échec/multi are easy to tell apart. */
